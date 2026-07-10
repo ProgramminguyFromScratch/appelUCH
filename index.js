@@ -67,6 +67,7 @@ const HANDLERS = {
     PLACE_PIECE_REQUEST: (room, seat, payload) => room.handlePlacePieceRequest(seat, payload),
     INPUT_FRAME: (room, seat, payload) => room.handleInputFrame(seat, payload),
     POSITION_SNAPSHOT: (room, seat, payload) => room.handlePositionSnapshot(seat, payload),
+    TILE_UPDATE: (room, seat, payload) => room.handleTileUpdate(seat, payload),
     FINISH_OBSERVED: (room, seat, payload) => room.handleFinishObserved(seat, payload),
     ELIMINATION_OBSERVED: (room, seat, payload) => room.handleEliminationObserved(seat, payload),
     CONTINUE_REQUEST: (room, seat) => room.handleContinueRequest(seat),

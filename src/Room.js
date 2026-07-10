@@ -12,7 +12,7 @@ const {
     LOADING_BARRIER_TIMEOUT_MS,
     ROUND_END_DELAY_MS
 } = require('./protocol');
-const { decodeLevelCode } = require('./levelCode');
+const { decodeLevelCode, encodeLevelCode } = require('./levelCode');
 const { PIECE_POOL, getPieceById, getPieceFootprintCells } = require('./pieces');
 const { LEVEL_POOL } = require('./levels');
 
@@ -36,6 +36,12 @@ class Room {
         this.stageVotes = new Map(); // seatIndex -> candidateIndex, cleared each enterStageSelect()
         this.levelCode = null;
         this.map = null; // { MAP: number[], MAP_R: number[], size_x } — authoritative, persists round-to-round
+        // The rest of what decodeLevelCode() returns besides map/rotations/
+        // size_x — command strings, wall data, hue — needed alongside
+        // this.map to re-serialize a levelCode via encodeLevelCode() (see
+        // BUILD_COMPLETE below). Set once in lockStage() and never
+        // touched again; it's static per-stage, unlike this.map.
+        this.levelMeta = null; // { MAP_DATA, wall, hue, hue2 }
         this.startCell = { col: 0, row: 0 };
 
         this.partySlots = []; // Array<{ slotIndex, pieceId } | null>
@@ -327,6 +333,7 @@ class Room {
             return;
         }
         this.map = { MAP: decoded.map.slice(), MAP_R: decoded.rotations.slice(), size_x: decoded.size_x };
+        this.levelMeta = { MAP_DATA: decoded.MAP_DATA, wall: decoded.wall, hue: decoded.hue, hue2: decoded.hue2 };
         this.startCell = this.computeStartCell();
 
         this.broadcast({
@@ -358,15 +365,25 @@ class Room {
     // player died last round, and if the whole seat died, one of the
     // revealed slots is forced to be a bomb.
     pickPartySlots(count, allowBomb, guaranteeBomb) {
-        const pool = allowBomb ? PIECE_POOL : PIECE_POOL.filter(p => p.id !== 'bomb');
-        const slots = [];
-        for (let i = 0; i < count; i++) {
-            const piece = pool[Math.floor(Math.random() * pool.length)];
-            slots.push({ pieceId: piece.id });
+        let pool = allowBomb
+            ? [...PIECE_POOL]
+            : PIECE_POOL.filter(p => p.id !== 'bomb');
+
+        // Shuffle the pool (Fisher-Yates)
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
         }
-        if (guaranteeBomb && count > 0 && !slots.some(s => s.pieceId === 'bomb')) {
-            slots[Math.floor(Math.random() * count)] = { pieceId: 'bomb' };
+
+        const slots = pool
+            .slice(0, Math.min(count, pool.length))
+            .map(piece => ({ pieceId: piece.id }));
+
+        if (guaranteeBomb && !slots.some(s => s.pieceId === 'bomb')) {
+            const replaceIndex = Math.floor(Math.random() * slots.length);
+            slots[replaceIndex] = { pieceId: 'bomb' };
         }
+
         return slots;
     }
 
@@ -641,7 +658,25 @@ class Room {
     completeBuild() {
         if (this.phase !== PHASE.BUILD) return;
         clearTimeout(this.timers.build);
-        this.broadcast({ type: 'BUILD_COMPLETE', phase: PHASE.BUILD, payload: { mapPatch: [] } });
+
+        // Hand players back a levelCode for exactly what BUILD just
+        // produced (spawn tile + every piece placed this round and every
+        // round before it) in the same format as the hardcoded
+        // LEVEL_POOL entries, so it can be pasted into ?level= or shared
+        // like any other stage. Built from this.map (kept up to date by
+        // placePieceOnMap()) plus the static per-stage fields stashed in
+        // this.levelMeta back in lockStage(). Falls back to null if
+        // either is somehow missing rather than throwing.
+        const levelCode = (this.map && this.levelMeta)
+            ? encodeLevelCode({
+                map: this.map.MAP,
+                rotations: this.map.MAP_R,
+                size_x: this.map.size_x,
+                ...this.levelMeta
+            })
+            : null;
+
+        this.broadcast({ type: 'BUILD_COMPLETE', phase: PHASE.BUILD, payload: { mapPatch: [], levelCode } });
         this.enterRace();
     }
 
@@ -730,6 +765,23 @@ class Room {
                 crouched: !!payload.crouched,
                 onWall: !!payload.onWall
             }
+        });
+    }
+
+    // Plain relay, same shape as handleInputFrame()/handlePositionSnapshot()
+    // above — the sending client already fully resolved the tile write
+    // locally (see the client's physics.js's tileUpdates), this just
+    // forwards it to every other seat so their map matches exactly. Not
+    // folded into this.map (the BUILD-time authoritative map used for
+    // reconnect resync) since these are transient RACE-only tile states
+    // that get thrown away every round anyway (see game.js's
+    // snapshotBuiltMap()/resetRoundState()).
+    handleTileUpdate(seat, payload) {
+        if (this.phase !== PHASE.RACE) return;
+        this.broadcast({
+            type: 'TILE_UPDATE',
+            phase: PHASE.RACE,
+            payload: { seatIndex: seat.seatIndex, idx: payload.idx | 0, tile: payload.tile, rot: payload.rot }
         });
     }
 
@@ -975,6 +1027,24 @@ class Room {
                 });
 
             this.broadcast({ type: 'MATCH_END', phase: PHASE.FINAL_RESULTS, payload: { finalStandings } });
+
+            // Server-side record of how the match ended: the level code
+            // for whatever got built up over the match (same encoding
+            // completeBuild() hands back in BUILD_COMPLETE, built from
+            // this.map + this.levelMeta), every seat's final score, and
+            // who won (supports a tie at the top rank).
+            const finalLevelCode = (this.map && this.levelMeta)
+                ? encodeLevelCode({
+                    map: this.map.MAP,
+                    rotations: this.map.MAP_R,
+                    size_x: this.map.size_x,
+                    ...this.levelMeta
+                })
+                : null;
+            const winners = finalStandings.filter(s => s.rank === 1).map(s => this.seats.get(s.seatIndex)?.name);
+            console.log(`[room ${this.roomCode}] MATCH_END levelCode=${finalLevelCode}`);
+            console.log(`[room ${this.roomCode}] final standings:`, finalStandings.map(s => `${this.seats.get(s.seatIndex)?.name} (${s.totalScore} pts, rank ${s.rank})`));
+            console.log(`[room ${this.roomCode}] winner(s): ${winners.join(', ')}`);
         } else {
             this.currentRound += 1;
             this.broadcast({ type: 'NEXT_ROUND_START', phase: PHASE.ROUND_RESULTS, payload: { round: this.currentRound } });
@@ -999,6 +1069,7 @@ class Room {
         this.currentRound = 1;
         this.lastRoundDeaths = { anyEliminated: false, allEliminated: false };
         this.map = null;
+        this.levelMeta = null;
         this.stageVotes = new Map();
         this.locks.stagePicked = false;
         this.locks.continueAdvanced = false;

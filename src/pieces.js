@@ -1,45 +1,3 @@
-// Shared piece pool for the party box.
-//
-// This is ONE pool, not per-player hands: each round a handful of slots
-// are revealed from PIECE_POOL (see the future party-box screen), and
-// both players pick from those same revealed slots — there's no
-// separate P1/P2 inventory.
-//
-// Every entry only covers what the engine can already place/simulate
-// today (see physics.js's tickActive()/MASK table):
-//   - platform_basic : a plain solid tile (mask '5555', solid on every
-//                       side — tile value 2)
-//   - spring          : the launch/bounce tile physics.js already
-//                       recognizes via tickActive() (tile value 42)
-//   - crumble_platform: the crumbling-floor tile physics.js already
-//                       recognizes via tickCrumble() (tile value 34;
-//                       46 is the thinner "crumble2" variant and can be
-//                       added as its own entry later if it needs to be
-//                       pickable separately)
-//   - bomb            : NOT a placeable tile like the others — it's a
-//                       "delete an existing tile" action instead of an
-//                       "add a new tile" one. `targetsSolid: true` flips
-//                       BUILD-phase validity checking to require an
-//                       already-solid/functional cell (see physics.js's
-//                       isDeletableCell()) rather than the usual open-
-//                       air requirement every other piece uses (see
-//                       isPlaceableCell()). Its `tiles` value is 1 (the
-//                       engine's standard open-air tile, same value
-//                       crumble platforms settle to once fully broken)
-//                       so placing it just overwrites whatever was
-//                       there with empty space, reusing the same
-//                       generic "write piece.tiles into the map" path
-//                       every other piece already goes through.
-//
-// TODO (Phase 5): once moving lifts exist as placeable pieces (rather
-// than only level-authored/spawned objects), add:
-//   - moving_lift : id 'moving_lift', tile value(s) TBD
-//
-// footprint is in tiles, at the engine's fixed TILE_SIZE (60px/tile —
-// see levelRenderer.js's this.tileSize). Most pieces are 1x1; multi-tile
-// pieces (see platform_triple below) list one tile value per footprint
-// cell in row-major order (left-to-right, top-to-bottom) *at rotation
-// 0* — see getPieceFootprintCells() for how that's rotated at BUILD time.
 const TILE_SIZE = 60;
 
 const PIECE_POOL = [
@@ -62,24 +20,56 @@ const PIECE_POOL = [
         footprint: { width: 1, height: 1 }
     },
     {
+        id: 'mini_crumble',
+        name: 'Mini Crumble',
+        tiles: [46],
+        footprint: { width: 1, height: 1 }
+    },
+    {
         id: 'platform_triple',
         name: 'Triple Platform',
-        // Three plain platform tiles (tile value 2, same as
-        // platform_basic) in a straight line. Unrotated, the line runs
-        // horizontally (footprint width 3, height 1) — see
-        // getPieceFootprintCells() for how rotation turns this into a
-        // vertical line instead.
         tiles: [2, 2, 2],
         footprint: { width: 3, height: 1 }
     },
     {
+        id: 'spike',
+        name: 'Spike',
+        tiles: [9],
+        footprint: { width: 1, height: 1 }
+    },
+    {
+        id: 'spikeball',
+        name: 'Spike Ball',
+        tiles: [74],
+        footprint: { width: 1, height: 1 }
+    },
+    {
+        id: 'leftspike',
+        name: 'Left Spike',
+        tiles: [77],
+        footprint: { width: 1, height: 1 }
+    },
+    {
+        id: 'rightspike',
+        name: 'Right Spike',
+        tiles: [78],
+        footprint: { width: 1, height: 1 }
+    },
+    {
+        id: 'slab',
+        name: 'Slab',
+        tiles: [4],
+        footprint: { width: 1, height: 1 }
+    },
+    {
+        id: 'quartertile',
+        name: 'Quarter Tile',
+        tiles: [5],
+        footprint: { width: 1, height: 1 }
+    },
+    {
         id: 'bomb',
         name: 'Bomb',
-        // See the pool comment above: this deletes whatever tile is at
-        // the target cell rather than placing a new one. targetsSolid
-        // tells BUILD-phase validation (game.js/Room.js's
-        // footprintFits()) to require a solid/functional target cell
-        // instead of the usual open one.
         targetsSolid: true,
         tiles: [1],
         footprint: { width: 1, height: 1 }

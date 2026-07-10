@@ -65,6 +65,7 @@ class NetworkClient {
         this.onRaceState = null;         // (payload, type)
         this.onInputFrame = null;        // (payload: {seatIndex, tick, keys})  <- INPUT_RELAY
         this.onPositionSync = null;      // (payload: {seatIndex, tick, x, y, sx, sy})
+        this.onTileUpdate = null;        // (payload: {seatIndex, idx, tile, rot})  <- TILE_UPDATE
         this.onFinishConfirmed = null;   // (payload: {seatIndex, finishTick})
         this.onEliminationConfirmed = null; // (payload: {seatIndex, cause})
 
@@ -114,6 +115,7 @@ class NetworkClient {
             ALL_CLIENTS_READY: 'onAllClientsReady',
             INPUT_RELAY: 'onInputFrame',
             POSITION_SYNC: 'onPositionSync',
+            TILE_UPDATE: 'onTileUpdate',
             FINISH_CONFIRMED: 'onFinishConfirmed',
             ELIMINATION_CONFIRMED: 'onEliminationConfirmed',
             ROUND_END: 'onRoundResult',
@@ -255,6 +257,10 @@ class NetworkClient {
 
     sendPositionSnapshot(tick, x, y, sx, sy, direction, dir, crouched, onWall) {
         this._send('POSITION_SNAPSHOT', { tick, x, y, sx, sy, direction, dir, crouched, onWall });
+    }
+
+    sendTileUpdate(idx, tile, rot) {
+        this._send('TILE_UPDATE', { idx, tile, rot });
     }
 
     sendFinishObserved(finishedSeatIndex, tick) {

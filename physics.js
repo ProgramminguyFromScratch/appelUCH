@@ -67,6 +67,20 @@ class AppelPhysics {
         this.worldActiveTyp = [];
         this.worldActiveFrame = [];
         this.worldActiveSpawn = [];
+
+        // Every actual write to this.MAP made by tick_spring()/
+        // tickCrumbleWorld() (the only two functions that mutate tile
+        // IDs during a race — springs 42<->43, crumble tiles 34/46 -> 1)
+        // gets queued here as {idx, tile}. game.js drains this once per
+        // frame and broadcasts each entry as a TILE_UPDATE so every
+        // other client mirrors the exact same value instead of trying
+        // to (re)derive it from imperfectly-synced remote positions —
+        // which is what let springs/crumble tiles desync between
+        // players in the first place. Only the client that's actually
+        // locally simulating the tile-triggering player ever pushes
+        // here (see game.js's update()) — everyone else just applies
+        // what they receive.
+        this.tileUpdates = [];
     }
 
     // Whether a map cell is open ground for the BUILD phase to place a
@@ -407,8 +421,6 @@ class AppelPhysics {
             this.isSolidAt(playerState.PLAYER_X, playerState.PLAYER_Y, dir, playerState);
             this.isSolidAt(playerState.PLAYER_X, playerState.PLAYER_Y - playerState.PSZ[3], dir, playerState);
 
-            console.log(this.overlap, playerState.PLAYER_X)
-
             if (this.overlap > 0) {
                 playerState.PLAYER_DEATH = true;
             }
@@ -462,9 +474,19 @@ class AppelPhysics {
         this.activeBlock(dir, playerState.PLAYER_X - playerState.PSZ[4], playerState.PLAYER_Y, playerState);
 
         if (this.overlap > 0) {
+            // Landing thump, shared by both directions this branch below
+            // handles: hitting a floor while falling (saved_dy > 0) or
+            // hitting a ceiling while moving up (saved_dy <= 0). Checked
+            // against saved_dy/is_falling as they were *before* either
+            // branch resets them below, so a light touch (barely moving,
+            // or only just started falling) stays silent.
+            const shouldPlayLandSfx = Math.abs(saved_dy) > 6 && playerState.is_falling > 4;
+
             if (saved_dy > 0) {
                 playerState.PLAYER_Y -= 0.01 + this.overlap;
                 this.touching_wall_dy(playerState, 1);
+
+                if (shouldPlayLandSfx && typeof playSfx === 'function') playSfx('land');
 
                 if (playerState.player_state === 1 || playerState.player_state === 3) {
                     playerState.player_state = 0;
@@ -472,6 +494,8 @@ class AppelPhysics {
             } else {
                 playerState.PLAYER_Y += 0.01 + this.overlap;
                 this.touching_wall_dy(playerState, -1);
+
+                if (shouldPlayLandSfx && typeof playSfx === 'function') playSfx('land');
 
                 playerState.is_falling = 0;
                 playerState.is_jumping = 0;
@@ -660,6 +684,8 @@ class AppelPhysics {
     }
 
     start_wall_jump(playerState) {
+        if (typeof playSfx === 'function') playSfx('wall_jump');
+
         playerState.is_jumping = 101;
         playerState.player_state = 3;
 
@@ -699,6 +725,7 @@ class AppelPhysics {
                         this.isSolidAt(px + playerState.PSZ[2], check_y, -99, playerState);
 
                         if (this.overlap === 0 && playerState.PLAYER_SY < 16) {
+                            if (typeof playSfx === 'function') playSfx('jump');
                             playerState.KEY_UP = 2;
                             playerState.is_jumping = is_jumping + 1;
                             playerState.PLAYER_SY = 16;
@@ -876,24 +903,34 @@ class AppelPhysics {
         }
     }
 
-    // Call once per frame (not per-player) with every player's current
-    // physicsState (local players post-tick, remote players post-sync)
-    // — see game.js's update(). Advances every crumbling tile exactly
-    // once regardless of player count, so two players hitting the same
-    // tile can't fight over independent frame counters, and a tile
-    // crumbles identically on every client watching it.
-    tickWorldActive(playerStates) {
-        for (const ps of playerStates) {
+    // Call once per frame (not per-player) — see game.js's update().
+    // `allPlayerStates` is every player's current physicsState (local
+    // post-tick, remote post-sync), used only for the "is someone still
+    // standing here" respawn check below. `triggerPlayerStates` is the
+    // subset this client actually simulates physics for itself (its own
+    // local player(s) — never a remote seat, whose position is just a
+    // relayed snapshot and can arrive at a different frame on every
+    // client). Only that subset is allowed to *start* a tile crumbling
+    // or advance its frame counter, so the exact same tile can't be
+    // independently (and divergently) ticked by two different clients
+    // watching the same remote player's synced position at slightly
+    // different times. The client that does own the trigger broadcasts
+    // every resulting MAP write via this.tileUpdates (see game.js's
+    // update()), which is how everyone else's screen stays in sync.
+    tickWorldActive(allPlayerStates, triggerPlayerStates) {
+        for (const ps of triggerPlayerStates) {
             if (ps) this.checkWorldTileTriggers(ps);
         }
 
         for (const tileIdx of this.worldActiveSpawn) {
             const tile = this.MAP[tileIdx];
             if (tile === 34) {
+                if (typeof playSfx === 'function') playSfx('crumble');
                 this.worldActiveIdx.push(tileIdx);
                 this.worldActiveTyp.push("crumble");
                 this.worldActiveFrame.push(0.5);
             } else if (tile === 46) {
+                if (typeof playSfx === 'function') playSfx('crumble');
                 this.worldActiveIdx.push(tileIdx);
                 this.worldActiveTyp.push("crumble2");
                 this.worldActiveFrame.push(0.5);
@@ -903,9 +940,9 @@ class AppelPhysics {
 
         for (let i = 0; i < this.worldActiveIdx.length; i++) {
             if (this.worldActiveTyp[i] === "crumble") {
-                this.tickCrumbleWorld(this.worldActiveIdx[i], i, 8, 34, 0.5, playerStates);
+                this.tickCrumbleWorld(this.worldActiveIdx[i], i, 8, 34, 0.5, allPlayerStates);
             } else {
-                this.tickCrumbleWorld(this.worldActiveIdx[i], i, 4, 46, 0.25, playerStates);
+                this.tickCrumbleWorld(this.worldActiveIdx[i], i, 4, 46, 0.25, allPlayerStates);
             }
         }
     }
@@ -963,8 +1000,10 @@ class AppelPhysics {
             if (this.worldActiveFrame[a] % 1 < inc) {
                 if (this.worldActiveFrame[a] < max) {
                     this.MAP[idx] = costume + this.worldActiveFrame[a];
+                    this.tileUpdates.push({ idx, tile: this.MAP[idx] });
                 } else {
                     this.MAP[idx] = 1;
+                    this.tileUpdates.push({ idx, tile: this.MAP[idx] });
                 }
             }
         } else {
@@ -982,6 +1021,7 @@ class AppelPhysics {
                 }
                 if (this.worldActiveFrame[a] > 80 + max) {
                     this.MAP[idx] = costume;
+                    this.tileUpdates.push({ idx, tile: this.MAP[idx] });
                     this.worldActiveIdx.splice(a, 1);
                     this.worldActiveTyp.splice(a, 1);
                     this.worldActiveFrame.splice(a, 1);
@@ -989,6 +1029,7 @@ class AppelPhysics {
                 } else {
                     if (this.worldActiveFrame[a] % 1 === 0) {
                         this.MAP[idx] = (costume + max) + (80 - this.worldActiveFrame[a]);
+                        this.tileUpdates.push({ idx, tile: this.MAP[idx] });
                     }
                 }
             }
@@ -1016,7 +1057,9 @@ class AppelPhysics {
                 }
                 playerState.PLAYER_NO_SLOW = 15;
             }
+            if (typeof playSfx === 'function') playSfx('spring');
             this.MAP[idx] = 43;
+            this.tileUpdates.push({ idx, tile: 43 });
 
             let [ux, uy] = this.getUXY((((dir % 4) + 4) % 4) - 1, 30);
             if (ux === 0) {
@@ -1050,6 +1093,7 @@ class AppelPhysics {
         playerState.activeFrame[a] += 1;
         if (frame === 26) {
             this.MAP[idx] = 42;
+            this.tileUpdates.push({ idx, tile: 42 });
             playerState.activeIdx.splice(a, 1);
             playerState.activeTyp.splice(a, 1);
             playerState.activeFrame.splice(a, 1);

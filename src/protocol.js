@@ -29,13 +29,14 @@ const CLIENT_MESSAGE_PHASES = {
     PLACE_PIECE_REQUEST: [PHASE.BUILD],
     INPUT_FRAME: [PHASE.RACE],
     POSITION_SNAPSHOT: [PHASE.RACE],
+    TILE_UPDATE: [PHASE.RACE],
     FINISH_OBSERVED: [PHASE.RACE],
     ELIMINATION_OBSERVED: [PHASE.RACE],
     CONTINUE_REQUEST: [PHASE.ROUND_RESULTS],
     PLAY_AGAIN_REQUEST: [PHASE.FINAL_RESULTS]
 };
 
-const TOTAL_ROUNDS = 9;
+const TOTAL_ROUNDS = 10;
 
 // Party-box reveal count now scales with room size instead of being a
 // flat constant, so a 1-2 player room isn't stuck sorting through the

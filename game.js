@@ -150,6 +150,22 @@ class Game {
         // see snapshotBuiltMap()/resetRoundState().
         this.mapSnapshot = null;
         this.mapRotationSnapshot = null;
+        // The levelCode for the map exactly as the most recent BUILD
+        // phase left it — see recordBuiltLevelCode()/handleBuildNetworkEvent()'s
+        // BUILD_COMPLETE case. this.onLevelCodeSaved, if set by the
+        // consumer (see index.html's game.onLobbyUpdate for the
+        // pattern), gets called with the new code every time.
+        this.lastBuiltLevelCode = null;
+        this.onLevelCodeSaved = null;
+
+        // Fired every time the match reaches FINAL_RESULTS (offline via
+        // advanceFromPlaceholder(), networked via handleMatchEnd()), with
+        // the current this.lastBuiltLevelCode. Lets index.html show a
+        // "Copy Level Code" button without polling gameState itself.
+        // this.onFinalResultsHidden fires whenever we leave that screen
+        // (playAgain()/resetForRematch()), so the DOM button can hide.
+        this.onFinalResults = null;
+        this.onFinalResultsHidden = null;
 
         // N-PLAYER REFACTOR: this.playerState / this.playerState2 and
         // every other parallel P1/P2 field (scores, cursors, build
@@ -217,7 +233,7 @@ class Game {
         // game), plus the round we're currently on. currentRound is what
         // lets the temporary ROUND_RESULTS -> STAGE_SELECT/FINAL_RESULTS
         // transition below decide whether the match is over.
-        this.totalRounds = 11;
+        this.totalRounds = 10;
         this.currentRound = 1;
 
         // Upper bound the running-total bars scale against, so the bar
@@ -521,10 +537,12 @@ class Game {
                 // pressed again to unlock (see the confirm branch below).
                 if (player.stageVoteLocked) continue;
                 player.stageCursor = (player.stageCursor - 1 + numCandidates) % numCandidates;
+                playSfx('hover');
                 if (this.network) this.network.sendStageCursorMove(player.stageCursor);
             } else if (player.controls.right.includes(code)) {
                 if (player.stageVoteLocked) continue;
                 player.stageCursor = (player.stageCursor + 1) % numCandidates;
+                playSfx('hover');
                 if (this.network) this.network.sendStageCursorMove(player.stageCursor);
             } else if (player.controls.confirm.includes(code)) {
                 if (player.stageVoteLocked) {
@@ -537,6 +555,7 @@ class Game {
                 // cursor is currently over, and make that clear visually
                 // (see drawCursorChips()/drawStageSelectScreen()).
                 player.stageVoteLocked = true;
+                playSfx('select');
                 if (this.network) {
                     this.network.sendStagePickRequest(player.stageCursor);
                 } else {
@@ -612,13 +631,16 @@ class Game {
 
             if (player.controls.left.includes(code)) {
                 player.partyCursor = this.findNextPartySlot(player.partyCursor, -1);
+                playSfx('hover');
                 if (this.network) this.network.sendPartyCursorMove(player.partyCursor);
 
             } else if (player.controls.right.includes(code)) {
                 player.partyCursor = this.findNextPartySlot(player.partyCursor, 1);
+                playSfx('hover');
                 if (this.network) this.network.sendPartyCursorMove(player.partyCursor);
 
             } else if (player.controls.confirm.includes(code)) {
+                playSfx('select');
                 if (this.network) {
                     this.network.sendPartyPickRequest(player.partyCursor);
                 } else {
@@ -695,6 +717,28 @@ class Game {
     // checkPartyBoxComplete()).
     enterBuild() {
         this.buildTimeRemaining = this.BUILD_TIME_LIMIT;
+
+        // Reload the level back to exactly how the last BUILD phase left
+        // it, undoing whatever RACE's physics mutated in place since
+        // (crumble decay, spring toggles — see snapshotBuiltMap()).
+        // Without this, a tile that crumbled away or a spring left mid-
+        // bounce stayed that way forever, since nothing ever restored
+        // this.physics.MAP between a round ending and the next BUILD
+        // starting — only right before RACE, which by then was just
+        // re-confirming the state BUILD had *just* produced, not
+        // undoing anything from the round before. No-op on the very
+        // first BUILD of a match, since mapSnapshot doesn't exist yet.
+        if (this.physics && this.mapSnapshot) {
+            for (let i = 0; i < this.mapSnapshot.length; i++) {
+                this.physics.MAP[i] = this.mapSnapshot[i];
+                this.physics.MAP_R[i] = this.mapRotationSnapshot[i];
+            }
+            this.physics.worldActiveIdx.length = 0;
+            this.physics.worldActiveTyp.length = 0;
+            this.physics.worldActiveFrame.length = 0;
+            this.physics.worldActiveSpawn.length = 0;
+            this.physics.tileUpdates.length = 0;
+        }
 
         const startCell = this.findPlaceableCellNear(this.getSpawnCell());
         this.players.forEach(p => {
@@ -784,9 +828,10 @@ class Game {
 
             const c = player.controls;
             let moved = false;
-            if (c.rotateCCW.includes(code)) { this.rotateBuildPiece(player, -1); moved = true; }
-            else if (c.rotateCW.includes(code)) { this.rotateBuildPiece(player, 1); moved = true; }
+            if (c.rotateCCW.includes(code)) { this.rotateBuildPiece(player, -1); moved = true; playSfx('hover'); }
+            else if (c.rotateCW.includes(code)) { this.rotateBuildPiece(player, 1); moved = true; playSfx('hover'); }
             else if (c.confirm.includes(code)) {
+                playSfx('select');
                 if (this.network) {
                     this.network.sendPlacePieceRequest(
                         player.piece.id, player.buildCursor.col, player.buildCursor.row, player.buildRotation
@@ -962,9 +1007,37 @@ class Game {
         const allDone = this.players.every(p => !p.piece || p.buildPlaced);
         if (allDone) {
             this.snapshotBuiltMap();
+            this.recordBuiltLevelCode();
             this.gameState = GameState.RACE;
             this.resetRoundState();
         }
+    }
+
+    // Re-serializes the map exactly as BUILD just left it (spawn tile +
+    // everything placed this round and every round before it) back into
+    // a levelCode string in the same format as the hardcoded LEVEL_POOL
+    // entries — see levelCode.js's encodeLevelCode(). Uses the live
+    // this.physics.MAP/MAP_R (which placeBuildPiece() writes into)
+    // rather than this.levelData.map/rotations, which are just the
+    // level's original, pre-BUILD decode and never get updated.
+    // Networked play instead gets this from the server's own
+    // BUILD_COMPLETE payload (see handleBuildNetworkEvent()), since the
+    // server's placements are authoritative there — this is only the
+    // offline/local path's equivalent.
+    recordBuiltLevelCode() {
+        if (typeof encodeLevelCode !== 'function' || !this.physics || !this.levelData) return;
+        const code = encodeLevelCode({
+            map: this.physics.MAP,
+            rotations: this.physics.MAP_R,
+            size_x: this.levelData.size_x,
+            MAP_DATA: this.levelData.MAP_DATA,
+            wall: this.levelData.wall,
+            hue: this.levelData.hue,
+            hue2: this.levelData.hue2
+        });
+        this.lastBuiltLevelCode = code;
+        console.log('[levelCode] built level saved:', code);
+        if (this.onLevelCodeSaved) this.onLevelCodeSaved(code);
     }
 
     // Freezes the map exactly as BUILD left it (spawn tile + everything
@@ -1063,6 +1136,7 @@ class Game {
             case GameState.ROUND_RESULTS:
                 if (this.currentRound >= this.totalRounds) {
                     this.gameState = GameState.FINAL_RESULTS;
+                    if (this.onFinalResults) this.onFinalResults(this.lastBuiltLevelCode);
                 } else {
                     this.currentRound += 1;
                     this.enterPartyBox();
@@ -1100,6 +1174,7 @@ class Game {
         this.currentRound = 1;
         this.lastRoundDeaths = { anyEliminated: false, allEliminated: false };
         this.gameState = GameState.MENU;
+        if (this.onFinalResultsHidden) this.onFinalResultsHidden();
 
         const startScreen = document.getElementById('startScreen');
         if (startScreen) {
@@ -1328,7 +1403,10 @@ class Game {
     // of every timed screen (PARTY_BOX, BUILD) — same style the plain
     // fillText timer used to have per-screen, now unified into one
     // widget so all three phases feel like the same game.
-    drawCountdownRing(remaining, limit) {
+    // `textColor` lets callers (e.g. the RACE-phase timer) override the
+    // default THEME.text/THEME.danger fill for the numeral in the middle
+    // of the ring, without touching the ring stroke colors themselves.
+    drawCountdownRing(remaining, limit, textColor = null) {
         const cx = this.canvas.width - 40;
         const cy = 30;
         const radius = 20;
@@ -1351,7 +1429,7 @@ class Game {
 
         this.ctx.textAlign = "center";
         this.ctx.font = "bold 15px " + THEME.font;
-        this.ctx.fillStyle = urgent ? THEME.danger : THEME.text;
+        this.ctx.fillStyle = textColor || (urgent ? THEME.danger : THEME.text);
         this.ctx.fillText(`${Math.ceil(remaining)}`, cx, cy + 5);
     }
 
@@ -1455,6 +1533,14 @@ class Game {
         // regardless of how many players are active.
         this.physics.tickObj(firstPlayer.physicsState.OBJ);
 
+        // Which players actually get physics.tick() run on this client
+        // this frame — our own local player(s), never a remote seat.
+        // Only these are allowed to trigger/advance world-shared tiles
+        // (crumble platforms) below, so the same tile can't be ticked
+        // independently by two different clients (see physics.js's
+        // tickWorldActive()).
+        const locallySimulatedStates = [];
+
         this.players.forEach((player) => {
             const isRemoteNetworked = this.network && !player.controls;
 
@@ -1493,6 +1579,7 @@ class Game {
                 // pose happened to be last sent.
                 const keys = this.getInputKeysFor(player);
                 player.physicsState = this.physics.tick(player.physicsState, keys);
+                locallySimulatedStates.push(player.physicsState);
 
                 if (player.controls && this.network) {
                     this.network.sendPositionSnapshot(
@@ -1511,14 +1598,30 @@ class Game {
         });
 
         // Crumble platforms are world state (see physics.js's
-        // tickWorldActive()), so they're advanced once per frame here
-        // for every player's *current* position — local players just
-        // ran physics.tick() above, remote players just got repositioned
-        // from their latest network snapshot — rather than only when a
-        // player who happens to run physics.tick() locally touches one.
-        // Without this, an opponent's client would decay the tile on
-        // their own screen while yours never heard about it.
-        this.physics.tickWorldActive(this.players.map(p => p.physicsState));
+        // tickWorldActive()), so they're advanced once per frame here.
+        // Triggering/advancing is scoped to only the player(s) this
+        // client actually simulates (locallySimulatedStates) — a remote
+        // seat's synced position is still passed along for the "someone
+        // standing here" respawn check, but never starts or ticks a
+        // tile itself, since that led two clients to independently (and
+        // divergently) decay the same tile at slightly different times.
+        // Instead, whichever client's local player triggers a tile
+        // broadcasts every resulting write via TILE_UPDATE below, so
+        // every other client just mirrors the exact same value.
+        this.physics.tickWorldActive(this.players.map(p => p.physicsState), locallySimulatedStates);
+
+        // Drain and broadcast any tile-ID writes physics.js made this
+        // frame (springs 42<->43, crumble decay/respawn) — see
+        // physics.js's this.tileUpdates. Offline play has no network to
+        // send these to, so they're just cleared.
+        if (this.physics.tileUpdates.length) {
+            if (this.network) {
+                for (const upd of this.physics.tileUpdates) {
+                    this.network.sendTileUpdate(upd.idx, upd.tile, this.physics.MAP_R[upd.idx]);
+                }
+            }
+            this.physics.tileUpdates.length = 0;
+        }
 
         this.updateRaceCamera();
 
@@ -1538,6 +1641,7 @@ class Game {
             if (localPlayer && localPlayer.physicsState) {
                 if (localPlayer.physicsState.PLAYER_DEATH && !localPlayer.hasFinished && !localPlayer.eliminated && !localPlayer.reportedElimination) {
                     localPlayer.reportedElimination = true;
+                    if (typeof playSfx === 'function') playSfx('boom');
                     this.network.sendEliminationObserved(this.localSeatIndex, this.tick, 'death');
                 }
             }
@@ -1573,6 +1677,7 @@ class Game {
         for (const player of this.players) {
             if (player.physicsState.PLAYER_DEATH && !player.hasFinished && !player.eliminated) {
                 console.log(`${player.name} died!`);
+                if (typeof playSfx === 'function') playSfx('boom');
                 player.eliminated = true;
             }
         }
@@ -1603,6 +1708,7 @@ class Game {
                 // Stamped so awardRoundPoints() can tell who crossed
                 // first if multiple players finish this round.
                 player.finishTick = this.tick;
+                playSfx('finish');
                 console.log(`${player.name} finished!`);
             }
         }
@@ -1881,16 +1987,13 @@ class Game {
         // this.debugKillZones()
     }
 
-    // Draws the race countdown using the same plain canvas-text approach
-    // as drawLoadingScreen() — no widget, just fillText in the top-right
-    // corner so it doesn't compete with the level/entities underneath.
+    // Draws the race countdown using the same circular countdown ring
+    // widget as PARTY_BOX/BUILD (drawCountdownRing), so all timed phases
+    // look consistent. The numeral is forced to black here (rather than
+    // the ring's default THEME.text/THEME.danger) per request — the ring
+    // stroke still turns urgent-red under 3s same as elsewhere.
     drawRaceTimer() {
-        const seconds = Math.ceil(this.raceTimeRemaining);
-
-        this.ctx.fillStyle = seconds <= 5 ? THEME.danger : THEME.text;
-        this.ctx.font = "bold 20px " + THEME.font;
-        this.ctx.textAlign = "right";
-        this.ctx.fillText(`${seconds}s`, this.canvas.width - 16, 30);
+        this.drawCountdownRing(this.raceTimeRemaining, this.RACE_TIME_LIMIT, "#000000");
     }
 
     // Per-frame behavior while BUILD is active: ticks the countdown down,
@@ -2410,12 +2513,18 @@ drawRoundResultsScreen() {
             ctx.fillText(`${winners[0].name.toUpperCase()} WINS!`, this.canvas.width / 2, 35);
         } else if (winners.length > 1) {
             const winnerNames = winners.map(w => w.name.toUpperCase()).join(' & ');
-            ctx.fillText(`Tie between: ${winnerNames} 🤝`, this.canvas.width / 2, 35);
+            ctx.fillText(`Tie between: ${winnerNames}`, this.canvas.width / 2, 35);
         } else {
             ctx.fillText("bro what", this.canvas.width / 2, 35);
         }
         
         ctx.textBaseline = 'alphabetic';
+
+        // The banner rect above spans the full canvas width, so it was
+        // painting over the "Round X of Y" badge drawRoundResultsScreen()
+        // already drew in the top-left corner. Redraw it on top — its own
+        // panel background keeps it readable against the banner.
+        this.drawRoundBadge();
     }
     // Draws one running-total bar: an outlined track filled from 0 up to
     // the interpolated value between `fromScore` and `toScore` at `t`
@@ -2499,6 +2608,14 @@ drawRoundResultsScreen() {
         net.onRaceState = (payload, type) => this.handleRaceNetworkEvent(payload, type);
 
         net.onPositionSync = (payload) => this.handleRemotePositionSync(payload);
+        // Another seat's client actually simulated a spring/crumble tile
+        // change this frame (see physics.js's tileUpdates / update()'s
+        // drain-and-broadcast above) — just mirror the exact value onto
+        // our own map rather than re-deriving it, so it can't diverge.
+        net.onTileUpdate = (payload) => {
+            if (payload.seatIndex === this.localSeatIndex) return; // our own echo
+            this.applyMapPatch([{ idx: payload.idx, tile: payload.tile, rot: payload.rot }]);
+        };
         net.onFinishConfirmed = (payload) => this.handleFinishConfirmed(payload);
         net.onEliminationConfirmed = (payload) => this.handleEliminationConfirmed(payload);
 
@@ -2675,6 +2792,25 @@ drawRoundResultsScreen() {
         switch (type) {
             case 'BUILD_START': {
                 this.buildTimeRemaining = payload.timeLimit || this.BUILD_TIME_LIMIT;
+
+                // Same reload as the offline enterBuild() path (see its
+                // comment) — undo whatever RACE physics mutated in
+                // place since the last BUILD phase ended, using the
+                // snapshot taken right after that BUILD completed. A
+                // no-op on the match's first BUILD, before any snapshot
+                // exists.
+                if (this.physics && this.mapSnapshot) {
+                    for (let i = 0; i < this.mapSnapshot.length; i++) {
+                        this.physics.MAP[i] = this.mapSnapshot[i];
+                        this.physics.MAP_R[i] = this.mapRotationSnapshot[i];
+                    }
+                    this.physics.worldActiveIdx.length = 0;
+                    this.physics.worldActiveTyp.length = 0;
+                    this.physics.worldActiveFrame.length = 0;
+                    this.physics.worldActiveSpawn.length = 0;
+                    this.physics.tileUpdates.length = 0;
+                }
+
                 const startCells = payload.startCells || [];
                 for (const sc of startCells) {
                     const player = this.players[sc.seatIndex];
@@ -2715,6 +2851,16 @@ drawRoundResultsScreen() {
             case 'BUILD_COMPLETE':
                 this.applyMapPatch(payload.mapPatch);
                 this.snapshotBuiltMap();
+                // Server-authoritative equivalent of the offline path's
+                // recordBuiltLevelCode() — the server built this off its
+                // own this.map/this.levelMeta (see Room.js's
+                // completeBuild()), so it's trusted as-is rather than
+                // re-derived locally.
+                if (payload.levelCode) {
+                    this.lastBuiltLevelCode = payload.levelCode;
+                    console.log('[levelCode] built level saved:', payload.levelCode);
+                    if (this.onLevelCodeSaved) this.onLevelCodeSaved(payload.levelCode);
+                }
                 // RACE_START (via onRaceState) drives the actual
                 // transition into GameState.RACE below.
                 break;
@@ -2753,6 +2899,7 @@ drawRoundResultsScreen() {
         if (!player) return;
         player.hasFinished = true;
         player.finishTick = payload.finishTick;
+        playSfx('finish');
     }
 
     handleEliminationConfirmed(payload) {
@@ -2787,6 +2934,7 @@ drawRoundResultsScreen() {
             if (player) player.score = standing.totalScore;
         }
         this.gameState = GameState.FINAL_RESULTS;
+        if (this.onFinalResults) this.onFinalResults(this.lastBuiltLevelCode);
     }
 
     // NETWORK REFACTOR: the network twin of playAgain() — resets local
@@ -2807,5 +2955,6 @@ drawRoundResultsScreen() {
             p.buildPlaced = false;
         });
         this.currentRound = 1;
+        if (this.onFinalResultsHidden) this.onFinalResultsHidden();
     }
 }
