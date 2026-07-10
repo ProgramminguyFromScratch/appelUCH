@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Appel</title>
+    <style>
+        body { 
+            margin: 0; 
+            background: #111; 
+            overflow: hidden; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            font-family: Arial, sans-serif;
+        }
+        canvas { 
+            background: #000; 
+            border: 2px solid #444; 
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            background: rgba(0,0,0,0.85);
+            color: #fff;
+            z-index: 10;
+        }
+        .overlay h1 {
+            font-weight: normal;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+        .overlay button {
+            font-size: 18px;
+            padding: 12px 32px;
+            background: #0077ff;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+        }
+        .overlay button:hover {
+            background: #0090ff;
+        }
+        .overlay button:disabled {
+            background: #333;
+            cursor: not-allowed;
+        }
+        .overlay input {
+            font-size: 16px;
+            padding: 10px 14px;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background: #1a1a1a;
+            color: #fff;
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .overlay input::placeholder { color: #777; }
+
+        .rowGroup { display: flex; gap: 10px; align-items: center; }
+
+        #errorText {
+            color: #ff5470;
+            font-size: 14px;
+            min-height: 18px;
+        }
+
+        #roomCodeLabel {
+            font-size: 15px;
+            color: #8891a3;
+        }
+        #roomCodeValue {
+            font-size: 28px;
+            letter-spacing: 4px;
+            font-weight: bold;
+            color: #3aa0ff;
+        }
+
+        #playerList {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        #playerList li {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 14px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 6px;
+            font-size: 15px;
+        }
+        #playerList li .hostTag {
+            color: #fbbf24;
+            font-size: 12px;
+            margin-left: 6px;
+        }
+        #playerList li .disconnectedTag {
+            color: #ff5470;
+            font-size: 12px;
+        }
+
+        #waitingForHost {
+            color: #8891a3;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Screen 1: name entry + create/join room by code -->
+    <div id="nameScreen" class="overlay">
+        <h1>APPEL</h1>
+        <input id="displayNameInput" type="text" placeholder="Your name" maxlength="24" />
+        <div class="rowGroup">
+            <input id="roomCodeInput" type="text" placeholder="Room code (optional)" maxlength="5" style="text-transform:uppercase; width: 160px;" />
+        </div>
+        <div class="rowGroup">
+            <button id="btnCreateOrJoin">Create / Join Room</button>
+        </div>
+        <div id="errorText"></div>
+    </div>
+
+    <!-- Screen 2: lobby — connected players + host-only Start -->
+    <div id="lobbyScreen" class="overlay" style="display:none;">
+        <h1>Lobby</h1>
+        <div id="roomCodeLabel">Room code</div>
+        <div id="roomCodeValue">-----</div>
+        <ul id="playerList"></ul>
+        <button id="btnStartMatch" style="display:none;">Start</button>
+        <div id="waitingForHost" style="display:none;">Waiting for the host to start...</div>
+    </div>
+
+    <script src="profiler.js"></script>
+    <script src="touching.js"></script>
+    <script src="physics.js"></script>
+    <script src="levelRenderer.js"></script>
+    <script src="pieces.js"></script>
+    <script src="network.js"></script>
+    <script src="game.js"></script>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const replayCode = null;
+
+        // N-PLAYER REFACTOR: ?players=N (1-6) still selects the initial
+        // seat count for fully offline/local testing (see the `offline`
+        // branch below) — it has no effect once a networked room's
+        // ROOM_STATE arrives, since the seat list becomes server-driven
+        // at that point (see game.js's handleRoomState()).
+        const playersParam = parseInt(params.get("players"), 10);
+        const playerCount = Number.isFinite(playersParam) ? playersParam : 2;
+
+        const nameScreen = document.getElementById('nameScreen');
+        const lobbyScreen = document.getElementById('lobbyScreen');
+        const displayNameInput = document.getElementById('displayNameInput');
+        const roomCodeInput = document.getElementById('roomCodeInput');
+        const btnCreateOrJoin = document.getElementById('btnCreateOrJoin');
+        const errorText = document.getElementById('errorText');
+        const roomCodeValue = document.getElementById('roomCodeValue');
+        const playerList = document.getElementById('playerList');
+        const btnStartMatch = document.getElementById('btnStartMatch');
+        const waitingForHost = document.getElementById('waitingForHost');
+
+        // ?offline=1 skips networking entirely and plays exactly like the
+        // old single "Play" button did (kept for local dev/testing of
+        // the N-player code paths without spinning up the server — see
+        // README). Any other launch goes through the lobby.
+        const offline = params.get('offline') === '1';
+
+        if (offline) {
+            nameScreen.style.display = 'none';
+            let levelCode = params.get("level");
+            if (!levelCode) {
+                levelCode = "1234687196Z2Z589Z1Z1Z76Z1Z1Z1Z2Z1Z1Z4Z7Z1Z1Z186Z2Z1Z1Z1Z23Z1Z1Z1Z2Z1Z1Z5Z63Z1Z1Z388Z2Z1Z1Z37232ZZ1Z38416ZZB787Zs100a100ZZZ165Z0";
+            }
+            const game = new Game('gameCanvas', playerCount);
+            game.startGame(levelCode);
+        } else {
+            // NETWORK REFACTOR: real multiplayer flow.
+            //   1. name entry + create/join-by-code (this screen)
+            //   2. lobby: connected players list + host-only Start
+            //   3. Game takes over the canvas once MATCH_STARTING arrives
+            const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
+            const network = new NetworkClient(serverUrl);
+            const game = new Game('gameCanvas', playerCount, network);
+
+            // Reconnect support: remember our playerId across a reload
+            // (Room.js treats a rejoin with a matching, currently-
+            // disconnected playerId as PLAYER_RECONNECTED rather than a
+            // brand new seat — see index.js's handleJoinRoom()).
+            const STORAGE_KEY = 'appel_player_id';
+
+            function showError(message) {
+                errorText.textContent = message || '';
+            }
+
+            btnCreateOrJoin.addEventListener('click', () => {
+                const name = displayNameInput.value.trim();
+                if (!name) {
+                    showError('Enter a name first.');
+                    return;
+                }
+                showError('');
+                btnCreateOrJoin.disabled = true;
+
+                const attemptJoin = () => {
+                    const roomCode = roomCodeInput.value.trim().toUpperCase();
+                    const savedPlayerId = sessionStorage.getItem(STORAGE_KEY);
+                    network.joinRoom(roomCode, name, savedPlayerId);
+                };
+
+                if (network.isConnected) {
+                    attemptJoin();
+                } else {
+                    const priorOnOpen = network.onOpen; // set by game.js's bindNetwork()
+                    network.onOpen = () => {
+                        if (priorOnOpen) priorOnOpen();
+                        attemptJoin();
+                    };
+                    network.connect();
+                }
+            });
+
+            // IMPORTANT: game.js's bindNetwork() already assigned
+            // network.onSeatAssigned (to Game.handleSeatAssigned, which
+            // sets this.localSeatIndex — everything about which seat is
+            // "ours" flows from that). Overwriting it here instead of
+            // chaining it meant this.localSeatIndex never left its
+            // default of 0, so every non-host client silently drove and
+            // read back seat 0's (the host's) data for the whole match
+            // (stage cursor, build cursor/placement, race input). Chain
+            // it the same way onOpen/onMatchStarting do below.
+            const priorOnSeatAssigned = network.onSeatAssigned;
+            network.onSeatAssigned = (payload) => {
+                if (priorOnSeatAssigned) priorOnSeatAssigned(payload);
+                sessionStorage.setItem(STORAGE_KEY, payload.playerId);
+                nameScreen.style.display = 'none';
+                lobbyScreen.style.display = 'flex';
+            };
+
+            network.onJoinRejected = (payload) => {
+                btnCreateOrJoin.disabled = false;
+                showError(
+                    payload.reason === 'room_full' ? 'That room is full.' :
+                    payload.reason === 'match_in_progress' ? 'That room already started a match.' :
+                    'Could not join that room.'
+                );
+            };
+
+            // game.js's handleRoomState() calls this optional hook with
+            // the raw ROOM_STATE payload plus whether we're the host, so
+            // the lobby DOM can stay purely presentational.
+            game.onLobbyUpdate = (payload, isHost) => {
+                roomCodeValue.textContent = payload.roomCode;
+
+                playerList.innerHTML = '';
+                for (const seat of payload.seats) {
+                    const li = document.createElement('li');
+                    const label = document.createElement('span');
+                    label.textContent = seat.name;
+                    if (seat.seatIndex === payload.hostSeatIndex) {
+                        const hostTag = document.createElement('span');
+                        hostTag.className = 'hostTag';
+                        hostTag.textContent = 'HOST';
+                        label.appendChild(hostTag);
+                    }
+                    li.appendChild(label);
+                    if (!seat.connected) {
+                        const disc = document.createElement('span');
+                        disc.className = 'disconnectedTag';
+                        disc.textContent = 'disconnected';
+                        li.appendChild(disc);
+                    }
+                    playerList.appendChild(li);
+                }
+
+                btnStartMatch.style.display = isHost ? 'inline-block' : 'none';
+                waitingForHost.style.display = isHost ? 'none' : 'block';
+            };
+
+            btnStartMatch.addEventListener('click', () => {
+                game.requestStartMatch();
+            });
+
+            // Once the host's START_MATCH_REQUEST is accepted, MATCH_STARTING
+            // arrives for every seat — hide the lobby overlay and let the
+            // Game start pulling assets in over the wire.
+            const priorOnMatchStarting = network.onMatchStarting; // set by game.js's bindNetwork()
+            network.onMatchStarting = (payload, type) => {
+                if (priorOnMatchStarting) priorOnMatchStarting(payload, type);
+                lobbyScreen.style.display = 'none';
+                game.startGameNetworked();
+            };
+
+            network.onClose = () => {
+                showError('Disconnected from server.');
+            };
+        }
+    </script>
+</body>
+</html>
