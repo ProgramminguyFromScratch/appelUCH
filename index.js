@@ -40,6 +40,11 @@ function handleJoinRoom(ws, payload = {}) {
         return;
     }
 
+    if (room.isNameTaken(payload.displayName)) {
+        send(ws, { type: 'JOIN_REJECTED', phase: PHASE.LOBBY, payload: { reason: 'name_taken' } });
+        return;
+    }
+
     const seat = room.addSeat(ws, payload.displayName);
     if (!seat) {
         send(ws, { type: 'JOIN_REJECTED', phase: PHASE.LOBBY, payload: { reason: 'room_full' } });

@@ -86,6 +86,22 @@ class AppelPhysics {
         return tile === 0 || tile === 1;
     }
 
+    // Whether a map cell is a legal BUILD-phase target for a "targets
+    // solid ground" piece (currently just `bomb` — see pieces.js). The
+    // inverse of isPlaceableCell(): a bomb needs an existing tile to
+    // remove, not open air to build on, so 0/1 (already-open cells) are
+    // rejected here. Tiles 76 (spawn) and 63 (flag) are excluded too —
+    // deleting either would break the round (no start point / no finish
+    // line), so they're carved out as permanent regardless of what a
+    // player places on top of everything else.
+    isDeletableCell(idx) {
+        if (idx < 0 || idx >= this.MAP.length) return false;
+        const tile = this.MAP[idx];
+        if (tile === 0 || tile === 1) return false;
+        if (tile === 76 || tile === 63) return false;
+        return true;
+    }
+
     get_block_at(x, y) {
         if(y < 0) return 0;
         const sx = (x / 60) | 0;

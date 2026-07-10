@@ -69,13 +69,13 @@ const MAX_PLAYERS = 6;
 // accompanying notes about this being a real behavior change from the
 // old always-2-local-players setup).
 const LOCAL_PLAYER_CONTROLS = {
-    left: 'KeyA',
-    right: 'KeyD',
-    up: 'KeyW',
-    down: 'KeyS',
-    rotateCCW: 'KeyQ',
-    rotateCW: 'KeyE',
-    confirm: 'ShiftLeft'
+    left: ['KeyA', 'KeyJ', 'ArrowLeft'],
+    right: ['KeyD', 'KeyL', 'ArrowRight'],
+    up: ['KeyW', 'KeyI', 'ArrowUp', 'Space', 'KeyZ'],
+    down: ['KeyS', 'KeyK', 'ArrowDown', 'KeyX'],
+    rotateCCW: ['KeyQ'],
+    rotateCW: ['KeyE'],
+    confirm: ['ShiftLeft', 'ShiftRight', 'Enter', 'NumpadEnter']
 };
 
 // Shared visual theme. Every screen (loading, stage select, party box,
@@ -197,8 +197,6 @@ class Game {
             this.bindNetwork();
         }
 
-        this.profiler = new PerformanceMonitor();
-
         // Tracks how many consecutive frames all active players have been
         // finished, so we can wait ~1 second (at the 30fps tick rate)
         // before moving on to ROUND_RESULTS.
@@ -251,13 +249,24 @@ class Game {
         // PIECE_POOL, see pieces.js) and the pick countdown. Each
         // player's cursor/grabbed piece now live on the player object
         // (partyCursor / piece). Populated by enterPartyBox().
-        // N-PLAYER REFACTOR: bumped 5 -> 8 so 6 players always have real
-        // distinct choices (5 slots for 6 players meant somebody's last
-        // pick couldn't possibly be a free choice).
-        this.PARTY_BOX_SLOT_COUNT = 8;
+        // Scales with room size — ceil(1.5 * playerCount) — instead of a
+        // flat count, so small local games aren't stuck sorting through
+        // slots sized for a full 6-player room, while still guaranteeing
+        // more slots than players (a flat 5 for 6 players meant
+        // somebody's last pick couldn't possibly be a free choice).
+        // Mirrors protocol.js's getPartyBoxSlotCount(), which the real
+        // server uses for networked rooms — this offline path has no
+        // server, so it computes the same formula locally.
+        this.PARTY_BOX_SLOT_COUNT = Math.ceil(1.5 * this.playerCount);
         this.PARTY_TIME_LIMIT = 12; // seconds (10–15s window)
         this.partySlots = [];
         this.partyTimeRemaining = this.PARTY_TIME_LIMIT;
+
+        // Whether the round that just finished had anyone eliminated —
+        // drives whether the bomb can appear in the next party box (see
+        // pickPartySlots()). No round has finished yet, so no bomb in
+        // round 1's box.
+        this.lastRoundDeaths = { anyEliminated: false, allEliminated: false };
 
         // BUILD state: the build countdown. Each player's grid-snapped
         // cursor, rotation, and placed flag now live on the player
@@ -287,7 +296,7 @@ class Game {
             // play again (back to MENU). STAGE_SELECT, PARTY_BOX, and
             // BUILD are driven by the per-player confirm keys (and, for
             // BUILD, the countdown timer) instead — not by Enter.
-            if (e.code === 'Enter') {
+            if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
                 this.advanceFromPlaceholder();
             }
         });
@@ -326,6 +335,13 @@ class Game {
 
                 // STAGE_SELECT / PARTY_BOX / BUILD per-player UI state.
                 stageCursor: 0,
+                // Set once this player has pressed confirm to lock in a
+                // stage vote; while true, left/right no longer move
+                // stageCursor (see handleStageSelectInput()) so a stray
+                // arrow-key press can't silently swap their vote. Pressing
+                // confirm again toggles this back off so they can move the
+                // cursor and vote for a different candidate.
+                stageVoteLocked: false,
                 partyCursor: 0,
                 piece: null,
                 buildCursor: { col: 0, row: 0 },
@@ -351,7 +367,7 @@ class Game {
     // resets every player's cursor to the first candidate.
     enterStageSelect() {
         this.stageCandidates = this.pickStageCandidates(3);
-        this.players.forEach(p => { p.stageCursor = 0; });
+        this.players.forEach(p => { p.stageCursor = 0; p.stageVoteLocked = false; });
         this.gameState = GameState.STAGE_SELECT;
 
         // Pre-render each candidate's thumbnail now so the screen doesn't
@@ -395,12 +411,27 @@ class Game {
         ctx.fillStyle = THEME.bg;
         ctx.fillRect(0, 0, width, height);
 
-        // Fit the whole grid inside the thumbnail (uniform scale, so
-        // tiles stay square), with a small margin and centered.
+        // Thumbnails only show a fixed-size crop — the bottom-right
+        // corner of the level (in world terms; see the row-flip note
+        // below) — rather than squeezing the entire grid in, so tiles
+        // stay a readable, consistent size across levels of very
+        // different dimensions instead of shrinking to near-invisible
+        // specks on the largest ones.
+        const REGION_COLS = 15;
+        const REGION_ROWS = 10;
+        const regionCols = Math.min(REGION_COLS, cols);
+        const regionRows = Math.min(REGION_ROWS, rows);
+        // "Bottom" is row 0 (see the flip note below), "left" is the
+        // lowest columns.
+        const startCol = 0;
+        const startRow = 0;
+
+        // Fit just the cropped region inside the thumbnail (uniform
+        // scale, so tiles stay square), with a small margin and centered.
         const MARGIN = 0.9;
-        const tile = Math.min(width / cols, height / rows) * MARGIN;
-        const gridW = cols * tile;
-        const gridH = rows * tile;
+        const tile = Math.min(width / regionCols, height / regionRows) * MARGIN;
+        const gridW = regionCols * tile;
+        const gridH = regionRows * tile;
         const offsetX = (width - gridW) / 2;
         const offsetY = (height - gridH) / 2;
 
@@ -408,17 +439,42 @@ class Game {
         // more negative, i.e. visually higher, as row increases — see
         // levelRenderer.js), so flip vertically here to match how the
         // level actually looks in RACE rather than mirroring it.
-        for (let row = 0; row < rows; row++) {
+        for (let row = startRow; row < startRow + regionRows; row++) {
             const rowBase = row * cols;
-            const screenRow = rows - 1 - row;
-            for (let col = 0; col < cols; col++) {
+            const screenRow = regionRows - 1 - (row - startRow);
+            for (let col = startCol; col < startCol + regionCols; col++) {
                 const rawTileVal = levelData.map[rowBase + col];
                 if (!rawTileVal) continue;
 
-                const tileImg = activeTileset[rawTileVal - 1];
-                if (!tileImg) continue;
+                const screenCol = col - startCol;
+                const rotation = levelData.rotations[rowBase + col] % 4;
+                const tileX = offsetX + screenCol * tile + tile / 2;
+                const tileY = offsetY + screenRow * tile + tile / 2;
 
-                ctx.drawImage(tileImg, offsetX + col * tile, offsetY + screenRow * tile, tile, tile);
+                // Each tile value has a background image (index
+                // rawTileVal-1) AND a foreground image 86 slots later in
+                // the same tileset array (see render()'s isForeground
+                // loop) — most of a tile's actual visible art lives in
+                // the foreground layer, with the background layer often
+                // near-empty/transparent on its own. Drawing only the
+                // background layer (as this used to) left thumbnails
+                // looking like a solid black box for most levels.
+                for (let isForeground = 0; isForeground <= 1; isForeground++) {
+                    const offset = isForeground * 86;
+                    const tileImg = activeTileset[rawTileVal - 1 + offset];
+                    if (!tileImg) continue;
+
+                    // Same rotation convention as render(): rotation 1 is
+                    // the unrotated default, so only rotate for the other
+                    // three values (see render()'s identical check).
+                    ctx.save();
+                    ctx.translate(tileX, tileY);
+                    if (rotation !== 1) {
+                        ctx.rotate((rotation - 1) * Math.PI / 2);
+                    }
+                    ctx.drawImage(tileImg, -tile / 2, -tile / 2, tile, tile);
+                    ctx.restore();
+                }
             }
         }
 
@@ -460,13 +516,27 @@ class Game {
         for (const player of this.players) {
             if (!player.controls) continue; // idle stand-in / bot seat / remote seat
 
-            if (code === player.controls.left) {
+            if (player.controls.left.includes(code)) {
+                // Locked-in vote — ignore movement until confirm is
+                // pressed again to unlock (see the confirm branch below).
+                if (player.stageVoteLocked) continue;
                 player.stageCursor = (player.stageCursor - 1 + numCandidates) % numCandidates;
                 if (this.network) this.network.sendStageCursorMove(player.stageCursor);
-            } else if (code === player.controls.right) {
+            } else if (player.controls.right.includes(code)) {
+                if (player.stageVoteLocked) continue;
                 player.stageCursor = (player.stageCursor + 1) % numCandidates;
                 if (this.network) this.network.sendStageCursorMove(player.stageCursor);
-            } else if (code === player.controls.confirm) {
+            } else if (player.controls.confirm.includes(code)) {
+                if (player.stageVoteLocked) {
+                    // Second press: unlock so left/right work again and
+                    // the player can swap to a different candidate.
+                    player.stageVoteLocked = false;
+                    continue;
+                }
+                // First press: lock the vote in on the candidate the
+                // cursor is currently over, and make that clear visually
+                // (see drawCursorChips()/drawStageSelectScreen()).
+                player.stageVoteLocked = true;
                 if (this.network) {
                     this.network.sendStagePickRequest(player.stageCursor);
                 } else {
@@ -491,7 +561,8 @@ class Game {
     // PIECE_POOL (more slots than players, so there's real choice),
     // resets every player's cursor/pick, and starts the pick countdown.
     enterPartyBox() {
-        this.partySlots = this.pickPartySlots(this.PARTY_BOX_SLOT_COUNT);
+        const { anyEliminated, allEliminated } = this.lastRoundDeaths;
+        this.partySlots = this.pickPartySlots(this.PARTY_BOX_SLOT_COUNT, anyEliminated, allEliminated);
         this.players.forEach(p => {
             p.partyCursor = 0;
             p.piece = null;
@@ -503,12 +574,19 @@ class Game {
     // Draws `count` piece slots at random from PIECE_POOL (pieces.js).
     // Sampled with replacement — a party box showing the same piece
     // type more than once is expected, unlike STAGE_SELECT's distinct
-    // level candidates.
-    pickPartySlots(count) {
+    // level candidates. The bomb is excluded from the pool entirely
+    // unless `allowBomb` is set (i.e. someone died last round), and if
+    // `guaranteeBomb` is set (everyone died last round), one revealed
+    // slot is forced to be a bomb.
+    pickPartySlots(count, allowBomb, guaranteeBomb) {
+        const pool = allowBomb ? PIECE_POOL : PIECE_POOL.filter(p => p.id !== 'bomb');
         const slots = [];
         for (let i = 0; i < count; i++) {
-            const piece = PIECE_POOL[Math.floor(Math.random() * PIECE_POOL.length)];
+            const piece = pool[Math.floor(Math.random() * pool.length)];
             slots.push(piece);
+        }
+        if (guaranteeBomb && count > 0 && !slots.some(p => p.id === 'bomb')) {
+            slots[Math.floor(Math.random() * count)] = getPieceById('bomb');
         }
         return slots;
     }
@@ -529,13 +607,18 @@ class Game {
         for (const player of this.players) {
             if (!player.controls) continue;
 
-            if (code === player.controls.left) {
+            // Don't allow any more input after this player has picked.
+            if (player.piece) continue;
+
+            if (player.controls.left.includes(code)) {
                 player.partyCursor = this.findNextPartySlot(player.partyCursor, -1);
                 if (this.network) this.network.sendPartyCursorMove(player.partyCursor);
-            } else if (code === player.controls.right) {
+
+            } else if (player.controls.right.includes(code)) {
                 player.partyCursor = this.findNextPartySlot(player.partyCursor, 1);
                 if (this.network) this.network.sendPartyCursorMove(player.partyCursor);
-            } else if (code === player.controls.confirm) {
+
+            } else if (player.controls.confirm.includes(code)) {
                 if (this.network) {
                     this.network.sendPartyPickRequest(player.partyCursor);
                 } else {
@@ -618,6 +701,11 @@ class Game {
             p.buildRotation = 0;
             p.buildPlaced = false;
             p.buildCursor = { ...startCell };
+            // Frames-held counters driving our own move-repeat (see
+            // updateBuildCursorMovement(), called from buildLoop()) —
+            // reset here so a fresh BUILD phase always starts "not held",
+            // regardless of what was down when the previous BUILD ended.
+            p.buildMoveHold = { up: 0, down: 0, left: 0, right: 0 };
         });
 
         this.gameState = GameState.BUILD;
@@ -682,19 +770,23 @@ class Game {
     // PLACE_PIECE_RESULT/FORCE_PLACE mapPatch (via onBuildState) is
     // allowed to do that, so two clients' maps can't diverge.
     handleBuildInput(code) {
+        // Cursor movement (up/down/left/right) is NOT handled here
+        // anymore — see updateBuildCursorMovement(), polled every frame
+        // from buildLoop(). Driving movement off keydown meant holding a
+        // direction relied on the browser's native key-repeat, which
+        // waits a long (~500ms) initial delay before it starts repeating
+        // at all, then bursts — the "lag back a ton" feel. Rotate/confirm
+        // stay here since those are one-shot actions, not held-repeat
+        // ones.
         for (const player of this.players) {
             if (!player.controls) continue;
             if (!player.piece || player.buildPlaced) continue;
 
             const c = player.controls;
             let moved = false;
-            if (code === c.up) { this.moveBuildCursor(player, 0, 1); moved = true; }
-            else if (code === c.down) { this.moveBuildCursor(player, 0, -1); moved = true; }
-            else if (code === c.left) { this.moveBuildCursor(player, -1, 0); moved = true; }
-            else if (code === c.right) { this.moveBuildCursor(player, 1, 0); moved = true; }
-            else if (code === c.rotateCCW) { this.rotateBuildPiece(player, -1); moved = true; }
-            else if (code === c.rotateCW) { this.rotateBuildPiece(player, 1); moved = true; }
-            else if (code === c.confirm) {
+            if (c.rotateCCW.includes(code)) { this.rotateBuildPiece(player, -1); moved = true; }
+            else if (c.rotateCW.includes(code)) { this.rotateBuildPiece(player, 1); moved = true; }
+            else if (c.confirm.includes(code)) {
                 if (this.network) {
                     this.network.sendPlacePieceRequest(
                         player.piece.id, player.buildCursor.col, player.buildCursor.row, player.buildRotation
@@ -710,50 +802,81 @@ class Game {
         }
     }
 
-    // Moves `player`'s cursor one grid-snapped step in the (dCol, dRow)
-    // direction, skipping over any cell in that direction where the
-    // player's whole piece (at its current rotation, not just the
-    // anchor cell) wouldn't fit, until it finds one (or the level edge,
-    // in which case the cursor just doesn't move — same "stay put"
-    // fallback as findNextPartySlot).
-    moveBuildCursor(player, dCol, dRow) {
-        const cursor = player.buildCursor;
-        const next = this.findNextPlaceableCell(cursor.col, cursor.row, dCol, dRow, player.piece, player.buildRotation);
-        if (next) {
-            cursor.col = next.col;
-            cursor.row = next.row;
+    // Polled once per frame from buildLoop() (so it runs at our own
+    // fixed 30fps rate, not whatever cadence the OS decides to fire
+    // native keydown-repeat events at). Each held direction gets an
+    // immediate move on the frame it's first pressed, then a short
+    // pause (BUILD_MOVE_REPEAT_DELAY_FRAMES) before repeating steadily
+    // every BUILD_MOVE_REPEAT_INTERVAL_FRAMES — the usual "tap vs. hold"
+    // grid-cursor feel, instead of the long dead pause + burst you get
+    // from relying on the browser's own key-repeat timing.
+    updateBuildCursorMovement() {
+        const DIRS = [
+            ['up', 0, 1],
+            ['down', 0, -1],
+            ['left', -1, 0],
+            ['right', 1, 0]
+        ];
+        const INITIAL_DELAY_FRAMES = 10;  // ~333ms at 30fps before repeat kicks in
+        const REPEAT_INTERVAL_FRAMES = 4; // ~133ms between repeats after that
+
+        for (const player of this.players) {
+            if (!player.controls) continue;
+            if (!player.piece || player.buildPlaced) continue;
+            if (!player.buildMoveHold) player.buildMoveHold = { up: 0, down: 0, left: 0, right: 0 };
+
+            const c = player.controls;
+            let moved = false;
+
+            for (const [dir, dCol, dRow] of DIRS) {
+                const held = c[dir].some(code => this.keys[code]);
+                if (!held) {
+                    player.buildMoveHold[dir] = 0;
+                    continue;
+                }
+
+                player.buildMoveHold[dir]++;
+                const frames = player.buildMoveHold[dir];
+                const shouldMove =
+                    frames === 1 ||
+                    (frames > INITIAL_DELAY_FRAMES &&
+                        (frames - INITIAL_DELAY_FRAMES) % REPEAT_INTERVAL_FRAMES === 0);
+
+                if (shouldMove) {
+                    this.moveBuildCursor(player, dCol, dRow);
+                    moved = true;
+                }
+            }
+
+            if (moved && this.network) {
+                this.network.sendBuildCursorMove(player.buildCursor.col, player.buildCursor.row, player.buildRotation);
+            }
         }
     }
 
-    // Walks from (col, row) in the (dCol, dRow) direction until it finds
-    // a cell whose full footprint (piece + rotation, anchored at that
-    // cell) is placeable. Falls back to a plain single-cell check when
-    // no piece is given (mirrors the old single-tile-only behavior).
-    findNextPlaceableCell(col, row, dCol, dRow, piece, rotation) {
+    // Moves `player`'s cursor one grid step in the (dCol, dRow) direction.
+    // Purely a bounds clamp — no fit-checking, no skipping/snapping to
+    // some other cell. Whether the piece actually fits where the cursor
+    // ends up is only checked when the player tries to place it (see
+    // placeBuildPiece()); an invalid spot just means the placement gets
+    // rejected, not that the cursor can't go there.
+    moveBuildCursor(player, dCol, dRow) {
         const cols = this.levelData.size_x;
         const rows = Math.floor(this.physics.MAP.length / cols);
-        let c = col + dCol;
-        let r = row + dRow;
-        while (c >= 0 && c < cols && r >= 0 && r < rows) {
-            const candidate = { col: c, row: r };
-            const fits = piece
-                ? this.footprintFits(this.getPieceWorldCells(piece, rotation, candidate))
-                : this.physics.isPlaceableCell(this.buildCellIndex(candidate));
-            if (fits) return candidate;
-            c += dCol;
-            r += dRow;
-        }
-        return null;
+        const cursor = player.buildCursor;
+        const nextCol = cursor.col + dCol;
+        const nextRow = cursor.row + dRow;
+        if (nextCol < 0 || nextCol >= cols || nextRow < 0 || nextRow >= rows) return;
+        cursor.col = nextCol;
+        cursor.row = nextRow;
     }
 
-    // Quarter-turns `player`'s piece rotation (0-3) by `delta` (+1/-1),
-    // then — since rotating a multi-tile piece can swing part of it into
-    // a wall or off the grid even though the anchor cell itself is still
-    // fine — snaps the cursor to the nearest cell where the newly
-    // rotated footprint fits, if the current cell no longer works.
+    // Quarter-turns `player`'s piece rotation (0-3) by `delta` (+1/-1).
+    // The cursor stays exactly where it is — if the rotated footprint no
+    // longer fits there, that's only checked (and only matters) at
+    // placement time, same as moving.
     rotateBuildPiece(player, delta) {
         player.buildRotation = ((player.buildRotation + delta) % 4 + 4) % 4;
-        this.ensureFootprintFits(player);
     }
 
     // Converts a piece's rotated footprint (see pieces.js's
@@ -769,57 +892,23 @@ class Game {
 
     // Whether every cell in `cells` is in-bounds and placeable — i.e.
     // whether a piece's whole footprint (not just its anchor cell) would
-    // fit there.
-    footprintFits(cells) {
+    // fit there. Pieces with targetsSolid: true (currently just `bomb`,
+    // see pieces.js) aren't required to land on a solid/functional tile
+    // to be *accepted* here — bounds are all that matter, so a player is
+    // free to drop a bomb on open air. Whether that actually deletes
+    // anything is a separate question decided at write time (see
+    // placeBuildPiece()'s isDeletableCell() check) — landing on air just
+    // means the bomb is wasted, not that the placement gets rejected.
+    footprintFits(cells, piece = null) {
         const cols = this.levelData.size_x;
         const rows = Math.floor(this.physics.MAP.length / cols);
+        const cellOk = (idx) => (piece && piece.targetsSolid)
+            ? true
+            : this.physics.isPlaceableCell(idx);
         return cells.every(cell => {
             if (cell.col < 0 || cell.col >= cols || cell.row < 0 || cell.row >= rows) return false;
-            return this.physics.isPlaceableCell(this.buildCellIndex(cell));
+            return cellOk(this.buildCellIndex(cell));
         });
-    }
-
-    // Multi-tile counterpart to findPlaceableCellNear(): finds the
-    // nearest anchor cell (searching outward ring by ring, `cell`
-    // included) where the piece's whole rotated footprint fits. Returns
-    // null if nothing works anywhere in the level (shouldn't happen on
-    // a real level with room for the piece).
-    findPlaceableFootprintNear(piece, rotation, cell) {
-        const cols = this.levelData.size_x;
-        const rows = Math.floor(this.physics.MAP.length / cols);
-        const maxRadius = Math.max(cols, rows);
-
-        for (let radius = 0; radius <= maxRadius; radius++) {
-            for (let dc = -radius; dc <= radius; dc++) {
-                for (let dr = -radius; dr <= radius; dr++) {
-                    if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
-                    const candidate = { col: cell.col + dc, row: cell.row + dr };
-                    if (this.footprintFits(this.getPieceWorldCells(piece, rotation, candidate))) {
-                        return candidate;
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    // Re-snaps `player`'s cursor to the nearest cell where their piece
-    // (at its current rotation) fully fits, if it doesn't fit where the
-    // cursor currently sits. Called after rotating (see
-    // rotateBuildPiece()) since that can change the footprint's shape
-    // without the cursor itself moving.
-    ensureFootprintFits(player) {
-        if (!player.piece) return;
-        const cursor = player.buildCursor;
-        const rotation = player.buildRotation;
-
-        if (this.footprintFits(this.getPieceWorldCells(player.piece, rotation, cursor))) return;
-
-        const snapped = this.findPlaceableFootprintNear(player.piece, rotation, cursor);
-        if (snapped) {
-            cursor.col = snapped.col;
-            cursor.row = snapped.row;
-        }
     }
 
     // Places `player`'s piece at their cursor's current position/
@@ -830,7 +919,8 @@ class Game {
     // skipping placement.
     confirmBuildPlacement(player) {
         if (player.buildPlaced) return;
-        this.placeBuildPiece(player);
+        const placed = this.placeBuildPiece(player);
+        if (!placed) return; // invalid spot — reject, don't consume their turn
         player.buildPlaced = true;
         this.checkBuildComplete();
     }
@@ -840,33 +930,30 @@ class Game {
     // footprint (see pieces.js's getPieceFootprintCells()) — a single
     // write for 1x1 pieces, several for multi-tile ones like
     // platform_triple. If the whole footprint doesn't fit where the
-    // cursor currently sits (only really possible if this player never
-    // moved off their shared starting cell and another player already
-    // placed there), snaps to the nearest anchor cell where it does fit
-    // instead of partially overwriting whatever's already there.
+    // cursor currently sits, the placement is simply rejected — nothing
+    // is written and the cursor stays exactly where the player left it.
+    // Returns true if the piece was placed, false if it was rejected.
     placeBuildPiece(player) {
         const piece = player.piece;
-        let cursor = player.buildCursor;
+        const cursor = player.buildCursor;
         const rotation = player.buildRotation;
-        if (!piece) return;
+        if (!piece) return false;
 
-        let cells = this.getPieceWorldCells(piece, rotation, cursor);
-        if (!this.footprintFits(cells)) {
-            const snapped = this.findPlaceableFootprintNear(piece, rotation, cursor);
-            if (snapped) {
-                cursor = snapped;
-                cells = this.getPieceWorldCells(piece, rotation, cursor);
-            }
-        }
+        const cells = this.getPieceWorldCells(piece, rotation, cursor);
+        if (!this.footprintFits(cells, piece)) return false;
 
+        const cellOk = (idx) => piece.targetsSolid
+            ? this.physics.isDeletableCell(idx)
+            : this.physics.isPlaceableCell(idx);
         for (const cell of cells) {
-            if (!this.physics.isPlaceableCell(this.buildCellIndex(cell))) continue;
+            if (!cellOk(this.buildCellIndex(cell))) continue;
             const idx = this.buildCellIndex(cell);
             this.physics.MAP[idx] = cell.tile;
             this.physics.MAP_R[idx] = rotation;
         }
 
         console.log(`${player.name} placed ${piece.name} at (${cursor.col}, ${cursor.row}) rot ${rotation}`);
+        return true;
     }
 
     // Once every active player has placed (by choice or by timeout),
@@ -1011,6 +1098,7 @@ class Game {
             p.buildPlaced = false;
         });
         this.currentRound = 1;
+        this.lastRoundDeaths = { anyEliminated: false, allEliminated: false };
         this.gameState = GameState.MENU;
 
         const startScreen = document.getElementById('startScreen');
@@ -1327,19 +1415,18 @@ class Game {
     // nothing here for it to resimulate or desync.
     getInputKeysFor(player) {
         if (this.gameState !== GameState.RACE) return "";
-        if (player.hasFinished) return "";
+        if (player.hasFinished || player.eliminated) return ""; // done for the round — no more input, but physics keeps simulating them
         if (!player.controls) return ""; // remote seat or idle bot — not simulated locally
 
         let keys = '';
-
         if (this.decodedReplayCode) {
             keys = this.decodedReplayCode[this.tick];
         }
 
-        if (this.keys[player.controls.right]) keys += 'D';
-        if (this.keys[player.controls.left]) keys += 'A';
-        if (this.keys[player.controls.down]) keys += 'S';
-        if (this.keys[player.controls.up]) keys += 'W';
+        if (player.controls.right.some(k => this.keys[k])) keys += 'D';
+        if (player.controls.left.some(k => this.keys[k])) keys += 'A';
+        if (player.controls.down.some(k => this.keys[k])) keys += 'S';
+        if (player.controls.up.some(k => this.keys[k])) keys += 'W';
 
         return keys;
     }
@@ -1393,13 +1480,21 @@ class Game {
                     player.physicsState.player_state = pos.crouched ? 2 : 0;
                     player.physicsState.player_wall = pos.onWall ? 1 : null;
                 }
-            } else if (!player.eliminated) {
+            } else {
                 // Local player (always), or any player at all in fully
-                // offline/local play (no network attached).
+                // offline/local play (no network attached). We keep
+                // ticking physics even after a player has finished or
+                // been eliminated — getInputKeysFor() above already
+                // returns no input for them, so they can't steer anymore,
+                // but they still fall/slide/collide naturally instead of
+                // freezing mid-air. Sending every frame (not just while
+                // active) means remote clients keep tracking that same
+                // physics as it settles, instead of freezing on whatever
+                // pose happened to be last sent.
                 const keys = this.getInputKeysFor(player);
                 player.physicsState = this.physics.tick(player.physicsState, keys);
 
-                if (player.controls && this.network && !player.hasFinished) {
+                if (player.controls && this.network) {
                     this.network.sendPositionSnapshot(
                         this.tick,
                         player.physicsState.PLAYER_X,
@@ -1471,8 +1566,10 @@ class Game {
         // Once a player has crossed the finish flag they're done for the
         // round — don't let a late hit from a spike/hazard kill them.
         // Death no longer respawns the player mid-round: they're marked
-        // eliminated and frozen in place (physics.tick() is skipped for
-        // them above) until the next round's setup resets the flag.
+        // eliminated and lose control (getInputKeysFor() stops feeding
+        // them input above) but physics keeps simulating them — falling,
+        // sliding, colliding — same as a finished player, until the next
+        // round's setup resets the flag.
         for (const player of this.players) {
             if (player.physicsState.PLAYER_DEATH && !player.hasFinished && !player.eliminated) {
                 console.log(`${player.name} died!`);
@@ -1526,6 +1623,14 @@ class Game {
                 this.awardRoundPoints();
                 this.roundResultsAnimFrames = 0;
                 this.gameState = GameState.ROUND_RESULTS;
+
+                // Drives bomb availability in the next party box (see
+                // pickPartySlots()): no bomb at all unless someone died
+                // this round, guaranteed bomb if everyone died.
+                this.lastRoundDeaths = {
+                    anyEliminated: this.players.some(p => p.eliminated),
+                    allEliminated: this.players.length > 0 && this.players.every(p => p.eliminated)
+                };
             }
         } else {
             this.roundEndFrames = 0;
@@ -1533,10 +1638,13 @@ class Game {
     }
 
     // N-PLAYER REFACTOR: replaces the old inline 2-player camera framing
-    // in update(). Aims at the centroid of every non-eliminated player
-    // (falls back to everyone if the whole field is eliminated, so the
-    // camera doesn't do anything undefined) and zooms out based on their
-    // bounding-box diagonal instead of a single pairwise distance.
+    // in update(). Aims at the centroid of every player still actively
+    // racing — excludes anyone eliminated (died/DNF'd) or already
+    // finished, since a player who's done for the round should no longer
+    // pull the camera around (falls back to everyone if the whole field
+    // is done, so the camera doesn't do anything undefined) — and zooms
+    // out based on their bounding-box diagonal instead of a single
+    // pairwise distance.
     //
     // CALLOUT: MIN_ZOOM/MAX_ZOOM/SEPARATION_TO_ZOOM below are the exact
     // constants tuned for the old 2-player pairwise separation. With up
@@ -1545,8 +1653,15 @@ class Game {
     // once real N-player races get playtested — flagging rather than
     // guessing at new numbers blind.
     updateRaceCamera() {
-        let active = this.players.filter(p => !p.eliminated);
-        if (active.length === 0) active = this.players; // shouldn't happen, but avoid NaN
+        let active = this.players.filter(p => !p.eliminated && !p.hasFinished);
+        // Nobody's still actively racing — the round is wrapping up (this
+        // is also exactly the window covered by the server/local
+        // round-end delay, see checkRoundEnd()/ROUND_END_DELAY_FRAMES).
+        // Show the whole field, dead or not, instead of leaving the
+        // camera framing whoever happened to be active last.
+        const roundWrappingUp = active.length === 0;
+        if (roundWrappingUp) active = this.players;
+        if (active.length === 0) return; // truly no players at all — nothing to frame
 
         const xs = active.map(p => p.physicsState.PLAYER_X);
         const ys = active.map(p => p.physicsState.PLAYER_Y);
@@ -1556,19 +1671,50 @@ class Game {
 
         const minX = Math.min(...xs), maxX = Math.max(...xs);
         const minY = Math.min(...ys), maxY = Math.max(...ys);
-        const diagonal = Math.sqrt((maxX - minX) ** 2 + (maxY - minY) ** 2);
 
-        const MIN_ZOOM = 0.6;
+        // Zoom out however far is needed to keep every active player on
+        // screen, instead of clamping to a fixed MIN_ZOOM floor that a
+        // wide-enough spread could still exceed. Solve directly for the
+        // zoom that fits the players' bounding box (plus padding) inside
+        // the actual canvas, in both axes — screenX = canvas.width/2 +
+        // zoom*(worldX - camera.x), so zoom <= availableWidth / boxWidth
+        // is exactly the constraint that keeps the box's edges on screen.
+        const PADDING_PX = 60; // breathing room so players aren't glued to the edge
+        const boxW = Math.max(maxX - minX, 1);
+        const boxH = Math.max(maxY - minY, 1);
+        const zoomToFitX = Math.max(0, this.canvas.width - PADDING_PX * 2) / boxW;
+        const zoomToFitY = Math.max(0, this.canvas.height - PADDING_PX * 2) / boxH;
+        const fitZoom = Math.min(zoomToFitX, zoomToFitY);
+
         const MAX_ZOOM = 1.25;
-        const SEPARATION_TO_ZOOM = 600;
-        const rawZoom = MAX_ZOOM - diagonal / SEPARATION_TO_ZOOM;
-        const targetZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, rawZoom));
+        // Tiny floor purely to avoid a degenerate zero/negative zoom —
+        // not a "don't zoom out past this" gameplay limit.
+        const ZOOM_EPSILON = 0.05;
+        const targetZoom = Math.max(ZOOM_EPSILON, Math.min(MAX_ZOOM, fitZoom));
 
-        this.camera.x += (targetCameraX - this.camera.x) * 0.2;
-        this.camera.y += ((targetCameraY - this.camera.y) + 8) * 0.2;
-        // Ease zoom more slowly than position so it doesn't feel jittery
-        // when players bounce toward/away from each other.
-        this.camera.zoom += (targetZoom - this.camera.zoom) * 0.1;
+        this.camera.x += (targetCameraX - this.camera.x) * 0.1;
+        this.camera.y += ((targetCameraY - this.camera.y) + 8) * 0.1;
+
+        // Asymmetric zoom easing: zooming OUT (players spreading apart)
+        // needs to happen as fast as necessary so nobody ever slips off
+        // screen, so we snap most of the way there in one frame. Zooming
+        // back IN (players regrouping) eases slowly instead, since a fast
+        // zoom-in is what actually reads as jarring — the view suddenly
+        // rushing toward the players rather than gently settling.
+        //
+        // The round-wrap-up reveal (everyone's done, showing the whole
+        // field) is an exception even when it's zooming out: there's no
+        // "someone's about to fall off screen" urgency anymore since
+        // nobody's still racing, so a fast snap here would just look like
+        // a jump-cut. Ease it out slowly instead, matching the ~1s
+        // round-end delay so it settles right around when results appear.
+        const ZOOM_OUT_EASE = 0.6;
+        const ZOOM_IN_EASE = 0.1;
+        const ZOOM_REVEAL_EASE = 0.06;
+        const zoomEase = roundWrappingUp
+            ? ZOOM_REVEAL_EASE
+            : (targetZoom < this.camera.zoom ? ZOOM_OUT_EASE : ZOOM_IN_EASE);
+        this.camera.zoom += (targetZoom - this.camera.zoom) * zoomEase;
     }
 
     // N-PLAYER REFACTOR: replaces the old hardcoded 1-or-2-player
@@ -1626,7 +1772,7 @@ class Game {
                 dir: player.physicsState.PLAYER_DIR
             };
 
-            this.renderer.renderPlayer(playerPos, this.camera, player.hue);
+            this.renderer.renderPlayer(playerPos, this.camera, player.hue, player.name, player.color);
         }
 
         this.renderer.renderDynamic(firstPlayer.physicsState.OBJ, this.camera);
@@ -1693,11 +1839,11 @@ class Game {
                 break;
 
             case GameState.ROUND_RESULTS:
-                this.drawRoundResultsScreen();
+                this.drawRoundResultsScreen(this.ctx);
                 break;
 
             case GameState.FINAL_RESULTS:
-                this.drawFinalResultsScreen();
+                this.drawFinalResultsScreen(this.ctx);
                 break;
 
             case GameState.MENU:
@@ -1712,9 +1858,6 @@ class Game {
     // and entities. This is the old gameLoop() body, now only run while
     // this.gameState === GameState.RACE.
     raceLoop() {
-        this.profiler.start('Total Frame');
-        this.profiler.tick();
-
         // Tick the race clock down once per frame. Physics/finish/DNF
         // checks inside update() read raceTimeRemaining this same frame,
         // so a player who's still racing when it crosses 0 gets DNF'd
@@ -1723,29 +1866,19 @@ class Game {
             this.raceTimeRemaining = Math.max(0, this.raceTimeRemaining - (1 / 30));
         }
 
-        this.profiler.start('Physics');
         this.update();
-        this.profiler.end('Physics');
 
         if (this.levelData) {
-            this.profiler.start('Render: Level');
             this.renderer.render(this.levelData, this.camera);
-            this.profiler.end('Render: Level');
         }
 
-        this.profiler.start('Render: Player');
         this.drawEntities();
-        this.profiler.end('Render: Player');
 
         this.drawRaceTimer();
 
         this.tick += 1;
 
         // this.debugKillZones()
-
-        this.profiler.draw(this.ctx);
-
-        this.profiler.end('Total Frame');
     }
 
     // Draws the race countdown using the same plain canvas-text approach
@@ -1767,7 +1900,22 @@ class Game {
     buildLoop() {
         this.buildTimeRemaining = Math.max(0, this.buildTimeRemaining - (1 / 30));
 
-        if (this.buildTimeRemaining <= 0) {
+        // NETWORK REFACTOR: when networked, force-placement on timeout is
+        // the server's job (see Room.js's expireBuild(), which broadcasts
+        // authoritative FORCE_PLACE/BUILD_COMPLETE). Doing this locally
+        // too raced the server: on a client whose local countdown hit
+        // zero a moment before the server's own timer + network latency
+        // caught up, this jumped gameState to RACE and ran
+        // resetRoundState() *before* the real BUILD_COMPLETE/mapPatch
+        // arrived. That's most damaging on round 1 specifically, since
+        // this.mapSnapshot is still null right after loadLevel() — so
+        // physics started ticking (crumbling/springs) before anything
+        // had been snapshotted, and the real BUILD_COMPLETE that arrived
+        // moments later snapshotted that already-mutated map instead of
+        // the clean just-built one, baking the corruption in for the
+        // rest of the round. Only the local (offline) path should ever
+        // force-place client-side.
+        if (this.buildTimeRemaining <= 0 && !this.network) {
             for (const player of this.players) {
                 if (player.piece && !player.buildPlaced) {
                     this.confirmBuildPlacement(player);
@@ -1775,6 +1923,7 @@ class Game {
             }
         }
 
+        this.updateBuildCursorMovement();
         this.updateBuildCamera();
 
         if (this.levelData) {
@@ -1783,15 +1932,41 @@ class Game {
         this.drawBuildScreen();
     }
 
-    // Eases the camera toward the centroid of every player's cursor,
-    // same easing feel as the RACE camera in updateRaceCamera().
+    // Same framing behavior as the RACE camera (updateRaceCamera()): aims
+    // at the centroid of every player's build cursor and zooms out however
+    // far is needed to keep every cursor (and whatever they're building)
+    // on screen, so players can see their own and each other's work
+    // in progress instead of it drifting off-camera. Zoom eases out fast
+    // and in slowly, same as RACE, so it's responsive without being jarring.
     updateBuildCamera() {
         const worlds = this.players.map(p => this.buildCellToWorld(p.buildCursor));
-        const targetX = worlds.reduce((sum, w) => sum + w.x, 0) / worlds.length;
-        const targetY = worlds.reduce((sum, w) => sum + w.y, 0) / worlds.length;
+        const xs = worlds.map(w => w.x);
+        const ys = worlds.map(w => w.y);
+
+        const targetX = xs.reduce((a, b) => a + b, 0) / xs.length;
+        const targetY = ys.reduce((a, b) => a + b, 0) / ys.length;
+
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+        const PADDING_PX = 60;
+        const boxW = Math.max(maxX - minX, 1);
+        const boxH = Math.max(maxY - minY, 1);
+        const zoomToFitX = Math.max(0, this.canvas.width - PADDING_PX * 2) / boxW;
+        const zoomToFitY = Math.max(0, this.canvas.height - PADDING_PX * 2) / boxH;
+        const fitZoom = Math.min(zoomToFitX, zoomToFitY);
+
+        const MAX_ZOOM = 1.25;
+        const ZOOM_EPSILON = 0.05;
+        const targetZoom = Math.max(ZOOM_EPSILON, Math.min(MAX_ZOOM, fitZoom));
 
         this.camera.x += (targetX - this.camera.x) * 0.2;
         this.camera.y += (targetY - this.camera.y) * 0.2;
+
+        const ZOOM_OUT_EASE = 0.6;
+        const ZOOM_IN_EASE = 0.1;
+        const zoomEase = targetZoom < this.camera.zoom ? ZOOM_OUT_EASE : ZOOM_IN_EASE;
+        this.camera.zoom += (targetZoom - this.camera.zoom) * zoomEase;
     }
 
     // Converts a {col, row} grid cell to the same world-coordinate frame
@@ -1832,7 +2007,7 @@ class Game {
             // pass (see the LOCAL_PLAYER_CONTROLS callout up top), so
             // this now says so explicitly instead of silently going
             // quiet about the other seats.
-            'You (P1): WASD move, Q/E rotate, Left Shift place — other seats are idle stand-ins for now',
+            'Arrow keys to move, Q/E rotate, Enter/Shift to place.',
             this.canvas.width / 2, 66
         );
 
@@ -1867,7 +2042,7 @@ class Game {
             rotation
         }));
 
-        this.renderer.renderTilePreviews(this.levelData, this.camera, cells, alpha);
+        this.renderer.renderTilePreviews(this.levelData, this.camera, cells, alpha, piece);
 
         this.ctx.strokeStyle = color;
         this.ctx.lineWidth = 3;
@@ -1909,7 +2084,12 @@ class Game {
     // tall enough to crowd the top of the screen — worth a real visual
     // pass once there's more than one live local/remote player to
     // actually see it happen with.
-    drawCursorChips(cursorField, itemIndex, cx, boxY) {
+    // `lockedField`, when given, names a boolean player field (e.g.
+    // stageVoteLocked) that marks a chip as a confirmed pick rather than
+    // just a hovering cursor — locked chips get a checkmark and switch
+    // to the success color instead of the player's own color, so a
+    // vote reads as clearly "locked in" versus "still browsing".
+    drawCursorChips(cursorField, itemIndex, cx, boxY, lockedField = null) {
         const here = this.players.filter(p => p[cursorField] === itemIndex);
         if (here.length === 0) return;
 
@@ -1920,8 +2100,9 @@ class Game {
         this.ctx.font = "bold 11px " + THEME.font;
         here.forEach((player, i) => {
             const y = startY + i * (chipHeight + gap);
-            this.ctx.fillStyle = player.color;
-            this.ctx.fillText(`${player.name} ▲`, cx, y);
+            const locked = lockedField && player[lockedField];
+            this.ctx.fillStyle = locked ? THEME.success : player.color;
+            this.ctx.fillText(locked ? `${player.name} ✓` : `${player.name} ▲`, cx, y);
         });
     }
 
@@ -1961,7 +2142,7 @@ class Game {
         this.ctx.font = "14px " + THEME.font;
         this.ctx.fillStyle = THEME.textMuted;
         this.ctx.fillText(
-            'You (P1): A/D to move, Left Shift to grab — other seats are idle stand-ins for now',
+            'Arrow keys to move, Enter/Shift to grab',
             this.canvas.width / 2, 78
         );
 
@@ -2017,7 +2198,7 @@ class Game {
         this.ctx.font = "14px " + THEME.font;
         this.ctx.fillStyle = THEME.textMuted;
         this.ctx.fillText(
-            'You (P1): A/D to move, Left Shift to confirm — other seats are idle stand-ins for now',
+            'Arrow keys to move, Enter/Shift to grab',
             this.canvas.width / 2, 82
         );
 
@@ -2032,12 +2213,13 @@ class Game {
         candidates.forEach((code, i) => {
             const cx = spacing * (i + 1);
             const hasCursorHere = this.players.some(p => p.stageCursor === i);
+            const hasLockedVoteHere = this.players.some(p => p.stageCursor === i && p.stageVoteLocked);
 
             this.roundRectPath(cx - boxWidth / 2, boxY, boxWidth, boxHeight, 10);
             this.ctx.fillStyle = THEME.panel;
             this.ctx.fill();
-            this.ctx.strokeStyle = hasCursorHere ? THEME.panelBorderActive : THEME.panelBorder;
-            this.ctx.lineWidth = hasCursorHere ? 2.5 : 1.5;
+            this.ctx.strokeStyle = hasLockedVoteHere ? THEME.success : (hasCursorHere ? THEME.panelBorderActive : THEME.panelBorder);
+            this.ctx.lineWidth = hasLockedVoteHere || hasCursorHere ? 2.5 : 1.5;
             this.ctx.stroke();
 
             const thumbPad = 8;
@@ -2066,7 +2248,7 @@ class Game {
             this.ctx.font = "12px " + THEME.font;
             this.ctx.fillText(`Stage ${i + 1}`, cx, boxY + boxHeight - 8);
 
-            this.drawCursorChips('stageCursor', i, cx, boxY);
+            this.drawCursorChips('stageCursor', i, cx, boxY, 'stageVoteLocked');
         });
     }
 
@@ -2092,69 +2274,149 @@ class Game {
         return { text: '—', color: THEME.textMuted };
     }
 
-    // Real ROUND_RESULTS screen: every player's outcome for the round
-    // (finished/eliminated/DNF), the points they just earned, "Round X
-    // of totalRounds", and a running-total bar per player that animates
-    // from player.scoreBeforeRound to player.score over
-    // ROUND_RESULTS_ANIM_FRAMES frames (~0.5s at 30fps) using an eased
-    // lerp driven by this.roundResultsAnimFrames.
-    // N-PLAYER REFACTOR: outcome columns are now spaced evenly across
-    // the canvas width (same spacing pattern the stage/party boxes use)
-    // instead of two fixed +/-180px offsets, and the score bars stack
-    // vertically — one row per player — instead of two fixed rows.
-    // CALLOUT: with 6 players the stacked bars get noticeably tighter
-    // (smaller bar height/gap below); worth a visual pass once there's
-    // an actual 5-6 player field to look at rather than guessing sizes.
-    drawRoundResultsScreen() {
-        this.fillBackground();
-        this.drawScreenTitle('Round Results');
+drawRoundResultsScreen() {
+        const ctx = this.ctx; // Use internal context directly
+        
+        // Clear background
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Add standard title and round badge (only show "Round Results" if the match isn't over yet)
+        if (this.gameState === GameState.ROUND_RESULTS) {
+            this.drawScreenTitle('Round Results');
+        }
         this.drawRoundBadge();
 
-        const n = this.players.length;
-        const colSpacing = this.canvas.width / (n + 1);
+        // --- CONFIGURATION ---
+        // Adjust this target to match your server's max points or match win threshold
+        const POINTS_TO_WIN = 15; 
+        
+        // CENTER THE CHART: Define a fixed width and calculate the exact center
+        const chartWidth = 600;
+        const chartLeft = (this.canvas.width - chartWidth) / 2;
+        const chartRight = chartLeft + chartWidth;
+        
+        const chartTop = 160;     // Moved up slightly to make room for the title
+        const barHeight = 60;     // Thicker, square-edged bars
+        const barSpacing = 30;    // Spacing between player rows
+        
+        const activePlayers = this.players.filter(p => p !== null);
+        const chartBottom = chartTop + activePlayers.length * (barHeight + barSpacing) - barSpacing;
 
-        this.players.forEach((player, i) => {
-            const x = colSpacing * (i + 1);
-            const label = this.getRoundResultLabel(player);
+        // 1. DRAW 3-POINT INTERVAL SLICE LINES
+        ctx.lineWidth = 2;
+        for (let p = 3; p <= POINTS_TO_WIN; p += 3) {
+            const x = chartLeft + (p / POINTS_TO_WIN) * chartWidth;
+            
+            // Draw a vertical line cutting completely through all bar lanes
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.beginPath();
+            ctx.moveTo(x, chartTop - 15);
+            ctx.lineTo(x, chartBottom + 15);
+            ctx.stroke();
 
-            this.ctx.font = "bold 16px " + THEME.font;
-            this.ctx.fillStyle = player.color;
-            this.ctx.fillText(player.name, x, 110);
+            // 3-Point interval labels
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.font = 'bold 14px ' + THEME.font;
+            ctx.textAlign = 'center';
+            ctx.fillText(`${p} pts`, x, chartTop - 25);
+        }
 
-            this.ctx.font = "15px " + THEME.font;
-            this.ctx.fillStyle = label.color;
-            this.ctx.fillText(label.text, x, 132);
+        // 2. DRAW THE WINNING GOAL LINE
+        const winLineX = chartLeft + chartWidth;
+        ctx.strokeStyle = '#ffdd57'; // High contrast Gold line
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(winLineX, chartTop - 35);
+        ctx.lineTo(winLineX, chartBottom + 25);
+        ctx.stroke();
 
-            this.ctx.fillStyle = THEME.textMuted;
-            this.ctx.fillText(`+${player.lastRoundPoints} pts`, x, 152);
+        // Target goal label text
+        ctx.fillStyle = '#ffdd57';
+        ctx.font = 'bold 14px ' + THEME.font;
+        ctx.textAlign = 'center';
+        ctx.fillText(`GOAL: ${POINTS_TO_WIN} TO WIN`, winLineX, chartTop - 45);
+
+        // 3. DRAW EACH PLAYER'S PROGRESS BAR
+        let currentY = chartTop;
+        
+        this.players.forEach((player) => {
+            if (!player) return;
+
+            // Base the progress on current score relative to win threshold
+            const scoreRatio = Math.min(player.score / POINTS_TO_WIN, 1);
+            const barWidth = scoreRatio * chartWidth;
+
+            // Background track block for context
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.fillRect(chartLeft, currentY, chartWidth, barHeight);
+
+            // Draw the thick player bar 
+            ctx.fillStyle = player.color || '#4e54c8';
+            ctx.fillRect(chartLeft, currentY, Math.max(barWidth, 2), barHeight);
+
+            // 4. DRAW NAMES AND SCORES INSIDE THE BARS
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 18px ' + THEME.font;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            
+            // Position text 15 pixels inside the start of the bar
+            const textX = chartLeft + 15;
+            const textY = currentY + barHeight / 2;
+            
+            ctx.fillText(`${player.name} — ${player.score} Pts`, textX, textY);
+
+            // Row increment
+            currentY += barHeight + barSpacing;
         });
-
-        // Animated running-total bars.
-        this.roundResultsAnimFrames = Math.min(
-            this.roundResultsAnimFrames + 1,
-            this.ROUND_RESULTS_ANIM_FRAMES
-        );
-        const eased = this.easeOutCubic(this.roundResultsAnimFrames / this.ROUND_RESULTS_ANIM_FRAMES);
-
-        const barMaxWidth = 500;
-        const barHeight = n > 4 ? 18 : 24;
-        const barGap = n > 4 ? 26 : 40;
-        const barX = this.canvas.width / 2 - barMaxWidth / 2;
-        const firstBarY = 190;
-
-        this.players.forEach((player, i) => {
-            this.drawScoreBar(
-                barX, firstBarY + i * barGap, barMaxWidth, barHeight,
-                player.scoreBeforeRound, player.score, eased,
-                player.color, player.name
-            );
-        });
-
-        this.ctx.font = "15px " + THEME.font;
-        this.ctx.fillStyle = THEME.textMuted;
-        this.ctx.fillText('Press Enter to continue', this.canvas.width / 2, firstBarY + n * barGap + 20);
+        
+        // Reset textBaseline so it doesn't mess up rendering on other screens
+        ctx.textBaseline = 'alphabetic';
     }
 
+    drawFinalResultsScreen() {
+        const ctx = this.ctx; // Use internal context directly
+        
+        // Render the underlying bar chart layout
+        this.drawRoundResultsScreen();
+
+        // Overlay the Winner banner across the top
+        ctx.fillStyle = 'rgba(26, 26, 46, 0.85)';
+        ctx.fillRect(0, 0, this.canvas.width, 110);
+
+        // Calculate who has the highest total score
+        let highestScore = -1;
+        let winners = [];
+
+        this.players.forEach(p => {
+            if (p) {
+                if (p.score > highestScore) {
+                    highestScore = p.score;
+                    winners = [p];
+                } else if (p.score === highestScore && highestScore !== -1) {
+                    winners.push(p);
+                }
+            }
+        });
+
+        // Render victory text declaration
+        ctx.fillStyle = '#ffdd57';
+        ctx.font = 'bold 36px ' + THEME.font;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+
+        if (winners.length === 1) {
+            ctx.fillText(`${winners[0].name.toUpperCase()} WINS!`, this.canvas.width / 2, 35);
+        } else if (winners.length > 1) {
+            const winnerNames = winners.map(w => w.name.toUpperCase()).join(' & ');
+            ctx.fillText(`Tie between: ${winnerNames} 🤝`, this.canvas.width / 2, 35);
+        } else {
+            ctx.fillText("bro what", this.canvas.width / 2, 35);
+        }
+        
+        ctx.textBaseline = 'alphabetic';
+    }
     // Draws one running-total bar: an outlined track filled from 0 up to
     // the interpolated value between `fromScore` and `toScore` at `t`
     // (already eased by the caller), scaled against
@@ -2185,46 +2447,6 @@ class Game {
         this.ctx.textAlign = "right";
         this.ctx.fillText(Math.round(displayedScore).toString(), x + width, y - 8);
         this.ctx.textAlign = "center";
-    }
-
-    // Real FINAL_RESULTS screen: shown once currentRound has reached
-    // totalRounds. Declares a winner (or a tie among however many
-    // players are tied for the top score) from the final per-player
-    // scores and offers "play again" (Enter -> playAgain(), wired up in
-    // advanceFromPlaceholder()).
-    // N-PLAYER REFACTOR: replaces the fixed 2-line "Player 1: N pts" /
-    // "Player 2: N pts" + 3-way if/else winner check with a ranked list
-    // of every player and a tie check across however many players share
-    // the top score (not just a 2-way tie).
-    drawFinalResultsScreen() {
-        this.fillBackground();
-
-        this.ctx.fillStyle = THEME.text;
-        this.ctx.textAlign = "center";
-        this.ctx.font = "bold 32px " + THEME.font;
-        this.ctx.fillText('Final Results', this.canvas.width / 2, 70);
-
-        const ranked = [...this.players].sort((a, b) => b.score - a.score);
-
-        this.ctx.font = "20px " + THEME.font;
-        ranked.forEach((player, i) => {
-            this.ctx.fillStyle = player.color;
-            this.ctx.fillText(`${player.name}: ${player.score} pts`, this.canvas.width / 2, 130 + i * 32);
-        });
-
-        const topScore = ranked[0].score;
-        const winners = ranked.filter(p => p.score === topScore);
-        const winnerText = winners.length > 1
-            ? `Tie between ${winners.map(p => p.name).join(' & ')}!`
-            : `${winners[0].name} wins!`;
-
-        this.ctx.font = "bold 26px " + THEME.font;
-        this.ctx.fillStyle = THEME.success;
-        this.ctx.fillText(winnerText, this.canvas.width / 2, 130 + ranked.length * 32 + 40);
-
-        this.ctx.font = "15px " + THEME.font;
-        this.ctx.fillStyle = THEME.textMuted;
-        this.ctx.fillText('Press Enter to play again', this.canvas.width / 2, 130 + ranked.length * 32 + 80);
     }
 
     // ================= NETWORK REFACTOR =================
@@ -2332,6 +2554,7 @@ class Game {
                 player.score = previous.score;
                 player.piece = previous.piece;
                 player.stageCursor = previous.stageCursor;
+                player.stageVoteLocked = previous.stageVoteLocked;
                 player.partyCursor = previous.partyCursor;
                 player.buildCursor = previous.buildCursor;
                 player.buildRotation = previous.buildRotation;
@@ -2371,7 +2594,7 @@ class Game {
         switch (type) {
             case 'STAGE_SELECT_START':
                 this.stageCandidates = payload.candidates || [];
-                this.players.forEach(p => { p.stageCursor = 0; });
+                this.players.forEach(p => { p.stageCursor = 0; p.stageVoteLocked = false; });
                 this.gameState = GameState.STAGE_SELECT;
                 {
                     const thumbW = STAGE_SELECT_BOX_WIDTH - 16;
@@ -2382,6 +2605,20 @@ class Game {
             case 'STAGE_CURSOR_MOVE': {
                 const player = this.players[payload.seatIndex];
                 if (player) player.stageCursor = payload.cursorIndex;
+                break;
+            }
+            case 'STAGE_VOTE_CAST': {
+                // Server has recorded this seat's vote — reflect it as a
+                // locked-in pick for everyone's view (see
+                // drawStageSelectScreen()'s use of stageVoteLocked). Only
+                // the voting player's own confirm keypress can unlock it
+                // again locally; this just keeps remote seats' chips
+                // showing the same "voted" state.
+                const player = this.players[payload.seatIndex];
+                if (player) {
+                    player.stageCursor = payload.candidateIndex;
+                    player.stageVoteLocked = true;
+                }
                 break;
             }
             case 'STAGE_LOCKED':
@@ -2445,6 +2682,12 @@ class Game {
                     player.buildRotation = 0;
                     player.buildPlaced = false;
                     player.buildCursor = { col: sc.col, row: sc.row };
+                    // Needed by updateBuildCursorMovement()'s per-frame
+                    // repeat polling — enterBuild() sets this for the
+                    // offline path, but networked BUILD is entered here
+                    // instead, so it has to be (re)initialized on this
+                    // path too, or movement silently no-ops all match.
+                    player.buildMoveHold = { up: 0, down: 0, left: 0, right: 0 };
                 }
                 this.gameState = GameState.BUILD;
                 break;

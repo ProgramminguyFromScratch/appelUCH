@@ -146,7 +146,6 @@
         <div id="waitingForHost" style="display:none;">Waiting for the host to start...</div>
     </div>
 
-    <script src="profiler.js"></script>
     <script src="touching.js"></script>
     <script src="physics.js"></script>
     <script src="levelRenderer.js"></script>
@@ -196,6 +195,8 @@
             //   1. name entry + create/join-by-code (this screen)
             //   2. lobby: connected players list + host-only Start
             //   3. Game takes over the canvas once MATCH_STARTING arrives
+            
+            // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
             const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
             const network = new NetworkClient(serverUrl);
             const game = new Game('gameCanvas', playerCount, network);
@@ -259,6 +260,7 @@
                 showError(
                     payload.reason === 'room_full' ? 'That room is full.' :
                     payload.reason === 'match_in_progress' ? 'That room already started a match.' :
+                    payload.reason === 'name_taken' ? 'That name is already taken in this room.' :
                     'Could not join that room.'
                 );
             };

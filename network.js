@@ -46,7 +46,12 @@ class NetworkClient {
         this.onAllClientsReady = null;   // (payload: {})
 
         // ---- stage select / party box / build (grouped) ----
-        // Called for every STAGE_SELECT_START / STAGE_CURSOR_MOVE / STAGE_LOCKED
+        // Called for every STAGE_SELECT_START / STAGE_CURSOR_MOVE /
+        // STAGE_VOTE_CAST / STAGE_LOCKED. Stage selection is a vote: every
+        // connected seat's STAGE_PICK_REQUEST casts (or changes) a vote via
+        // STAGE_VOTE_CAST, and STAGE_LOCKED only arrives once all seats have
+        // voted (or the vote timer expires) and the winning candidate
+        // (ties broken randomly) has been tallied server-side.
         this.onStageState = null;        // (payload, type)
         // Called for every PARTY_BOX_START / PARTY_CURSOR_MOVE / PARTY_PICK_RESULT /
         // PARTY_AUTO_ASSIGN / PARTY_BOX_TIMER_EXPIRED / PARTY_BOX_COMPLETE
@@ -80,6 +85,7 @@ class NetworkClient {
         this._GROUPED_MAP = {
             STAGE_SELECT_START: 'onStageState',
             STAGE_CURSOR_MOVE: 'onStageState',
+            STAGE_VOTE_CAST: 'onStageState',
             STAGE_LOCKED: 'onStageState',
 
             PARTY_BOX_START: 'onPartyState',

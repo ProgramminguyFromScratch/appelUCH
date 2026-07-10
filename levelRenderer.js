@@ -173,7 +173,7 @@ class LevelRenderer {
     // top of the sprite every frame, so the character's actual shading and
     // detail survive the recolor instead of being washed out by a flat
     // overlay.
-    renderPlayer(playerPos, camera, hue = 0) {
+    renderPlayer(playerPos, camera, hue = 0, name = "", color = "#ffffff") {
         if (!this.playerNormal || !this.playerCrouch) return;
 
         const sprite = this.getHuedPlayerSprite(hue);
@@ -185,6 +185,31 @@ class LevelRenderer {
         this.ctx.translate(-camera.x, camera.y);
 
         this.ctx.translate(playerPos.x, -playerPos.y);
+
+        // --- NAMEPLATE RENDERING ---
+        if (name) {
+            this.ctx.save();
+            // Scale inversely to the camera zoom so the text font size remains 
+            // consistent on-screen even when zooming out
+            this.ctx.scale(1 / camera.zoom, 1 / camera.zoom);
+            
+            const yOffset = playerPos.crouched && !playerPos.onWall ? 15 : 25;
+            const scaledY = -yOffset * camera.zoom;
+
+            this.ctx.font = "bold 12px Arial, sans-serif";
+            this.ctx.textAlign = "center";
+            
+            // Black outline for legibility against bright backgrounds
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeStyle = "#000000";
+            this.ctx.strokeText(name, 0, scaledY);
+            
+            // Colored fill
+            this.ctx.fillStyle = color;
+            this.ctx.fillText(name, 0, scaledY);
+            this.ctx.restore();
+        }
+        // ---------------------------
 
         const angle = (playerPos.angle - 90) || 0; 
         this.ctx.rotate(angle * Math.PI / 180);
@@ -405,7 +430,51 @@ class LevelRenderer {
     // been written into the map. Uses the same camera transform as
     // render(), so a preview cell lines up pixel-for-pixel with the
     // real level tile that would end up there.
-    renderTilePreviews(levelData, camera, cells, alpha = 1) {
+    // Simple vector bomb icon — deliberately NOT tile-art-based. `bomb`
+    // (see pieces.js) is a delete-target action, not a real placeable
+    // tile, so it has no natural sprite of its own the way every other
+    // piece does (their `tiles` values point at real level art). Drawing
+    // it procedurally means it always renders correctly regardless of
+    // whether dedicated bomb art ever gets added to assets/tiles/.
+    // `size` is the full icon width/height in px, centered on (cx, cy).
+    drawBombGlyph(ctx, cx, cy, size) {
+        const r = size * 0.36;
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        // Fuse.
+        ctx.strokeStyle = '#c98a3d';
+        ctx.lineWidth = Math.max(2, size * 0.05);
+        ctx.beginPath();
+        ctx.moveTo(r * 0.35, -r * 0.95);
+        ctx.quadraticCurveTo(r * 0.9, -r * 1.6, r * 1.3, -r * 1.3);
+        ctx.stroke();
+
+        // Spark at the fuse tip.
+        ctx.fillStyle = '#ffcc55';
+        ctx.beginPath();
+        ctx.arc(r * 1.3, -r * 1.3, size * 0.05, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Body.
+        ctx.fillStyle = '#2b2b2b';
+        ctx.beginPath();
+        ctx.arc(0, size * 0.05, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = Math.max(1, size * 0.025);
+        ctx.stroke();
+
+        // Highlight.
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.beginPath();
+        ctx.arc(-r * 0.35, size * 0.05 - r * 0.35, r * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    renderTilePreviews(levelData, camera, cells, alpha = 1, piece = null) {
         if (!this.assetsLoaded) return;
         const ctx = this.ctx;
 
@@ -419,10 +488,21 @@ class LevelRenderer {
         ctx.globalAlpha = alpha;
 
         for (const cell of cells) {
-            if (!cell.tile) continue;
-            const rotation = ((cell.rotation % 4) + 4) % 4;
             const tileX = cell.col * 60 + 30;
             const tileY = -cell.row * 60 - 30;
+
+            // targetsSolid pieces (bomb) delete the target cell rather
+            // than paint a new tile there — showing the "new" tile
+            // (open air) as a preview would just look like nothing's
+            // there, so draw the bomb glyph over the *existing* tile
+            // art instead, which is left undisturbed underneath.
+            if (piece && piece.targetsSolid) {
+                this.drawBombGlyph(ctx, tileX, tileY, 60 * 0.7);
+                continue;
+            }
+
+            if (!cell.tile) continue;
+            const rotation = ((cell.rotation % 4) + 4) % 4;
 
             for (let isForeground = 0; isForeground <= 1; isForeground++) {
                 const offset = isForeground * 86;
@@ -456,6 +536,13 @@ class LevelRenderer {
     renderPieceIcon(levelData, piece, cx, cy, boxSize) {
         if (!this.assetsLoaded || !piece) return;
         const ctx = this.ctx;
+
+        // See renderTilePreviews()'s comment: bomb deletes a tile rather
+        // than placing one, so it has no tile art of its own to show.
+        if (piece.targetsSolid) {
+            this.drawBombGlyph(ctx, cx, cy, boxSize * 0.9);
+            return;
+        }
 
         const hue = this.fixHue(levelData ? levelData.hue : 0);
         const activeTileset = this.getHuedTileset(hue);

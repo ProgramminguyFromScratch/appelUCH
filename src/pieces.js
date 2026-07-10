@@ -16,11 +16,24 @@
 //                       46 is the thinner "crumble2" variant and can be
 //                       added as its own entry later if it needs to be
 //                       pickable separately)
+//   - bomb            : NOT a placeable tile like the others — it's a
+//                       "delete an existing tile" action instead of an
+//                       "add a new tile" one. `targetsSolid: true` flips
+//                       BUILD-phase validity checking to require an
+//                       already-solid/functional cell (see physics.js's
+//                       isDeletableCell()) rather than the usual open-
+//                       air requirement every other piece uses (see
+//                       isPlaceableCell()). Its `tiles` value is 1 (the
+//                       engine's standard open-air tile, same value
+//                       crumble platforms settle to once fully broken)
+//                       so placing it just overwrites whatever was
+//                       there with empty space, reusing the same
+//                       generic "write piece.tiles into the map" path
+//                       every other piece already goes through.
 //
-// TODO (Phase 5): once moving lifts and bombs exist as placeable pieces
-// (rather than only level-authored/spawned objects), add:
+// TODO (Phase 5): once moving lifts exist as placeable pieces (rather
+// than only level-authored/spawned objects), add:
 //   - moving_lift : id 'moving_lift', tile value(s) TBD
-//   - bomb        : id 'bomb', tile value(s) TBD
 //
 // footprint is in tiles, at the engine's fixed TILE_SIZE (60px/tile —
 // see levelRenderer.js's this.tileSize). Most pieces are 1x1; multi-tile
@@ -58,6 +71,18 @@ const PIECE_POOL = [
         // vertical line instead.
         tiles: [2, 2, 2],
         footprint: { width: 3, height: 1 }
+    },
+    {
+        id: 'bomb',
+        name: 'Bomb',
+        // See the pool comment above: this deletes whatever tile is at
+        // the target cell rather than placing a new one. targetsSolid
+        // tells BUILD-phase validation (game.js/Room.js's
+        // footprintFits()) to require a solid/functional target cell
+        // instead of the usual open one.
+        targetsSolid: true,
+        tiles: [1],
+        footprint: { width: 1, height: 1 }
     }
 ];
 

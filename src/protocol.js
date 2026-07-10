@@ -35,8 +35,21 @@ const CLIENT_MESSAGE_PHASES = {
     PLAY_AGAIN_REQUEST: [PHASE.FINAL_RESULTS]
 };
 
-const TOTAL_ROUNDS = 11;
-const PARTY_BOX_SLOT_COUNT = 8;
+const TOTAL_ROUNDS = 9;
+
+// Party-box reveal count now scales with room size instead of being a
+// flat constant, so a 1-2 player room isn't stuck sorting through the
+// same 8 slots a 6-player room gets. Formula: ceil(1.5 * playerCount).
+// Room.js's party-box-start logic should call this with the room's
+// current connected/seated player count to decide how many PIECE_POOL
+// slots to reveal, instead of reading a bare PARTY_BOX_SLOT_COUNT
+// constant — grep Room.js for any remaining references to the old
+// constant name and swap them over to getPartyBoxSlotCount(playerCount).
+function getPartyBoxSlotCount(playerCount) {
+    return Math.ceil(1.5 * playerCount);
+}
+
+const STAGE_TIME_LIMIT = 12;
 const PARTY_TIME_LIMIT = 12;
 const BUILD_TIME_LIMIT = 20;
 const RACE_TIME_LIMIT = 60;
@@ -49,16 +62,26 @@ const MAX_PLAYERS = 6;
 const FINISH_TICK_TOLERANCE = 2;
 const LOADING_BARRIER_TIMEOUT_MS = 15000;
 
+// How long the server waits, once every seat has resolved (finished/
+// eliminated/DNF'd), before actually ending the round and broadcasting
+// ROUND_END. Gives the last finish/death a beat to be seen — and the
+// RACE camera a moment to zoom out and show the whole field — instead
+// of cutting straight to ROUND_RESULTS. Mirrors game.js's offline-mode
+// ROUND_END_DELAY_FRAMES (30 frames @ 30fps = 1s).
+const ROUND_END_DELAY_MS = 3000;
+
 module.exports = {
     PHASE,
     CLIENT_MESSAGE_PHASES,
     TOTAL_ROUNDS,
-    PARTY_BOX_SLOT_COUNT,
+    getPartyBoxSlotCount,
+    STAGE_TIME_LIMIT,
     PARTY_TIME_LIMIT,
     BUILD_TIME_LIMIT,
     RACE_TIME_LIMIT,
     MIN_PLAYERS_TO_START,
     MAX_PLAYERS,
     FINISH_TICK_TOLERANCE,
-    LOADING_BARRIER_TIMEOUT_MS
+    LOADING_BARRIER_TIMEOUT_MS,
+    ROUND_END_DELAY_MS
 };

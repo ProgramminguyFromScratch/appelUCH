@@ -1,14 +1,16 @@
 const {
     PHASE,
     TOTAL_ROUNDS,
-    PARTY_BOX_SLOT_COUNT,
+    getPartyBoxSlotCount,
+    STAGE_TIME_LIMIT,
     PARTY_TIME_LIMIT,
     BUILD_TIME_LIMIT,
     RACE_TIME_LIMIT,
     MIN_PLAYERS_TO_START,
     MAX_PLAYERS,
     FINISH_TICK_TOLERANCE,
-    LOADING_BARRIER_TIMEOUT_MS
+    LOADING_BARRIER_TIMEOUT_MS,
+    ROUND_END_DELAY_MS
 } = require('./protocol');
 const { decodeLevelCode } = require('./levelCode');
 const { PIECE_POOL, getPieceById, getPieceFootprintCells } = require('./pieces');
@@ -31,12 +33,18 @@ class Room {
         this.totalRounds = TOTAL_ROUNDS;
 
         this.stageCandidates = [];
+        this.stageVotes = new Map(); // seatIndex -> candidateIndex, cleared each enterStageSelect()
         this.levelCode = null;
         this.map = null; // { MAP: number[], MAP_R: number[], size_x } — authoritative, persists round-to-round
         this.startCell = { col: 0, row: 0 };
 
         this.partySlots = []; // Array<{ slotIndex, pieceId } | null>
 
+        // Whether the round that just finished had anyone eliminated —
+        // drives whether the bomb can appear in the next party box (see
+        // pickPartySlots()). No round has finished yet, so no bomb in
+        // round 1's box.
+        this.lastRoundDeaths = { anyEliminated: false, allEliminated: false };
         this.locks = { stagePicked: false, continueAdvanced: false, playAgainAdvanced: false };
 
         this.timers = {}; // name -> Timeout/Interval handle
@@ -44,12 +52,41 @@ class Room {
         this.race = null; // set up fresh each round by enterRace()
 
         this.createdAt = Date.now();
+        // Timestamp the room most recently became empty (0 connected
+        // seats), or null while it currently has someone connected.
+        // RoomManager.sweepEmptyRooms() reaps a room 5 min after *this*,
+        // not 5 min after createdAt — see updateEmptiedAt().
+        this.emptiedAt = this.isEmpty() ? this.createdAt : null;
     }
 
     // ---------- seat / connection management ----------
 
     get connectedSeats() {
         return [...this.seats.values()].filter(s => s.connected);
+    }
+
+    // Call after anything that can change connectedSeats.length (a seat
+    // joining, disconnecting, or reconnecting) so this.emptiedAt always
+    // reflects the most recent moment the room actually had zero
+    // connected seats — RoomManager.sweepEmptyRooms() reaps 5 min after
+    // that, not 5 min after this.createdAt.
+    updateEmptiedAt() {
+        if (this.isEmpty()) {
+            if (this.emptiedAt === null) this.emptiedAt = Date.now();
+        } else {
+            this.emptiedAt = null;
+        }
+    }
+
+    // Case-insensitive, trimmed comparison against every currently
+    // connected seat's name — a disconnected seat's old name doesn't
+    // block a new join, since that seat isn't "present" anymore (and a
+    // genuine reconnect matches on playerId in index.js, not name, so
+    // it never even reaches this check).
+    isNameTaken(displayName) {
+        const normalized = (displayName || '').trim().toLowerCase();
+        if (!normalized) return false;
+        return this.connectedSeats.some(s => s.name.trim().toLowerCase() === normalized);
     }
 
     addSeat(ws, displayName) {
@@ -81,6 +118,7 @@ class Room {
         this.seats.set(seatIndex, seat);
         ws.seatIndex = seatIndex;
         ws.roomCode = this.roomCode;
+        this.updateEmptiedAt();
         return seat;
     }
 
@@ -185,13 +223,17 @@ class Room {
     enterStageSelect() {
         this.stageCandidates = this.pickStageCandidates(3);
         this.locks.stagePicked = false;
+        this.stageVotes = new Map();
         for (const seat of this.seats.values()) seat.stageCursor = 0;
         this.phase = PHASE.STAGE_SELECT;
         this.broadcast({
             type: 'STAGE_SELECT_START',
             phase: PHASE.STAGE_SELECT,
-            payload: { candidates: this.stageCandidates }
+            payload: { candidates: this.stageCandidates, timeLimit: STAGE_TIME_LIMIT }
         });
+
+        clearTimeout(this.timers.stageSelect);
+        this.timers.stageSelect = setTimeout(() => this.expireStageSelect(), STAGE_TIME_LIMIT * 1000);
     }
 
     handleStageCursorMove(seat, payload) {
@@ -207,15 +249,74 @@ class Room {
         });
     }
 
+    // Stage selection is a vote, not a race to pick first: every
+    // connected seat casts (or changes) a vote for one of the 3
+    // candidates, and the level only locks in once every connected seat
+    // has voted (or the STAGE_TIME_LIMIT timer runs out — see
+    // expireStageSelect()). A seat can change its vote freely right up
+    // until the tally happens.
     handleStagePickRequest(seat, payload) {
         if (this.phase !== PHASE.STAGE_SELECT) return;
         if (this.locks.stagePicked) return; // server already left STAGE_SELECT logically
         const candidateIndex = payload.candidateIndex | 0;
         if (candidateIndex < 0 || candidateIndex >= this.stageCandidates.length) return;
 
-        this.locks.stagePicked = true; // first receive wins
-        const levelCode = this.stageCandidates[candidateIndex];
-        this.lockStage(seat.seatIndex, levelCode);
+        this.stageVotes.set(seat.seatIndex, candidateIndex);
+        this.broadcast({
+            type: 'STAGE_VOTE_CAST',
+            phase: PHASE.STAGE_SELECT,
+            payload: { seatIndex: seat.seatIndex, candidateIndex }
+        });
+
+        this.checkStageVotesComplete();
+    }
+
+    checkStageVotesComplete() {
+        if (this.phase !== PHASE.STAGE_SELECT) return;
+        if (this.locks.stagePicked) return;
+        const allVoted = this.connectedSeats.every(s => this.stageVotes.has(s.seatIndex));
+        if (allVoted) this.finalizeStageVote();
+    }
+
+    // Timer ran out before every connected seat voted — anyone who
+    // hasn't voted gets a random vote among the candidates so the tally
+    // (and any resulting tiebreak) still treats them fairly rather than
+    // just excluding them.
+    expireStageSelect() {
+        if (this.phase !== PHASE.STAGE_SELECT) return;
+        if (this.locks.stagePicked) return;
+        for (const seat of this.connectedSeats) {
+            if (!this.stageVotes.has(seat.seatIndex)) {
+                this.stageVotes.set(seat.seatIndex, Math.floor(Math.random() * this.stageCandidates.length));
+            }
+        }
+        this.finalizeStageVote();
+    }
+
+    // Tallies this.stageVotes into per-candidate counts and returns the
+    // winning candidate index. Ties (including the "nobody voted"
+    // degenerate case, where every count is 0) are broken uniformly at
+    // random among the tied candidates.
+    tallyStageVotes() {
+        const counts = new Array(this.stageCandidates.length).fill(0);
+        for (const candidateIndex of this.stageVotes.values()) {
+            if (candidateIndex >= 0 && candidateIndex < counts.length) counts[candidateIndex]++;
+        }
+        const maxVotes = Math.max(...counts);
+        const tiedCandidates = counts
+            .map((count, index) => (count === maxVotes ? index : -1))
+            .filter(index => index !== -1);
+        return tiedCandidates[Math.floor(Math.random() * tiedCandidates.length)];
+    }
+
+    finalizeStageVote() {
+        if (this.locks.stagePicked) return;
+        this.locks.stagePicked = true; // first finalize wins
+        clearTimeout(this.timers.stageSelect);
+
+        const winningIndex = this.tallyStageVotes();
+        const levelCode = this.stageCandidates[winningIndex];
+        this.lockStage(null, levelCode);
     }
 
     lockStage(winningSeatIndex, levelCode) {
@@ -252,17 +353,33 @@ class Room {
 
     // ---------- 5. Party box ----------
 
-    pickPartySlots(count) {
+    // `allowBomb`/`guaranteeBomb` come from this.lastRoundDeaths (see
+    // endRound()): no one revealed dies in the box unless at least one
+    // player died last round, and if the whole seat died, one of the
+    // revealed slots is forced to be a bomb.
+    pickPartySlots(count, allowBomb, guaranteeBomb) {
+        const pool = allowBomb ? PIECE_POOL : PIECE_POOL.filter(p => p.id !== 'bomb');
         const slots = [];
         for (let i = 0; i < count; i++) {
-            const piece = PIECE_POOL[Math.floor(Math.random() * PIECE_POOL.length)];
+            const piece = pool[Math.floor(Math.random() * pool.length)];
             slots.push({ pieceId: piece.id });
+        }
+        if (guaranteeBomb && count > 0 && !slots.some(s => s.pieceId === 'bomb')) {
+            slots[Math.floor(Math.random() * count)] = { pieceId: 'bomb' };
         }
         return slots;
     }
 
     enterPartyBox() {
-        this.partySlots = this.pickPartySlots(PARTY_BOX_SLOT_COUNT);
+        // Reveal count scales with room size — ceil(1.5 * playerCount) —
+        // instead of a flat constant, so small rooms aren't stuck sorting
+        // through slots sized for a full 6-player room. Uses this.seats.size
+        // (all seated players, matching the playerCount already broadcast in
+        // MATCH_STARTING) rather than connectedSeats, so a mid-match
+        // disconnect doesn't shrink the box out from under the players still
+        // playing.
+        const { anyEliminated, allEliminated } = this.lastRoundDeaths;
+        this.partySlots = this.pickPartySlots(getPartyBoxSlotCount(this.seats.size), anyEliminated, allEliminated);
         for (const seat of this.seats.values()) {
             seat.partyCursor = 0;
             seat.piece = null;
@@ -403,7 +520,14 @@ class Room {
     // Bounds-check + overlap-check a piece's rotated footprint against
     // the room's authoritative map — the server-side twin of game.js's
     // footprintFits()/isPlaceableCell(), reusing pieces.js's
-    // getPieceFootprintCells() as instructed.
+    // getPieceFootprintCells() as instructed. Pieces with
+    // targetsSolid: true (currently just `bomb`, see pieces.js) aren't
+    // required to land on a solid/functional tile to be *accepted* —
+    // bounds are all that matter here, so a player is free to drop a
+    // bomb on open air. Whether that actually deletes anything is
+    // decided separately at write time (see placePieceOnMap()'s caller,
+    // which gates each cell write on isDeletableCell()) — landing on
+    // air just wastes the bomb instead of getting rejected.
     footprintFits(piece, rotation, col, row) {
         if (!this.map) return { fits: false, cells: [] };
         const cols = this.map.size_x;
@@ -416,19 +540,28 @@ class Room {
 
         const fits = cells.every(cell => {
             if (cell.col < 0 || cell.col >= cols || cell.row < 0 || cell.row >= rows) return false;
-            const idx = cell.row * cols + cell.col;
-            const tile = this.map.MAP[idx];
-            return tile === 0 || tile === 1; // isPlaceableCell()
+            if (!piece.targetsSolid) {
+                const idx = cell.row * cols + cell.col;
+                const tile = this.map.MAP[idx];
+                if (!(tile === 0 || tile === 1)) return false; // isPlaceableCell()
+            }
+            return true;
         });
 
         return { fits, cells };
     }
 
-    placePieceOnMap(cells, rotation) {
+    // Writes `cells` into the authoritative map. For targetsSolid pieces
+    // (bomb), only cells that are actually solid/functional get cleared
+    // (isDeletableCell()) — a cell that was already open air is left
+    // untouched, so a bomb dropped on air simply does nothing.
+    placePieceOnMap(cells, rotation, piece = null) {
         const cols = this.map.size_x;
         const mapPatch = [];
+        const isDeletableCell = (tile) => tile !== 0 && tile !== 1 && tile !== 76 && tile !== 63;
         for (const cell of cells) {
             const idx = cell.row * cols + cell.col;
+            if (piece && piece.targetsSolid && !isDeletableCell(this.map.MAP[idx])) continue;
             this.map.MAP[idx] = cell.tile;
             this.map.MAP_R[idx] = rotation;
             mapPatch.push({ idx, tile: cell.tile, rot: rotation });
@@ -461,7 +594,7 @@ class Room {
             return;
         }
 
-        const mapPatch = this.placePieceOnMap(cells, rotation);
+        const mapPatch = this.placePieceOnMap(cells, rotation, piece);
         seat.buildPlaced = true;
 
         this.broadcast({
@@ -481,60 +614,22 @@ class Room {
             if (!seat.piece || seat.buildPlaced) continue;
             const piece = getPieceById(seat.piece);
             const fallback = seat.lastBuildCursorMove || { col: seat.buildCursor.col, row: seat.buildCursor.row, rotation: seat.buildRotation };
-            let { fits, cells } = this.footprintFits(piece, fallback.rotation, fallback.col, fallback.row);
+            const { fits, cells } = this.footprintFits(piece, fallback.rotation, fallback.col, fallback.row);
 
-            if (!fits) {
-                const snapped = this.findNearestPlaceableFootprint(piece, fallback.rotation, fallback.col, fallback.row);
-                if (snapped) {
-                    cells = snapped.cells;
-                    fits = true;
-                }
-            }
-
-            if (fits) {
-                const mapPatch = this.placePieceOnMap(cells, fallback.rotation);
-                seat.buildPlaced = true;
-                this.broadcast({
-                    type: 'FORCE_PLACE',
-                    phase: PHASE.BUILD,
-                    payload: { seatIndex: seat.seatIndex, accepted: true, col: fallback.col, row: fallback.row, rotation: fallback.rotation, mapPatch }
-                });
-            } else {
-                // No legal cell anywhere for this piece (shouldn't happen
-                // on a real level) — mark placed anyway so BUILD can't
-                // stall forever; no tiles are written.
-                seat.buildPlaced = true;
-                this.broadcast({
-                    type: 'FORCE_PLACE',
-                    phase: PHASE.BUILD,
-                    payload: { seatIndex: seat.seatIndex, accepted: false, col: fallback.col, row: fallback.row, rotation: fallback.rotation, mapPatch: [] }
-                });
-            }
+            // Timeout just means "place wherever the cursor currently
+            // is" — same rules as a manual placement request. If it
+            // doesn't fit there, the turn is wasted with no tiles
+            // written rather than snapping to some other cell.
+            seat.buildPlaced = true;
+            const mapPatch = fits ? this.placePieceOnMap(cells, fallback.rotation, piece) : [];
+            this.broadcast({
+                type: 'FORCE_PLACE',
+                phase: PHASE.BUILD,
+                payload: { seatIndex: seat.seatIndex, accepted: fits, col: fallback.col, row: fallback.row, rotation: fallback.rotation, mapPatch }
+            });
         }
 
         this.completeBuild();
-    }
-
-    // Server-side twin of findPlaceableFootprintNear(): ring search
-    // outward from (col,row) for the nearest anchor where the whole
-    // rotated footprint fits.
-    findNearestPlaceableFootprint(piece, rotation, col, row) {
-        if (!this.map) return null;
-        const cols = this.map.size_x;
-        const rows = Math.floor(this.map.MAP.length / cols);
-        const maxRadius = Math.max(cols, rows);
-
-        for (let radius = 0; radius <= maxRadius; radius++) {
-            for (let dc = -radius; dc <= radius; dc++) {
-                for (let dr = -radius; dr <= radius; dr++) {
-                    if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
-                    const c = col + dc, r = row + dr;
-                    const { fits, cells } = this.footprintFits(piece, rotation, c, r);
-                    if (fits) return { col: c, row: r, cells };
-                }
-            }
-        }
-        return null;
     }
 
     checkBuildComplete() {
@@ -586,6 +681,13 @@ class Room {
 
         clearTimeout(this.timers.race);
         this.timers.race = setTimeout(() => this.expireRace(), RACE_TIME_LIMIT * 1000);
+
+        // Stray leftover from a previous round shouldn't be possible
+        // (endRound() clears it before ever flipping the phase away from
+        // RACE), but clear it defensively so a fresh race never inherits
+        // a pending delayed-end from the round before it.
+        clearTimeout(this.timers.roundEndDelay);
+        this.timers.roundEndDelay = null;
 
         // Heartbeat so disconnected/bot seats keep producing idle
         // INPUT_RELAY frames instead of just going silent (§9).
@@ -773,14 +875,31 @@ class Room {
         );
         if (allResolved) {
             clearTimeout(this.timers.race);
-            this.endRound();
+            this.scheduleRoundEnd();
         }
+    }
+
+    // Everyone's resolved (finished/eliminated/DNF), but don't cut to
+    // ROUND_RESULTS immediately — wait ROUND_END_DELAY_MS so the last
+    // finish/death is actually visible and the RACE camera has time to
+    // zoom out and show the whole field before the screen changes.
+    // Re-entrant-safe (a stray extra call while already pending is a
+    // no-op) since finish/elimination confirmations can still trickle in
+    // right up to the last one that makes allResolved true.
+    scheduleRoundEnd() {
+        if (this.timers.roundEndDelay) return;
+        this.timers.roundEndDelay = setTimeout(() => {
+            this.timers.roundEndDelay = null;
+            this.endRound();
+        }, ROUND_END_DELAY_MS);
     }
 
     // ---------- 7.5 / 8. Round end + results ----------
 
     endRound() {
         clearTimeout(this.timers.race);
+        clearTimeout(this.timers.roundEndDelay);
+        this.timers.roundEndDelay = null;
         clearInterval(this.timers.raceIdleHeartbeat);
 
         // Server-side reimplementation of awardRoundPoints(), run only
@@ -789,10 +908,22 @@ class Room {
             .map(([seatIndex, finishTick]) => ({ seatIndex, finishTick }))
             .sort((a, b) => a.finishTick - b.finishTick);
 
+        // No points at all unless someone actually died (or DNF'd) this
+        // round — if the whole room clears the level clean, nobody gets
+        // rewarded for merely finishing (see this.race.eliminationConfirmed,
+        // populated by confirmElimination()/expireRace()). This also
+        // covers "everyone beats it" automatically: if every seat
+        // finished, nobody was eliminated, so anyDied is false.
+        const anyDied = this.race.eliminationConfirmed.size > 0;
+
         const roundPoints = new Map();
-        if (finishers.length === 1) {
-            roundPoints.set(finishers[0].seatIndex, 3);
-        } else if (finishers.length >= 2) {
+        if (anyDied && finishers.length === 1) {
+            // Solo clear while at least one other player died: base 3,
+            // plus a +2 "no help" bonus once the room is big enough
+            // (3+) that finishing alone actually means something.
+            const soloBonus = this.seats.size >= 3 ? 2 : 0;
+            roundPoints.set(finishers[0].seatIndex, 3 + soloBonus);
+        } else if (anyDied && finishers.length >= 2) {
             roundPoints.set(finishers[0].seatIndex, 1);
         }
 
@@ -814,6 +945,15 @@ class Room {
         this.phase = PHASE.ROUND_RESULTS;
         this.locks.continueAdvanced = false;
         this.broadcast({ type: 'ROUND_END', phase: PHASE.RACE, payload: { round: this.currentRound, results } });
+
+        // Drives bomb availability in the next party box (see
+        // pickPartySlots()): no bomb at all unless someone died this
+        // round, guaranteed bomb if everyone died.
+        const seatList = [...this.seats.values()];
+        this.lastRoundDeaths = {
+            anyEliminated: seatList.some(s => s.eliminated),
+            allEliminated: seatList.length > 0 && seatList.every(s => s.eliminated)
+        };
     }
 
     handleContinueRequest(seat) {
@@ -857,7 +997,9 @@ class Room {
             s.dnf = false;
         }
         this.currentRound = 1;
+        this.lastRoundDeaths = { anyEliminated: false, allEliminated: false };
         this.map = null;
+        this.stageVotes = new Map();
         this.locks.stagePicked = false;
         this.locks.continueAdvanced = false;
         this.locks.playAgainAdvanced = false;
@@ -871,6 +1013,7 @@ class Room {
     handleDisconnect(seat) {
         seat.connected = false;
         seat.isBot = true;
+        this.updateEmptiedAt();
 
         this.broadcast({ type: 'PLAYER_LEFT', phase: this.phase, payload: { seatIndex: seat.seatIndex, reason: 'disconnected' } });
         this.broadcast({ type: 'PLAYER_DISCONNECTED', phase: this.phase, payload: { seatIndex: seat.seatIndex } });
@@ -894,6 +1037,7 @@ class Room {
         seat.isBot = false;
         ws.seatIndex = seat.seatIndex;
         ws.roomCode = this.roomCode;
+        this.updateEmptiedAt();
 
         this.broadcast({ type: 'PLAYER_RECONNECTED', phase: this.phase, payload: { seatIndex: seat.seatIndex } });
 
@@ -915,9 +1059,11 @@ class Room {
 
     destroy() {
         clearTimeout(this.timers.loadingBarrier);
+        clearTimeout(this.timers.stageSelect);
         clearTimeout(this.timers.partyBox);
         clearTimeout(this.timers.build);
         clearTimeout(this.timers.race);
+        clearTimeout(this.timers.roundEndDelay);
         clearInterval(this.timers.raceIdleHeartbeat);
     }
 }
