@@ -691,7 +691,6 @@ class Room {
         }
 
         this.race = {
-            finishObserved: new Map(), // finishedSeatIndex -> Array<{ tick, observerSeatIndex }>
             eliminationObserved: new Map(), // eliminatedSeatIndex -> Array<{ tick, observerSeatIndex, cause }>
             finishConfirmed: new Map(), // seatIndex -> finishTick
             eliminationConfirmed: new Map(), // seatIndex -> cause
@@ -788,7 +787,18 @@ class Room {
     requiredQuorum(excludeSeatIndex) {
         const others = this.connectedSeats.filter(s => s.seatIndex !== excludeSeatIndex);
         if (others.length === 0) return 0; // solo/dev testing: nothing to corroborate against, so trust the lone client
-        return Math.floor(others.length / 2) + 1; // strict majority of the *other* connected clients
+        // Simple majority (>= half), not strict majority (> half). With
+        // floor(others/2)+1, a 3-player room (others.length === 2) rounded
+        // up to needing BOTH other clients to independently corroborate —
+        // the only room size in the whole player range that demands
+        // unanimous agreement instead of a real fraction. If either of
+        // those two observers was slightly behind on this seat's
+        // POSITION_SYNC, or just missed the FINISH_TICK_TOLERANCE window,
+        // the finish would never confirm and silently ride out the round
+        // to a RACE_TIME_LIMIT DNF instead. ceil(others/2) still requires
+        // a genuine majority everywhere else (2 of 3, 3 of 5, ...) but
+        // only asks for 1-of-2 rather than 2-of-2 at the 3-player size.
+        return Math.ceil(others.length / 2);
     }
 
     handleFinishObserved(seat, payload) {
@@ -798,32 +808,18 @@ class Room {
         if (this.race.finishConfirmed.has(finishedSeatIndex)) return; // already confirmed
 
         const tick = payload.tick | 0;
-        if (!this.race.finishObserved.has(finishedSeatIndex)) this.race.finishObserved.set(finishedSeatIndex, []);
-        const reports = this.race.finishObserved.get(finishedSeatIndex);
 
-        // De-dupe: one report per observer seat, keep latest.
-        const existingIdx = reports.findIndex(r => r.observerSeatIndex === seat.seatIndex);
-        const report = { tick, observerSeatIndex: seat.seatIndex };
-        if (existingIdx !== -1) reports[existingIdx] = report;
-        else reports.push(report);
-
-        // Bucket reports by tick within tolerance and look for a bucket
-        // (excluding the finishing seat's own report) that reaches quorum.
-        const buckets = new Map(); // representative tick -> Set(observerSeatIndex)
-        for (const r of reports) {
-            let bucketTick = [...buckets.keys()].find(t => Math.abs(t - r.tick) <= FINISH_TICK_TOLERANCE);
-            if (bucketTick === undefined) bucketTick = r.tick;
-            if (!buckets.has(bucketTick)) buckets.set(bucketTick, new Set());
-            buckets.get(bucketTick).add(r.observerSeatIndex);
-        }
-
-        const quorumNeeded = this.requiredQuorum(finishedSeatIndex);
-        for (const [bucketTick, observers] of buckets.entries()) {
-            const independentObservers = [...observers].filter(o => o !== finishedSeatIndex);
-            if (independentObservers.length >= quorumNeeded) {
-                this.confirmFinish(finishedSeatIndex, bucketTick);
-                return;
-            }
+        // Trust a seat's own report of its own finish immediately, same
+        // as handleEliminationObserved() does for deaths — no quorum
+        // wait, no corroboration bucket, no dependency on how quickly
+        // (or slowly) other clients' POSITION_SYNC catches up. Simpler
+        // and, per player preference, an acceptable trust tradeoff: a
+        // cheating client could lie about finishing early, but that's
+        // true of the self-reported-death path already and hasn't been
+        // a problem.
+        if (seat.seatIndex === finishedSeatIndex) {
+            this.confirmFinish(finishedSeatIndex, tick);
+            return;
         }
     }
 
