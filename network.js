@@ -16,11 +16,16 @@
 //   ...
 //   net.joinRoom('ABCDE', 'Alice');
 //
-// Every `onXxx` callback is called as `callback(payload, type)` — `type`
-// is the raw message type string (e.g. 'BUILD_START', 'FORCE_PLACE') for
-// the handful of grouped callbacks (onStageState/onPartyState/onBuildState/
-// onRaceState) that fan in several related server messages, so the
-// consumer can still branch on the exact event if it cares.
+// Every `onXxx` callback is called as `callback(payload, type, phase)` —
+// `type` is the raw message type string (e.g. 'BUILD_START', 'FORCE_PLACE')
+// for the handful of grouped callbacks (onStageState/onPartyState/
+// onBuildState/onRaceState) that fan in several related server messages,
+// so the consumer can still branch on the exact event if it cares. `phase`
+// is the message envelope's own `phase` field (see protocol.js) — mainly
+// useful on onRoomState/onPlayerReconnected so a client that missed
+// messages while disconnected can resync gameState to wherever the
+// server's authoritative phase actually is, instead of staying stuck on
+// whatever phase it was in before the disconnect.
 class NetworkClient {
     constructor(url) {
         this.url = url;
@@ -170,7 +175,7 @@ class NetworkClient {
             return;
         }
 
-        const { type, payload } = msg || {};
+        const { type, payload, phase } = msg || {};
         if (!type) return;
 
         // SEAT_ASSIGNED is the one message we peek at ourselves before
@@ -186,13 +191,13 @@ class NetworkClient {
 
         const directCb = this._DIRECT_MAP[type];
         if (directCb && this[directCb]) {
-            this[directCb](payload || {}, type);
+            this[directCb](payload || {}, type, phase);
             return;
         }
 
         const groupedCb = this._GROUPED_MAP[type];
         if (groupedCb && this[groupedCb]) {
-            this[groupedCb](payload || {}, type);
+            this[groupedCb](payload || {}, type, phase);
             return;
         }
 

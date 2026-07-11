@@ -2581,7 +2581,7 @@ drawRoundResultsScreen() {
         };
 
         net.onSeatAssigned = (payload) => this.handleSeatAssigned(payload);
-        net.onRoomState = (payload) => this.handleRoomState(payload);
+        net.onRoomState = (payload, type, phase) => this.handleRoomState(payload, phase);
         net.onJoinRejected = (payload) => {
             console.warn('[network] join rejected:', payload.reason);
             if (this.onJoinRejected) this.onJoinRejected(payload); // optional UI hook, set by game.html
@@ -2626,7 +2626,14 @@ drawRoundResultsScreen() {
 
         net.onPlayerLeft = (payload) => this.markSeatDisconnected(payload.seatIndex);
         net.onPlayerDisconnected = (payload) => this.markSeatDisconnected(payload.seatIndex);
-        net.onPlayerReconnected = (payload) => this.markSeatReconnected(payload.seatIndex);
+        net.onPlayerReconnected = (payload, type, phase) => {
+            this.markSeatReconnected(payload.seatIndex);
+            // If *we're* the one who just reconnected, our gameState is
+            // whatever it was the moment we dropped — which can be
+            // arbitrarily stale (a missed ROUND_END, RACE_START, etc. never
+            // replays). Resync it to the server's authoritative phase now.
+            if (payload.seatIndex === this.localSeatIndex) this.syncGameStateToPhase(phase);
+        };
     }
 
     // ---------- lobby ----------
@@ -2645,7 +2652,7 @@ drawRoundResultsScreen() {
     // later broadcast triggered by disconnects/reconnects). Preserves
     // per-seat match state (score, piece, cursors, ...) across a resize
     // by copying it over from the old array when a seatIndex survives.
-    handleRoomState(payload) {
+    handleRoomState(payload, phase) {
         this.roomCode = payload.roomCode;
         this.isHost = payload.hostSeatIndex === this.localSeatIndex;
 
@@ -2677,6 +2684,27 @@ drawRoundResultsScreen() {
                 player.buildRotation = previous.buildRotation;
                 player.buildPlaced = previous.buildPlaced;
                 player.physicsState = previous.physicsState;
+
+                // BUGFIX: these were previously dropped on every ROOM_STATE
+                // rebuild (createPlayers() defaults them to
+                // false/false/false/null/false/false). A ROOM_STATE isn't
+                // only sent on lobby joins/leaves — Room.handleReconnect()
+                // sends one straight to a seat that just reconnected,
+                // *including mid-race*. Without carrying these over, a
+                // player who died, then had a brief connection hiccup and
+                // reconnected, would have `eliminated` silently reset to
+                // false locally while physicsState (correctly preserved
+                // above) still showed them dead. getInputKeysFor() only
+                // withholds input when hasFinished/eliminated is true, so
+                // that reset let a dead player's corpse be steered around
+                // again ("I could move after dying") even though the
+                // server still correctly considers them resolved.
+                player.hasFinished = previous.hasFinished;
+                player.eliminated = previous.eliminated;
+                player.dnf = previous.dnf;
+                player.finishTick = previous.finishTick;
+                player.reportedFinish = previous.reportedFinish;
+                player.reportedElimination = previous.reportedElimination;
             }
         }
 
@@ -2685,6 +2713,57 @@ drawRoundResultsScreen() {
         // Optional UI hook for the lobby overlay in game.html — passed
         // the same payload the server sent, plus whether we're host.
         if (this.onLobbyUpdate) this.onLobbyUpdate(payload, this.isHost);
+
+        // A plain roster refresh during LOBBY is a normal ROOM_STATE and
+        // this.gameState is already LOBBY, so this is a no-op there. It
+        // only actually does something for the reconnect case (see
+        // Room.handleReconnect(), which sends ROOM_STATE with whatever
+        // phase the match is currently in) — see syncGameStateToPhase().
+        this.syncGameStateToPhase(phase);
+    }
+
+    // Forces this.gameState to match the server's authoritative phase when
+    // we know enough to represent that phase faithfully. This exists
+    // specifically for reconnects: a client that dropped mid-match misses
+    // every state-changing broadcast (RACE_START, ROUND_END, ...) that
+    // happened while it was gone, and none of those get replayed on
+    // reconnect — only ROOM_STATE/PLAYER_RECONNECTED do, both carrying the
+    // current `phase`. Without this, a reconnecting client is stuck
+    // forever showing whatever screen it was on the moment it dropped,
+    // even though the match (and every other client) has moved on.
+    //
+    // GameState's string values are identical to protocol.js's PHASE
+    // values by design, so this is just an identity assignment — but it's
+    // deliberately restricted to phases whose on-screen data is fully
+    // reconstructable from state this client already tracks (map/physics
+    // for RACE, scores for ROUND_RESULTS/FINAL_RESULTS, nothing at all for
+    // LOBBY). STAGE_SELECT/PARTY_BOX/BUILD need data ROOM_STATE doesn't
+    // carry (candidates, party slots, build pieces) and are deliberately
+    // left alone here; if a reconnect lands mid one of those phases, the
+    // player stays on their last-known screen until the *next* phase
+    // transition's normal broadcast reaches them and drags them along
+    // with everyone else — imperfect, but no longer permanently stuck.
+    syncGameStateToPhase(phase) {
+        if (!phase || phase === this.gameState) return;
+
+        const RESYNCABLE_PHASES = new Set([
+            GameState.LOBBY,
+            GameState.RACE,
+            GameState.ROUND_RESULTS,
+            GameState.FINAL_RESULTS
+        ]);
+        if (!RESYNCABLE_PHASES.has(phase)) return;
+
+        // RACE specifically needs a loaded level/physics to mean anything;
+        // if we reconnected before ever loading one (e.g. dropped in
+        // LOBBY/LOADING and the match started without us), there's nothing
+        // sensible to render yet — leave gameState alone and let the
+        // normal STAGE_SELECT_START/etc. broadcasts bring us in properly
+        // once we're actually seated for a live phase.
+        if (phase === GameState.RACE && !this.physics) return;
+
+        console.log(`[game] resyncing gameState ${this.gameState} -> ${phase} (reconnect)`);
+        this.gameState = phase;
     }
 
     markSeatDisconnected(seatIndex) {
