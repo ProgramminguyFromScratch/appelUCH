@@ -164,6 +164,10 @@ class NetworkClient {
         this._send('JOIN_ROOM', { roomCode: roomCode || '', displayName, playerId });
     }
 
+    sendSetColorRequest(hue) {
+        this._send('SET_COLOR_REQUEST', { hue });
+    }
+
     requestStartMatch() {
         this._send('START_MATCH_REQUEST', {});
     }

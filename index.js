@@ -51,6 +51,7 @@ function handleJoinRoom(ws, payload = {}) {
 }
 
 const HANDLERS = {
+    SET_COLOR_REQUEST: (room, seat, payload) => room.handleSetColorRequest(seat, payload),
     START_MATCH_REQUEST: (room, seat) => room.handleStartMatchRequest(seat),
     CLIENT_READY: (room, seat) => room.handleClientReady(seat),
     STAGE_CURSOR_MOVE: (room, seat, payload) => room.handleStageCursorMove(seat, payload),

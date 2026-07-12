@@ -18,6 +18,13 @@ const { LEVEL_POOL } = require('./levels');
 
 const POINTS_TO_WIN = 15;
 
+// Sprite tinting on the client shifts hue on a 0-199 scale (see
+// LevelRenderer.applyColorEffect's `hueShift % 200`), so seats store their
+// chosen color as a hue in that same range.
+const HUE_MIN = 0;
+const HUE_MAX = 199;
+const DEFAULT_HUE_STEP = 34; // roughly spaces out default hues for new seats
+
 let nextPlayerId = 1;
 function generatePlayerId() {
     return `p${nextPlayerId++}_${Math.random().toString(36).slice(2, 8)}`;
@@ -75,6 +82,7 @@ class Room {
         if (this.phase !== PHASE.LOBBY) return null;
 
         const seatIndex = this.nextSeatIndex++;
+        const hue = (seatIndex * DEFAULT_HUE_STEP) % (HUE_MAX + 1);
         const seat = {
             seatIndex,
             playerId: generatePlayerId(),
@@ -82,6 +90,7 @@ class Room {
             ws,
             connected: true,
             isBot: false,
+            hue,
             ready: false,
             stageCursor: 0,
             partyCursor: 0,
@@ -133,13 +142,23 @@ class Room {
                 playerId: s.playerId,
                 name: s.name,
                 connected: s.connected,
-                isBot: s.isBot
+                isBot: s.isBot,
+                hue: s.hue
             }))
         };
     }
 
     broadcastRoomState() {
         this.broadcast({ type: 'ROOM_STATE', phase: PHASE.LOBBY, payload: this.roomStatePayload() });
+    }
+
+    handleSetColorRequest(seat, payload = {}) {
+        if (this.phase !== PHASE.LOBBY) return;
+        const hue = Math.round(Number(payload.hue));
+        if (!Number.isFinite(hue) || hue < HUE_MIN || hue > HUE_MAX) return;
+
+        seat.hue = hue;
+        this.broadcastRoomState();
     }
 
     handleStartMatchRequest(seat) {

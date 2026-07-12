@@ -47,6 +47,32 @@ const THEME = {
         solo: 'Solo Finish'
     }
 };
+// Turns a sprite hue-shift value (0-199, see LevelRenderer.applyColorEffect)
+// into a representative hex color for UI use (name tags, lobby swatches).
+// This is a stylistic approximation for UI only — the actual in-game look is
+// whatever applyColorEffect produces on the real sprite pixels.
+// Important: hueShift is a *rotation* applied on top of the sprite's native
+// color, and the source art (assets/player/stand.png) is yellow (#ffff00,
+// ~60deg) at hueShift 0 — not red (0deg). That base offset has to be added
+// here or this approximation drifts from the real sprite color.
+const PLAYER_BASE_HUE_DEG = 60;
+function hueShiftToHex(hueShift) {
+    const degrees = (PLAYER_BASE_HUE_DEG + ((hueShift % 200) / 200) * 360) % 360;
+    const h = degrees / 60;
+    const s = 0.65, l = 0.55;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(h % 2 - 1));
+    const m = l - c / 2;
+    const [r, g, b] =
+        h < 1 ? [c, x, 0] :
+        h < 2 ? [x, c, 0] :
+        h < 3 ? [0, c, x] :
+        h < 4 ? [0, x, c] :
+        h < 5 ? [x, 0, c] : [c, 0, x];
+    const toHex = v => Math.round((v + m) * 255).toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
 const STAGE_SELECT_BOX_WIDTH = 255;
 const STAGE_SELECT_BOX_HEIGHT = 204;
 const STAGE_PREVIEW_ASPECT = 10 / 15; 
@@ -2170,6 +2196,18 @@ class Game {
         };
     }
 
+    requestSetColor(hue) {
+        if (this.network && this.network.isConnected) {
+            this.network.sendSetColorRequest(hue);
+            return;
+        }
+        // Offline/local play: apply immediately since there's no server to confirm it.
+        const player = this.players[this.localSeatIndex];
+        if (!player) return;
+        player.hue = hue;
+        player.color = hueShiftToHex(hue);
+    }
+
     handleSeatAssigned(payload) {
         this.localSeatIndex = payload.seatIndex;
         this.roomCode = this.network.roomCode;
@@ -2191,6 +2229,10 @@ class Game {
             player.name = seatInfo.name || player.name;
             player.isBot = !!seatInfo.isBot;
             player.connected = seatInfo.connected !== false;
+            if (typeof seatInfo.hue === 'number') {
+                player.hue = seatInfo.hue;
+                player.color = hueShiftToHex(seatInfo.hue);
+            }
 
             const previous = previousByIndex.get(seatInfo.seatIndex);
             if (previous) {

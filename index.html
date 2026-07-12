@@ -124,6 +124,46 @@
             color: #ff5470;
             font-size: 12px;
         }
+        #playerList li .colorDot {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 1px solid rgba(255,255,255,0.4);
+            vertical-align: middle;
+        }
+        #playerList li .nameLabel {
+            display: flex;
+            align-items: center;
+        }
+
+        #colorPicker {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        #colorPreviewCanvas {
+            width: 72px;
+            height: 72px;
+            image-rendering: pixelated;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 8px;
+        }
+        #colorSliderWrap {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        #colorSlider {
+            width: 200px;
+        }
+        #colorSliderLabel {
+            font-size: 12px;
+            color: #8891a3;
+            text-align: center;
+        }
 
         #waitingForHost {
             color: #8891a3;
@@ -182,6 +222,13 @@
         <div id="roomCodeLabel">Room code</div>
         <div id="roomCodeValue">-----</div>
         <button id="btnCopyInvite" class="secondary">Copy Invite Link</button>
+        <div id="colorPicker">
+            <canvas id="colorPreviewCanvas" width="24" height="24"></canvas>
+            <div id="colorSliderWrap">
+                <input id="colorSlider" type="range" min="0" max="199" value="0" />
+                <div id="colorSliderLabel">Your color</div>
+            </div>
+        </div>
         <ul id="playerList"></ul>
         <button id="btnStartMatch" style="display:none;">Start</button>
         <div id="waitingForHost" style="display:none;">Waiting for the host to start...</div>
@@ -273,8 +320,8 @@
             game.startGame(levelCode);
         } else {
 
-            // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
-            const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
+            const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
+            // const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
             const network = new NetworkClient(serverUrl);
             const game = new Game('gameCanvas', playerCount, network);
             wireCopyLevelCodeButton(game);
@@ -386,15 +433,114 @@
                 );
             };
 
+            const colorSlider = document.getElementById('colorSlider');
+            const colorPreviewCanvas = document.getElementById('colorPreviewCanvas');
+            const previewCtx = colorPreviewCanvas.getContext('2d');
+            previewCtx.imageSmoothingEnabled = false;
+
+            // Reproduces LevelRenderer.applyColorEffect's pixel-level hue shift so
+            // the lobby preview shows exactly what the in-game sprite will look like.
+            function rgbToHsv(r, g, b) {
+                r /= 255; g /= 255; b /= 255;
+                const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+                let h = 0;
+                if (d !== 0) {
+                    if (max === r) h = ((g - b) / d) % 6;
+                    else if (max === g) h = (b - r) / d + 2;
+                    else h = (r - g) / d + 4;
+                }
+                h = ((h * 60) + 360) % 360;
+                const s = max === 0 ? 0 : d / max;
+                return [h, s, max];
+            }
+            function hsvToRgb(h, s, v) {
+                h /= 60;
+                const c = v * s;
+                const x = c * (1 - Math.abs(h % 2 - 1));
+                const m = v - c;
+                const [r, g, b] =
+                    h < 1 ? [c, x, 0] : h < 2 ? [x, c, 0] : h < 3 ? [0, c, x] :
+                    h < 4 ? [0, x, c] : h < 5 ? [x, 0, c] : [c, 0, x];
+                return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+            }
+            function applyHueShift(sourceImg, hueShift) {
+                const canvas = document.createElement('canvas');
+                canvas.width = sourceImg.naturalWidth || sourceImg.width;
+                canvas.height = sourceImg.naturalHeight || sourceImg.height;
+                const ctx = canvas.getContext('2d');
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(sourceImg, 0, 0);
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = imageData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    if (data[i + 3] === 0) continue;
+                    const [h, s, v] = rgbToHsv(data[i], data[i + 1], data[i + 2]);
+                    const hNorm = (h / 360 + (hueShift % 200) / 200) % 1.0;
+                    const [r, g, b] = hsvToRgb(hNorm * 360, s, v);
+                    data[i] = r; data[i + 1] = g; data[i + 2] = b;
+                }
+                ctx.putImageData(imageData, 0, 0);
+                return canvas;
+            }
+
+            let playerPreviewSprite = null;
+            const playerPreviewImg = new Image();
+            playerPreviewImg.onload = () => {
+                playerPreviewSprite = playerPreviewImg;
+                drawColorPreview(parseInt(colorSlider.value, 10));
+            };
+            playerPreviewImg.src = 'assets/player/stand.png';
+
+            function drawColorPreview(hue) {
+                previewCtx.clearRect(0, 0, colorPreviewCanvas.width, colorPreviewCanvas.height);
+                if (!playerPreviewSprite) return;
+                const tinted = applyHueShift(playerPreviewSprite, hue);
+                previewCtx.drawImage(tinted, 0, 0, colorPreviewCanvas.width, colorPreviewCanvas.height);
+            }
+
+            let draggingColorSlider = false;
+            let lastSentHue = null;
+            function sendHueUpdate(hue) {
+                if (hue === lastSentHue) return;
+                lastSentHue = hue;
+                game.requestSetColor(hue);
+            }
+            colorSlider.addEventListener('input', () => {
+                draggingColorSlider = true;
+                const hue = parseInt(colorSlider.value, 10);
+                drawColorPreview(hue);
+                sendHueUpdate(hue);
+            });
+            colorSlider.addEventListener('change', () => {
+                draggingColorSlider = false;
+                sendHueUpdate(parseInt(colorSlider.value, 10));
+            });
+
             game.onLobbyUpdate = (payload, isHost) => {
                 roomCodeValue.textContent = payload.roomCode;
                 updateUrlForRoom(payload.roomCode);
+
+                const mySeat = payload.seats.find(s => s.seatIndex === game.localSeatIndex);
+                if (mySeat && typeof mySeat.hue === 'number' && !draggingColorSlider) {
+                    colorSlider.value = mySeat.hue;
+                    lastSentHue = mySeat.hue;
+                    drawColorPreview(mySeat.hue);
+                }
 
                 playerList.innerHTML = '';
                 for (const seat of payload.seats) {
                     const li = document.createElement('li');
                     const label = document.createElement('span');
-                    label.textContent = seat.name;
+                    label.className = 'nameLabel';
+                    if (typeof seat.hue === 'number') {
+                        const dot = document.createElement('span');
+                        dot.className = 'colorDot';
+                        dot.style.background = hueShiftToHex(seat.hue);
+                        label.appendChild(dot);
+                    }
+                    const nameText = document.createElement('span');
+                    nameText.textContent = seat.name;
+                    label.appendChild(nameText);
                     if (seat.seatIndex === payload.hostSeatIndex) {
                         const hostTag = document.createElement('span');
                         hostTag.className = 'hostTag';

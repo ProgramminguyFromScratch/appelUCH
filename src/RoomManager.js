@@ -43,8 +43,6 @@ class RoomManager {
         return list;
     }
 
-    // Finds a seat by name (case-insensitive substring match) or by "ROOMCODE#seatIndex".
-    // Returns { room, seat } or null. If multiple names match, returns { matches: [...] } instead.
     findSeat(query) {
         if (!query) return null;
         const hashIdx = query.indexOf('#');
