@@ -22,6 +22,35 @@ class Touching {
         this._bakedW   = 0;
         this._bakedH   = 0;
         this._hitboxCache = new Map();
+        this.crouchOffsets = {
+            0:   { x: 1, y: 3 },   
+            90:  { x: 5, y: 9 },   
+            180: { x: 1, y: -5 },  
+            270: { x: 5, y: 0 }    
+        };
+    }
+    wallToDirectionKey(playerWall) {
+        if (playerWall === 1) return 0;    
+        if (playerWall === -1) return 180; 
+        if (playerWall === 0) return 270;  
+        return 90;                         
+    }
+
+    getCrouchOffset(playerWall) {
+        return this.crouchOffsets[this.wallToDirectionKey(playerWall)] || { x: 0, y: 0 };
+    }
+    adjustCrouchOffset(dx, dy, playerWall) {
+        const key = this.wallToDirectionKey(playerWall);
+        if (!this.crouchOffsets[key]) this.crouchOffsets[key] = { x: 0, y: 0 };
+        this.crouchOffsets[key].x += dx;
+        this.crouchOffsets[key].y += dy;
+        this._hitboxCache.clear();
+    }
+
+    resetCrouchOffset(playerWall) {
+        const key = this.wallToDirectionKey(playerWall);
+        this.crouchOffsets[key] = { x: 0, y: 0 };
+        this._hitboxCache.clear();
     }
 
     decodeBinaryRLE(encodedString) {
@@ -120,30 +149,37 @@ class Touching {
 
         const dx = px - playerState.PLAYER_X;
         const dy = py + playerState.PLAYER_Y;
-
-        const radians = playerState.direction * 0.017453292519943295;
+        let effDx = dx;
+        let effDy = dy;
+        if (playerState.player_state === 2) {
+            const offset = this.getCrouchOffset(playerState.player_wall);
+            effDx = dx - offset.x;
+            effDy = dy - offset.y;
+        }
+        const radians = (playerState.direction - 90) * 0.017453292519943295;
         const cos = Math.cos(radians);
         const sin = Math.sin(radians);
 
-        const srcX = (dx * cos + dy * sin) * SCALE + HALF;
-        const srcY = (-dx * sin + dy * cos) * SCALE + HALF;
+        const srcX = (effDx * cos + effDy * sin) * SCALE + HALF;
+        const srcY = (-effDx * sin + effDy * cos) * SCALE + HALF;
 
         const ix = srcX | 0;
         const iy = srcY | 0;
 
         if (ix < 0 || ix >= HITBOX_RES || iy < 0 || iy >= HITBOX_RES) return false;
 
-        const base = spikes.player.length - HITBOX_RES;
-        const charIndex = base - iy * HITBOX_RES + ix;
-
-        if (charIndex < 0) return false;
-
         let source;
         if (playerState.player_state === 2) {
-            source = playerState.player_wall == null ? spikes.crouched : spikes.wallcrouched;
+            source = (playerState.player_wall === 1 || playerState.player_wall === -1)
+                ? spikes.wallcrouched
+                : spikes.crouched;
         } else {
             source = spikes.player;
         }
+        const base = source.length - HITBOX_RES;
+        const charIndex = base - iy * HITBOX_RES + ix;
+
+        if (charIndex < 0) return false;
 
         return source[charIndex] === 1;
     }
@@ -188,8 +224,6 @@ class Touching {
             for (let tx = 0; tx < physics.LSX; tx++) {
                 const idx  = tx + ty * physics.LSX;
                 const tile = physics.MAP[idx];
-
-                // Only process spike tiles
                 if (!physics.MASK[tile] || !physics.MASK[tile].includes(2)) continue;
 
                 const spikeData = this.spikes[tile];
@@ -251,7 +285,7 @@ class Touching {
 
     _getHitboxOffsets(playerState) {
         const psz = playerState.PSZ;
-        const key = `${playerState.direction}|${playerState.player_state}|${playerState.player_wall == null ? 0 : 1}|${psz[1]},${psz[2]},${psz[3]},${psz[4]}`;
+        const key = `${playerState.direction}|${playerState.player_state}|${playerState.player_wall}|${psz[1]},${psz[2]},${psz[3]},${psz[4]}`;
 
         const cached = this._hitboxCache.get(key);
         if (cached) return cached;
@@ -301,26 +335,3 @@ class Touching {
         return false;
     }
 }
-
-
-// use this to encode binary for spikes:
-// const encodeBinaryRLE = (data) => {
-//     if (!data || data.length === 0) return "";
-
-//     let result = [];
-//     let currentVal = data[0];
-//     let currentCount = 0;
-
-//     for (let i = 0; i < data.length; i++) {
-//         if (data[i] === currentVal) {
-//             currentCount++;
-//         } else {
-//             result.push(currentCount);
-//             currentVal = data[i];
-//             currentCount = 1;
-//         }
-//     }
-//     result.push(currentCount);
-
-//     return `${data[0]}|${result.join(' ')}`; 
-// };

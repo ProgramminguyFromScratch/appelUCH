@@ -32,7 +32,7 @@ class AppelPhysics {
         ];
 
         maskStrings = maskStrings.map(item => {
-        return item.replaceAll(".", "2"); // Replace all occurrences of "." with "2" so that it can still convert to an int
+        return item.replaceAll(".", "2"); 
         });
 
         this.MASK = maskStrings.map(mask =>
@@ -50,64 +50,17 @@ class AppelPhysics {
         this.RESOLVE = [0, 0, 1, 0, -1, -1, 0, 1, 0, -1, -1, 1, -1, -1, 1, 1, 1];
         this._temp_coords = [0, 0];
         this.key_index = this.MAP.indexOf(70);
-
-        // Crumbling platforms (tile 34/46) are WORLD state, not player
-        // state: the tile itself has to look/behave the same for every
-        // player, no matter who stepped on it. So — unlike springs,
-        // which only ever affect the one player bouncing on them —
-        // their active/spawn/frame bookkeeping lives on the engine
-        // itself instead of on a per-player `playerState.activeIdx*`
-        // array. This also means it works for remote seats, which
-        // never get physics.tick() called on them locally (see
-        // game.js's update() — remote players are just repositioned
-        // from network snapshots, so a per-playerState-only trigger
-        // never fired for them and the tile never crumbled on your
-        // screen even though the opponent was standing on it).
         this.worldActiveIdx = [];
         this.worldActiveTyp = [];
         this.worldActiveFrame = [];
         this.worldActiveSpawn = [];
-
-        // Every actual write to this.MAP made by tick_spring()/
-        // tickCrumbleWorld() (the only two functions that mutate tile
-        // IDs during a race — springs 42<->43, crumble tiles 34/46 -> 1)
-        // gets queued here as {idx, tile}. game.js drains this once per
-        // frame and broadcasts each entry as a TILE_UPDATE so every
-        // other client mirrors the exact same value instead of trying
-        // to (re)derive it from imperfectly-synced remote positions —
-        // which is what let springs/crumble tiles desync between
-        // players in the first place. Only the client that's actually
-        // locally simulating the tile-triggering player ever pushes
-        // here (see game.js's update()) — everyone else just applies
-        // what they receive.
         this.tileUpdates = [];
     }
-
-    // Whether a map cell is open ground for the BUILD phase to place a
-    // player-grabbed piece on. Tile value 0 is truly empty (out-of-level/
-    // never drawn), and tile value 1 is this format's standard open-air
-    // tile — the background gap tile that fills most of a level, and
-    // what tickCrumble()/tickActive() reset a broken tile back to once
-    // it's fully gone. Both count as buildable open space. Every other
-    // value is either solid or a functional marker (spawn 76, flag 63,
-    // spring 42/43, crumble 34/46, lift spawner 23/24, key/door 70/72,
-    // etc.) — several of those have an entirely non-solid MASK entry
-    // too, so checking MASK alone isn't enough to tell them apart from
-    // plain empty air; the tile value itself is what's reserved.
     isPlaceableCell(idx) {
         if (idx < 0 || idx >= this.MAP.length) return false;
         const tile = this.MAP[idx];
         return tile === 0 || tile === 1;
     }
-
-    // Whether a map cell is a legal BUILD-phase target for a "targets
-    // solid ground" piece (currently just `bomb` — see pieces.js). The
-    // inverse of isPlaceableCell(): a bomb needs an existing tile to
-    // remove, not open air to build on, so 0/1 (already-open cells) are
-    // rejected here. Tiles 76 (spawn) and 63 (flag) are excluded too —
-    // deleting either would break the round (no start point / no finish
-    // line), so they're carved out as permanent regardless of what a
-    // player places on top of everything else.
     isDeletableCell(idx) {
         if (idx < 0 || idx >= this.MAP.length) return false;
         const tile = this.MAP[idx];
@@ -434,6 +387,11 @@ class AppelPhysics {
             playerState.PLAYER_X = 14;
             playerState.PLAYER_SX = 0;
         }
+
+        if (playerState.PLAYER_X > this.LSX*60 - 14) {
+            playerState.PLAYER_X = this.LSX*60 - 14;
+            playerState.PLAYER_SX = 0;
+        }
     }
 
     touching_wall_dy(playerState, dy) {
@@ -474,12 +432,6 @@ class AppelPhysics {
         this.activeBlock(dir, playerState.PLAYER_X - playerState.PSZ[4], playerState.PLAYER_Y, playerState);
 
         if (this.overlap > 0) {
-            // Landing thump, shared by both directions this branch below
-            // handles: hitting a floor while falling (saved_dy > 0) or
-            // hitting a ceiling while moving up (saved_dy <= 0). Checked
-            // against saved_dy/is_falling as they were *before* either
-            // branch resets them below, so a light touch (barely moving,
-            // or only just started falling) stays silent.
             const shouldPlayLandSfx = Math.abs(saved_dy) > 6 && playerState.is_falling > 4;
 
             if (saved_dy > 0) {
@@ -500,7 +452,7 @@ class AppelPhysics {
                 playerState.is_falling = 0;
                 playerState.is_jumping = 0;
 
-                playerState.player_wall = null; // Player wall never is 2, I think this is from when you could bounce on your head from the ground.
+                playerState.player_wall = null; 
 
                 if (playerState.player_state === 3) {
                     playerState.player_state = 0;
@@ -807,8 +759,10 @@ class AppelPhysics {
         || this.get_block_at(playerState.PLAYER_X - (playerState.PSZ[4] - 1), playerState.PLAYER_Y) === 2 
         || this.get_block_at(playerState.PLAYER_X, playerState.PLAYER_Y + playerState.PSZ[1] - 1) === 2
         || this.get_block_at(playerState.PLAYER_X, playerState.PLAYER_Y - (playerState.PSZ[3] - 1)) === 2;
+        console.log(isInSpikeTile)
 
         if (playerState.wasInSpikeTileLastFrame) {
+            console.log("yo")
             if (this.touching.is_player_touching_spike(playerState, this)) {
                 playerState.PLAYER_DEATH = true;
             }
@@ -859,11 +813,6 @@ class AppelPhysics {
                 playerState.activeTyp.push("spring");
                 playerState.activeFrame.push(0);
             } else if (tile === 34 || tile === 46){
-                // Crumble tiles are handled once per frame for every
-                // player (local or remote) by tickWorldActive() below,
-                // not per-playerState here — queue it into the shared
-                // spawn list instead (deduped against anything already
-                // crumbling or already queued this frame).
                 if (!this.worldActiveIdx.includes(activeTile) && !this.worldActiveSpawn.includes(activeTile)) {
                     this.worldActiveSpawn.push(activeTile);
                 }
@@ -878,14 +827,6 @@ class AppelPhysics {
             }
         }
     }
-
-    // Detects crumble-tile (34/46) contact for a player using the same
-    // 4-edge sample points check_dangers() already uses for spikes.
-    // Runs for EVERY player each frame — local (already collision-
-    // resolved this tick) and remote (whose x/y just came off the
-    // network, see game.js's update()) alike — so an opponent standing
-    // on a crumbling platform starts it decaying on your client too,
-    // not just theirs.
     checkWorldTileTriggers(playerState) {
         const points = [
             [playerState.PLAYER_X + playerState.PSZ[2] - 1, playerState.PLAYER_Y],
@@ -902,21 +843,6 @@ class AppelPhysics {
             this.worldActiveSpawn.push(tileIdx);
         }
     }
-
-    // Call once per frame (not per-player) — see game.js's update().
-    // `allPlayerStates` is every player's current physicsState (local
-    // post-tick, remote post-sync), used only for the "is someone still
-    // standing here" respawn check below. `triggerPlayerStates` is the
-    // subset this client actually simulates physics for itself (its own
-    // local player(s) — never a remote seat, whose position is just a
-    // relayed snapshot and can arrive at a different frame on every
-    // client). Only that subset is allowed to *start* a tile crumbling
-    // or advance its frame counter, so the exact same tile can't be
-    // independently (and divergently) ticked by two different clients
-    // watching the same remote player's synced position at slightly
-    // different times. The client that does own the trigger broadcasts
-    // every resulting MAP write via this.tileUpdates (see game.js's
-    // update()), which is how everyone else's screen stays in sync.
     tickWorldActive(allPlayerStates, triggerPlayerStates) {
         for (const ps of triggerPlayerStates) {
             if (ps) this.checkWorldTileTriggers(ps);
@@ -988,12 +914,6 @@ class AppelPhysics {
             }
         }
     }
-    
-    // World-shared twin of tickCrumble() above — identical state
-    // machine, but reading/writing this.worldActiveIdx/Typ/Frame
-    // instead of a single playerState's arrays, and checking ALL
-    // players (not just one) for the "someone's still standing here,
-    // hold off on respawning the tile" case.
     tickCrumbleWorld(idx, a, max, costume, inc, playerStates) {
         this.worldActiveFrame[a] += inc;
         if (this.worldActiveFrame[a] <= max) {
@@ -1159,9 +1079,6 @@ class AppelPhysics {
         }
         return OBJ;
     }
-
-    // Moves lift/dynamic objects forward one frame. This must run exactly
-    // once per frame on the shared OBJ array, regardless of player count.
     tickObj(OBJ) {
         for (let object of OBJ) {
             object.frictionx = object.nx - object.x;
@@ -1205,9 +1122,6 @@ class AppelPhysics {
             }
         }
     }
-
-    // Pushes a specific player if they're standing on/inside a lift object.
-    // Called once per player per frame (unlike tickObj above).
     applyObjPush(playerState) {
         for (let object of playerState.OBJ) {
             if ((playerState.PLAYER_X + this.PSZ[2] > object.nx - object.width) && (playerState.PLAYER_X - this.PSZ[4] < object.nx + object.width)) {
@@ -1417,8 +1331,8 @@ class AppelPhysics {
             is_jumping: 0,
             is_falling: 999,
             flipped: 0,
-            player_state: 0,  // 0=normal, 1=spin, 2=crouch, 3=wall spin, 4=BOING
-            player_wall: null,  // null=no wall, 1=right wall, -1=left wall, 0=ceiling
+            player_state: 0,  
+            player_wall: null,  
             direction: 90,
             PLAYER_DIR: 1,
             wasInSpikeTileLastFrame: false,

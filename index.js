@@ -16,13 +16,6 @@ function send(ws, message) {
     }
 }
 
-// JOIN_ROOM is handled outside the normal phase-gated dispatch below
-// since a socket has no room/seat yet when it arrives. A `playerId` in
-// the payload that matches an existing *disconnected* seat in the
-// target room is treated as a reconnect (§9 PLAYER_RECONNECTED) rather
-// than a brand new seat — this is a small, documented extension of the
-// base spec, since the doc doesn't otherwise say how a client proves
-// "I'm the same player as before" (see README).
 function handleJoinRoom(ws, payload = {}) {
     const room = roomManager.getOrCreateRoom(payload.roomCode);
 
@@ -79,7 +72,7 @@ function handleMessage(ws, raw) {
     try {
         msg = JSON.parse(raw);
     } catch (err) {
-        return; // malformed JSON, drop
+        return;
     }
 
     const { type, payload } = msg || {};
@@ -95,8 +88,6 @@ function handleMessage(ws, raw) {
     const seat = room.seatFor(ws);
     if (!seat) return;
 
-    // Envelope rule (protocol §1): drop/ignore messages sent in the
-    // wrong phase, and drop unrecognized types outright.
     const allowedPhases = CLIENT_MESSAGE_PHASES[type];
     const handler = HANDLERS[type];
     if (!allowedPhases || !handler) return;

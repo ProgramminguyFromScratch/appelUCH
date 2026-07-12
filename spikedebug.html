@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Spike / Player Hitbox Debug</title>
+<style>
+    :root { color-scheme: dark; }
+    body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #14151a;
+        color: #e8e8ee;
+        display: flex;
+        height: 100vh;
+    }
+    #sidebar {
+        width: 300px;
+        flex-shrink: 0;
+        padding: 16px;
+        box-sizing: border-box;
+        background: #1c1d24;
+        border-right: 1px solid #2c2d36;
+        overflow-y: auto;
+    }
+    #sidebar h1 {
+        font-size: 15px;
+        margin: 0 0 4px;
+    }
+    #sidebar p.hint {
+        font-size: 12px;
+        color: #9a9aa8;
+        margin: 0 0 16px;
+        line-height: 1.4;
+    }
+    label {
+        display: block;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #8a8a98;
+        margin: 14px 0 4px;
+    }
+    select, input[type=range], input[type=number], input[type=file] {
+        width: 100%;
+        box-sizing: border-box;
+        background: #0f1015;
+        color: #e8e8ee;
+        border: 1px solid #33343f;
+        border-radius: 6px;
+        padding: 6px 8px;
+        font-size: 13px;
+    }
+    input[type=file] { padding: 5px 6px; font-size: 11px; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row input[type=number] { width: 64px; }
+    .twocol { display: flex; gap: 8px; }
+    .twocol > div { flex: 1; }
+    .swatch {
+        display: inline-block;
+        width: 12px; height: 12px;
+        border-radius: 2px;
+        margin-right: 6px;
+        vertical-align: -2px;
+    }
+    #legend div { font-size: 12px; margin: 4px 0; color: #c8c8d4; }
+    #stats {
+        margin-top: 16px;
+        font-size: 12px;
+        color: #c8c8d4;
+        line-height: 1.6;
+        background: #0f1015;
+        border: 1px solid #2c2d36;
+        border-radius: 6px;
+        padding: 10px;
+    }
+    #stats b { color: #fff; }
+    #spriteBox {
+        margin-top: 16px;
+        padding: 10px;
+        background: #0f1015;
+        border: 1px solid #2c2d36;
+        border-radius: 6px;
+        display: none;
+    }
+    #spriteBox.active { display: block; }
+    #spriteBox .note {
+        font-size: 11px;
+        color: #8a8a98;
+        line-height: 1.4;
+        margin-top: 6px;
+    }
+    #main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 24px;
+        overflow: auto;
+    }
+    #canvasWrap {
+        position: relative;
+        image-rendering: pixelated;
+        box-shadow: 0 0 0 1px #33343f;
+    }
+    canvas { display: block; }
+    #hoverInfo {
+        margin-top: 12px;
+        font-size: 12px;
+        font-family: ui-monospace, monospace;
+        color: #cfcfe0;
+        min-height: 18px;
+    }
+    #err {
+        color: #ff6b6b;
+        font-size: 12px;
+        white-space: pre-wrap;
+        margin-top: 10px;
+    }
+    a { color: #7ab8ff; }
+    .modeBadge {
+        display: inline-block;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: #2c2d36;
+        color: #9a9aa8;
+        margin-left: 6px;
+    }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h1>Spike / Player Hitbox Debug</h1>
+    <p class="hint">
+        Renders touching.js's raw per-mask lethal/hurtbox-pixel grid.
+        Red = a hit here kills you (tile masks) or counts as part of the
+        hurtbox (player masks). This shows the mask exactly as stored —
+        rotation is applied on the way *in* (by rotating dx/dy before
+        indexing), so what you see here is always the un-rotated version
+        (tile rotation 0 / player direction 0).
+    </p>
+
+    <label for="tileSelect">Tile / mask key</label>
+    <select id="tileSelect"></select>
+
+    <label for="cellSize">Cell size (px) — <span id="cellSizeVal">5</span></label>
+    <input type="range" id="cellSize" min="2" max="14" value="5" step="1">
+
+    <label class="row" style="margin-top:14px;">
+        <input type="checkbox" id="showGrid" style="width:auto;" checked>
+        &nbsp;Show gridlines
+    </label>
+    <label class="row">
+        <input type="checkbox" id="showCenter" style="width:auto;" checked>
+        &nbsp;Show origin crosshair
+    </label>
+
+    <div id="legend" style="margin-top:16px;">
+        <div><span class="swatch" style="background:#ff3b3b;"></span>Solid bit (spike / hurtbox = 1)</div>
+        <div><span class="swatch" style="background:#23242c;"></span>Empty bit (0)</div>
+        <div><span class="swatch" style="background:#3ba7ff;"></span>Origin crosshair (dx=0, dy=0)</div>
+    </div>
+
+    <div id="spriteBox">
+        <label for="spriteFile" style="margin-top:0;">Overlay sprite PNG (player masks only)</label>
+        <input type="file" id="spriteFile" accept="image/png,image/*">
+        <div class="twocol">
+            <div>
+                <label for="anchorX">Anchor X (px)</label>
+                <input type="number" id="anchorX" step="0.5">
+            </div>
+            <div>
+                <label for="anchorY">Anchor Y (px)</label>
+                <input type="number" id="anchorY" step="0.5">
+            </div>
+        </div>
+        <label for="pxPerUnit">Pixels per world unit</label>
+        <input type="number" id="pxPerUnit" step="0.01" min="0.01">
+        <div class="note">
+            Defaults match buildhitbox.py's build_mask_player(): anchor =
+            bottom-center of the image, scale = auto-fit (farthest edge
+            from the anchor maps to the grid edge). Change these to match
+            whatever you actually passed to the build script — the grid
+            and sprite will only line up if the values here match.
+        </div>
+    </div>
+
+    <div id="stats">Loading spikeHitboxes.json…</div>
+    <div id="err"></div>
+</div>
+
+<div id="main">
+    <div id="canvasWrap">
+        <canvas id="grid" width="1000" height="1000"></canvas>
+    </div>
+    <div id="hoverInfo">Hover the grid to inspect a cell.</div>
+</div>
+
+<script>
+function decodeBinaryRLE(encodedString) {
+    if (!encodedString) return [];
+    const [startBitStr, countsStr] = encodedString.split('|');
+    let currentBit = parseInt(startBitStr, 10);
+    const counts = countsStr.split(' ').map(Number);
+
+    let totalLen = 0;
+    for (let i = 0; i < counts.length; i++) totalLen += counts[i];
+    const decodedData = new Uint8Array(totalLen);
+
+    let pos = 0;
+    for (let i = 0; i < counts.length; i++) {
+        const count = counts[i];
+        if (currentBit === 1) decodedData.fill(1, pos, pos + count);
+        pos += count;
+        currentBit ^= 1;
+    }
+    return decodedData;
+}
+
+const HURTBOX_KEYS = ['player', 'crouched', 'wallcrouched'];
+
+const MODES = {
+    tile: {
+        gridN: 200,
+        expectedLen: 40000,
+        gridToIndex: (fix, fiy) => (40000 - ((fiy + 1) * 200)) + fix,
+        indexToGrid: (charIndex) => {
+            const fix = ((charIndex % 200) + 200) % 200;
+            const fiy = (40000 - (charIndex - fix)) / 200 - 1;
+            return { fix, fiy };
+        },
+        gridToDelta: (ix, iy) => ({ dx: (iy - 100) / 2, dy: (100 - ix) / 2 }),
+        spanLabel: 'Tile spans dx,dy \u2208 [-50, 50] world px, at 0.5px resolution.',
+    },
+    player: {
+        gridN: 70,
+        expectedLen: 4900,
+        gridToIndex: (ix, iy) => (4900 - 70) - iy * 70 + ix,
+        indexToGrid: (charIndex) => {
+            const base = 4900 - 70;
+            const ix = ((base - charIndex) % 70 + 70) % 70;
+            const iy = (base + ix - charIndex) / 70;
+            return { fix: ix, fiy: iy };
+        },
+        gridToDelta: (ix, iy) => ({ dx: (ix - 35) / 2, dy: (iy - 35) / 2 }),
+        spanLabel: 'Player mask spans dx,dy \u2208 [-17.5, 17.5] world units, at 0.5-unit resolution.',
+    },
+};
+
+function modeForKey(key) {
+    return HURTBOX_KEYS.includes(key) ? 'player' : 'tile';
+}
+
+const els = {
+    select: document.getElementById('tileSelect'),
+    cellSize: document.getElementById('cellSize'),
+    cellSizeVal: document.getElementById('cellSizeVal'),
+    showGrid: document.getElementById('showGrid'),
+    showCenter: document.getElementById('showCenter'),
+    stats: document.getElementById('stats'),
+    err: document.getElementById('err'),
+    canvas: document.getElementById('grid'),
+    hover: document.getElementById('hoverInfo'),
+    spriteBox: document.getElementById('spriteBox'),
+    spriteFile: document.getElementById('spriteFile'),
+    anchorX: document.getElementById('anchorX'),
+    anchorY: document.getElementById('anchorY'),
+    pxPerUnit: document.getElementById('pxPerUnit'),
+};
+const ctx = els.canvas.getContext('2d');
+
+let maskData = {};
+let currentDecoded = null;
+let currentMode = MODES.tile;
+
+let spriteImg = null;
+let spriteDirty = true;
+
+function niceLabel(key) {
+    const known = {
+        player: 'player (standing hurtbox)',
+        crouched: 'crouched (hurtbox)',
+        wallcrouched: 'wallcrouched (hurtbox)',
+    };
+    return known[key] ? `${key} \u2014 ${known[key]}` : `tile ${key}`;
+}
+
+async function init() {
+    try {
+        const res = await fetch('spikeHitboxes.json');
+        if (!res.ok) throw new Error(`fetch failed: ${res.status} ${res.statusText}`);
+        const raw = await res.json();
+
+        for (const key in raw) {
+            maskData[key] = decodeBinaryRLE(raw[key]);
+        }
+
+        const keys = Object.keys(maskData);
+        keys.sort((a, b) => {
+            const ah = HURTBOX_KEYS.includes(a), bh = HURTBOX_KEYS.includes(b);
+            if (ah !== bh) return ah ? 1 : -1;
+            const an = Number(a), bn = Number(b);
+            if (!isNaN(an) && !isNaN(bn)) return an - bn;
+            return a.localeCompare(b);
+        });
+
+        els.select.innerHTML = keys.map(k => `<option value="${k}">${niceLabel(k)}</option>`).join('');
+        const preferred = keys.find(k => !HURTBOX_KEYS.includes(k)) || keys[0];
+        els.select.value = preferred;
+
+        render();
+    } catch (e) {
+        els.err.textContent = 'Error loading spikeHitboxes.json:\n' + e.message +
+            '\n\nThis file must be served over http(s) (not opened via file://) ' +
+            'and placed alongside spikeHitboxes.json \u2014 e.g. run a static server ' +
+            'in this folder and open this file through it.';
+        els.stats.textContent = 'Failed to load.';
+    }
+}
+
+function applySpriteDefaults() {
+    if (!spriteImg) return;
+    const w = spriteImg.naturalWidth, h = spriteImg.naturalHeight;
+    const anchorX = w / 2;
+    const anchorY = h;
+    const halfWindow = 17.5;
+    const maxReach = Math.max(anchorX, w - anchorX, anchorY, h - anchorY);
+    els.anchorX.value = anchorX;
+    els.anchorY.value = anchorY;
+    els.pxPerUnit.value = (maxReach / halfWindow).toFixed(4);
+}
+
+function drawSpriteOverlay(cell) {
+    if (!spriteImg || currentMode !== MODES.player) return;
+    const anchorX = parseFloat(els.anchorX.value);
+    const anchorY = parseFloat(els.anchorY.value);
+    const pxPerUnit = parseFloat(els.pxPerUnit.value);
+    if (!isFinite(anchorX) || !isFinite(anchorY) || !isFinite(pxPerUnit) || pxPerUnit <= 0) return;
+
+    const scale = (2 * cell) / pxPerUnit;
+    const originX = 35 * cell - scale * anchorX;
+    const originY = 35 * cell + scale * anchorY;
+
+    ctx.save();
+    ctx.setTransform(scale, 0, 0, -scale, originX, originY);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(spriteImg, 0, 0);
+    ctx.restore();
+}
+
+function render() {
+    const key = els.select.value;
+    if (!key) return;
+    const data = maskData[key];
+    currentDecoded = data;
+
+    const mode = modeForKey(key);
+    currentMode = MODES[mode];
+    const isPlayerMode = mode === 'player';
+
+    els.spriteBox.classList.toggle('active', isPlayerMode);
+    if (!isPlayerMode) {
+        spriteImg = null;
+        els.spriteFile.value = '';
+    }
+
+    const cell = parseInt(els.cellSize.value, 10);
+    els.cellSizeVal.textContent = cell;
+
+    const gridN = currentMode.gridN;
+    const size = gridN * cell;
+    els.canvas.width = size;
+    els.canvas.height = size;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, size, size);
+
+    const expectedLen = currentMode.expectedLen;
+    const hasFullMask = data.length === expectedLen;
+    const hasSprite = isPlayerMode && spriteImg;
+
+    if (hasSprite) drawSpriteOverlay(cell);
+
+    let solidCount = 0;
+    for (let fiy = 0; fiy < gridN; fiy++) {
+        for (let fix = 0; fix < gridN; fix++) {
+            const idx = currentMode.gridToIndex(fix, fiy);
+            const bit = (idx >= 0 && idx < data.length) ? data[idx] : 0;
+            if (bit === 1) solidCount++;
+
+            if (hasSprite) {
+                if (bit === 1) {
+                    ctx.fillStyle = 'rgba(255,59,59,0.55)';
+                    ctx.fillRect(fix * cell, fiy * cell, cell, cell);
+                }
+            } else {
+                ctx.fillStyle = bit === 1 ? '#ff3b3b' : '#23242c';
+                ctx.fillRect(fix * cell, fiy * cell, cell, cell);
+            }
+        }
+    }
+
+    if (els.showGrid.checked && cell >= 4) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i <= gridN; i++) {
+            ctx.moveTo(i * cell + 0.5, 0);
+            ctx.lineTo(i * cell + 0.5, size);
+            ctx.moveTo(0, i * cell + 0.5);
+            ctx.lineTo(size, i * cell + 0.5);
+        }
+        ctx.stroke();
+    }
+
+    if (els.showCenter.checked) {
+        const c = gridN / 2;
+        ctx.strokeStyle = 'rgba(59,167,255,0.9)';
+        ctx.lineWidth = Math.max(1, cell / 5);
+        ctx.beginPath();
+        ctx.moveTo(c * cell, 0);
+        ctx.lineTo(c * cell, size);
+        ctx.moveTo(0, c * cell);
+        ctx.lineTo(size, c * cell);
+        ctx.stroke();
+    }
+
+    const pct = ((solidCount / expectedLen) * 100).toFixed(1);
+    els.stats.innerHTML =
+        `<b>${niceLabel(key)}</b> <span class="modeBadge">${mode} mode \u2014 ${gridN}\u00d7${gridN}</span><br>` +
+        `Mask length: ${data.length}${hasFullMask ? '' : ` <span style="color:#ffb84d">(\u2260 ${expectedLen}, sparse/short encoding)</span>`}<br>` +
+        `Solid cells: <b>${solidCount}</b> / ${expectedLen} (${pct}%)<br>` +
+        `${currentMode.spanLabel}`;
+}
+
+els.canvas.addEventListener('mousemove', (e) => {
+    if (!currentDecoded) return;
+    const rect = els.canvas.getBoundingClientRect();
+    const cell = parseInt(els.cellSize.value, 10);
+    const gridN = currentMode.gridN;
+    const scaleX = els.canvas.width / rect.width;
+    const scaleY = els.canvas.height / rect.height;
+    const px = (e.clientX - rect.left) * scaleX;
+    const py = (e.clientY - rect.top) * scaleY;
+    const fix = Math.min(gridN - 1, Math.max(0, Math.floor(px / cell)));
+    const fiy = Math.min(gridN - 1, Math.max(0, Math.floor(py / cell)));
+    const idx = currentMode.gridToIndex(fix, fiy);
+    const bit = (idx >= 0 && idx < currentDecoded.length) ? currentDecoded[idx] : 0;
+    const { dx, dy } = currentMode.gridToDelta(fix, fiy);
+    els.hover.textContent =
+        `ix=${fix} iy=${fiy}  |  charIndex=${idx}  |  dx=${dx.toFixed(1)} dy=${dy.toFixed(1)} (Y-up)  |  ` +
+        (bit === 1 ? 'SOLID' : 'empty');
+});
+els.canvas.addEventListener('mouseleave', () => {
+    els.hover.textContent = 'Hover the grid to inspect a cell.';
+});
+
+els.select.addEventListener('change', () => { spriteDirty = true; render(); });
+els.cellSize.addEventListener('input', render);
+els.showGrid.addEventListener('change', render);
+els.showCenter.addEventListener('change', render);
+els.anchorX.addEventListener('input', render);
+els.anchorY.addEventListener('input', render);
+els.pxPerUnit.addEventListener('input', render);
+
+els.spriteFile.addEventListener('change', () => {
+    const file = els.spriteFile.files && els.spriteFile.files[0];
+    if (!file) { spriteImg = null; render(); return; }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+        spriteImg = img;
+        applySpriteDefaults();
+        render();
+        URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+        els.err.textContent = 'Could not load that image file.';
+        URL.revokeObjectURL(url);
+    };
+    img.src = url;
+});
+
+init();
+</script>
+</body>
+</html>

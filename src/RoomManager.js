@@ -1,11 +1,11 @@
 const { Room } = require('./Room');
 
-const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I ambiguity
-const EMPTY_ROOM_SWEEP_MS = 5 * 60 * 1000; // janitor: reap empty rooms after 5 min
+const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
+const EMPTY_ROOM_SWEEP_MS = 5 * 60 * 1000; 
 
 class RoomManager {
     constructor() {
-        this.rooms = new Map(); // roomCode -> Room
+        this.rooms = new Map(); 
 
         this.sweepInterval = setInterval(() => this.sweepEmptyRooms(), 60 * 1000);
     }
@@ -45,11 +45,6 @@ class RoomManager {
     sweepEmptyRooms() {
         for (const [code, room] of this.rooms.entries()) {
             const emptyLongEnough = room.isEmpty() && (Date.now() - room.createdAt) > EMPTY_ROOM_SWEEP_MS;
-            // Only sweep rooms that have had a chance to actually host a
-            // match and are now abandoned — a very recently created,
-            // still-in-LOBBY room with zero connections yet is also
-            // "empty" but shouldn't be swept before anyone even joined,
-            // so gate on how long it's simply been sitting idle.
             if (room.isEmpty() && emptyLongEnough) {
                 this.removeRoom(code);
             }

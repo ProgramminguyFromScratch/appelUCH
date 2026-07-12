@@ -16,6 +16,8 @@ const { decodeLevelCode, encodeLevelCode } = require('./levelCode');
 const { PIECE_POOL, getPieceById, getPieceFootprintCells } = require('./pieces');
 const { LEVEL_POOL } = require('./levels');
 
+const POINTS_TO_WIN = 15;
+
 let nextPlayerId = 1;
 function generatePlayerId() {
     return `p${nextPlayerId++}_${Math.random().toString(36).slice(2, 8)}`;
@@ -24,7 +26,7 @@ function generatePlayerId() {
 class Room {
     constructor(roomCode) {
         this.roomCode = roomCode;
-        this.seats = new Map(); // seatIndex -> seat
+        this.seats = new Map();
         this.hostSeatIndex = 0;
         this.nextSeatIndex = 0;
         this.phase = PHASE.LOBBY;
@@ -33,49 +35,28 @@ class Room {
         this.totalRounds = TOTAL_ROUNDS;
 
         this.stageCandidates = [];
-        this.stageVotes = new Map(); // seatIndex -> candidateIndex, cleared each enterStageSelect()
+        this.stageVotes = new Map();
         this.levelCode = null;
-        this.map = null; // { MAP: number[], MAP_R: number[], size_x } — authoritative, persists round-to-round
-        // The rest of what decodeLevelCode() returns besides map/rotations/
-        // size_x — command strings, wall data, hue — needed alongside
-        // this.map to re-serialize a levelCode via encodeLevelCode() (see
-        // BUILD_COMPLETE below). Set once in lockStage() and never
-        // touched again; it's static per-stage, unlike this.map.
-        this.levelMeta = null; // { MAP_DATA, wall, hue, hue2 }
+        this.map = null;
+        this.levelMeta = null;
         this.startCell = { col: 0, row: 0 };
 
-        this.partySlots = []; // Array<{ slotIndex, pieceId } | null>
-
-        // Whether the round that just finished had anyone eliminated —
-        // drives whether the bomb can appear in the next party box (see
-        // pickPartySlots()). No round has finished yet, so no bomb in
-        // round 1's box.
+        this.partySlots = [];
         this.lastRoundDeaths = { anyEliminated: false, allEliminated: false };
         this.locks = { stagePicked: false, continueAdvanced: false, playAgainAdvanced: false };
+        this.continueConfirmations = new Set();
 
-        this.timers = {}; // name -> Timeout/Interval handle
+        this.timers = {};
 
-        this.race = null; // set up fresh each round by enterRace()
+        this.race = null;
 
         this.createdAt = Date.now();
-        // Timestamp the room most recently became empty (0 connected
-        // seats), or null while it currently has someone connected.
-        // RoomManager.sweepEmptyRooms() reaps a room 5 min after *this*,
-        // not 5 min after createdAt — see updateEmptiedAt().
         this.emptiedAt = this.isEmpty() ? this.createdAt : null;
     }
-
-    // ---------- seat / connection management ----------
 
     get connectedSeats() {
         return [...this.seats.values()].filter(s => s.connected);
     }
-
-    // Call after anything that can change connectedSeats.length (a seat
-    // joining, disconnecting, or reconnecting) so this.emptiedAt always
-    // reflects the most recent moment the room actually had zero
-    // connected seats — RoomManager.sweepEmptyRooms() reaps 5 min after
-    // that, not 5 min after this.createdAt.
     updateEmptiedAt() {
         if (this.isEmpty()) {
             if (this.emptiedAt === null) this.emptiedAt = Date.now();
@@ -83,12 +64,6 @@ class Room {
             this.emptiedAt = null;
         }
     }
-
-    // Case-insensitive, trimmed comparison against every currently
-    // connected seat's name — a disconnected seat's old name doesn't
-    // block a new join, since that seat isn't "present" anymore (and a
-    // genuine reconnect matches on playerId in index.js, not name, so
-    // it never even reaches this check).
     isNameTaken(displayName) {
         const normalized = (displayName || '').trim().toLowerCase();
         if (!normalized) return false;
@@ -97,7 +72,7 @@ class Room {
 
     addSeat(ws, displayName) {
         if (this.seats.size >= MAX_PLAYERS) return null;
-        if (this.phase !== PHASE.LOBBY) return null; // no late joins mid-match in this pass
+        if (this.phase !== PHASE.LOBBY) return null;
 
         const seatIndex = this.nextSeatIndex++;
         const seat = {
@@ -133,8 +108,6 @@ class Room {
         return this.seats.get(ws.seatIndex) || null;
     }
 
-    // ---------- send helpers ----------
-
     send(seat, message) {
         if (!seat || !seat.connected || !seat.ws || seat.ws.readyState !== 1) return;
         try {
@@ -169,11 +142,9 @@ class Room {
         this.broadcast({ type: 'ROOM_STATE', phase: PHASE.LOBBY, payload: this.roomStatePayload() });
     }
 
-    // ---------- 2. Lobby ----------
-
     handleStartMatchRequest(seat) {
         if (this.phase !== PHASE.LOBBY) return;
-        if (seat.seatIndex !== this.hostSeatIndex) return; // cheat flag: non-host rejected server-side
+        if (seat.seatIndex !== this.hostSeatIndex) return;
         if (this.connectedSeats.length < MIN_PLAYERS_TO_START) return;
 
         this.phase = PHASE.LOADING;
@@ -186,8 +157,6 @@ class Room {
         this.timers.loadingBarrier = setTimeout(() => this.forceAllClientsReady(), LOADING_BARRIER_TIMEOUT_MS);
     }
 
-    // ---------- 3. Loading ----------
-
     handleClientReady(seat) {
         if (this.phase !== PHASE.LOADING) return;
         seat.ready = true;
@@ -198,9 +167,6 @@ class Room {
 
     forceAllClientsReady() {
         if (this.phase !== PHASE.LOADING) return;
-        // Stragglers get treated as bot-controlled until they catch up
-        // (they'll still send CLIENT_READY late; that's a no-op once
-        // we've already left LOADING).
         for (const seat of this.connectedSeats) {
             if (!seat.ready) seat.isBot = true;
         }
@@ -213,21 +179,12 @@ class Room {
         this.enterStageSelect();
     }
 
-    // ---------- 4. Stage select ----------
-
-    pickStageCandidates(count) {
-        const pool = [...LEVEL_POOL];
-        const picks = [];
-        const n = Math.min(count, pool.length);
-        for (let i = 0; i < n; i++) {
-            const idx = Math.floor(Math.random() * pool.length);
-            picks.push(pool.splice(idx, 1)[0]);
-        }
-        return picks;
+    pickStageCandidates() {
+        return LEVEL_POOL.slice();
     }
 
     enterStageSelect() {
-        this.stageCandidates = this.pickStageCandidates(3);
+        this.stageCandidates = this.pickStageCandidates();
         this.locks.stagePicked = false;
         this.stageVotes = new Map();
         for (const seat of this.seats.values()) seat.stageCursor = 0;
@@ -254,16 +211,9 @@ class Room {
             payload: { seatIndex: seat.seatIndex, cursorIndex }
         });
     }
-
-    // Stage selection is a vote, not a race to pick first: every
-    // connected seat casts (or changes) a vote for one of the 3
-    // candidates, and the level only locks in once every connected seat
-    // has voted (or the STAGE_TIME_LIMIT timer runs out — see
-    // expireStageSelect()). A seat can change its vote freely right up
-    // until the tally happens.
     handleStagePickRequest(seat, payload) {
         if (this.phase !== PHASE.STAGE_SELECT) return;
-        if (this.locks.stagePicked) return; // server already left STAGE_SELECT logically
+        if (this.locks.stagePicked) return;
         const candidateIndex = payload.candidateIndex | 0;
         if (candidateIndex < 0 || candidateIndex >= this.stageCandidates.length) return;
 
@@ -283,11 +233,6 @@ class Room {
         const allVoted = this.connectedSeats.every(s => this.stageVotes.has(s.seatIndex));
         if (allVoted) this.finalizeStageVote();
     }
-
-    // Timer ran out before every connected seat voted — anyone who
-    // hasn't voted gets a random vote among the candidates so the tally
-    // (and any resulting tiebreak) still treats them fairly rather than
-    // just excluding them.
     expireStageSelect() {
         if (this.phase !== PHASE.STAGE_SELECT) return;
         if (this.locks.stagePicked) return;
@@ -298,11 +243,6 @@ class Room {
         }
         this.finalizeStageVote();
     }
-
-    // Tallies this.stageVotes into per-candidate counts and returns the
-    // winning candidate index. Ties (including the "nobody voted"
-    // degenerate case, where every count is 0) are broken uniformly at
-    // random among the tied candidates.
     tallyStageVotes() {
         const counts = new Array(this.stageCandidates.length).fill(0);
         for (const candidateIndex of this.stageVotes.values()) {
@@ -317,7 +257,7 @@ class Room {
 
     finalizeStageVote() {
         if (this.locks.stagePicked) return;
-        this.locks.stagePicked = true; // first finalize wins
+        this.locks.stagePicked = true;
         clearTimeout(this.timers.stageSelect);
 
         const winningIndex = this.tallyStageVotes();
@@ -346,30 +286,16 @@ class Room {
     }
 
     computeStartCell() {
-        // Shared starting cell every seat's BUILD cursor begins at each
-        // round (see pieces.js's placeBuildPiece() comment: players can
-        // share a starting cell before they move off it). Tile 76 is the
-        // level's spawn marker (see physics.js's `this.MAP.indexOf(76)`);
-        // fall back to (0,0) if a level has none.
         if (!this.map) return { col: 0, row: 0 };
         const idx = this.map.MAP.indexOf(76);
         if (idx === -1) return { col: 0, row: 0 };
         const cols = this.map.size_x;
         return { col: idx % cols, row: Math.floor(idx / cols) };
     }
-
-    // ---------- 5. Party box ----------
-
-    // `allowBomb`/`guaranteeBomb` come from this.lastRoundDeaths (see
-    // endRound()): no one revealed dies in the box unless at least one
-    // player died last round, and if the whole seat died, one of the
-    // revealed slots is forced to be a bomb.
     pickPartySlots(count, allowBomb, guaranteeBomb) {
         let pool = allowBomb
             ? [...PIECE_POOL]
             : PIECE_POOL.filter(p => p.id !== 'bomb');
-
-        // Shuffle the pool (Fisher-Yates)
         for (let i = pool.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -388,13 +314,6 @@ class Room {
     }
 
     enterPartyBox() {
-        // Reveal count scales with room size — ceil(1.5 * playerCount) —
-        // instead of a flat constant, so small rooms aren't stuck sorting
-        // through slots sized for a full 6-player room. Uses this.seats.size
-        // (all seated players, matching the playerCount already broadcast in
-        // MATCH_STARTING) rather than connectedSeats, so a mid-match
-        // disconnect doesn't shrink the box out from under the players still
-        // playing.
         const { anyEliminated, allEliminated } = this.lastRoundDeaths;
         this.partySlots = this.pickPartySlots(getPartyBoxSlotCount(this.seats.size), anyEliminated, allEliminated);
         for (const seat of this.seats.values()) {
@@ -432,9 +351,6 @@ class Room {
         if (this.phase !== PHASE.PARTY_BOX) return;
         const slotIndex = payload.slotIndex | 0;
         const slot = this.partySlots[slotIndex];
-
-        // Literal server-side reimplementation of confirmPartyPick()'s
-        // two guard clauses: `if (!slot) return;` / `if (player.piece) return;`
         const accepted = !!slot && !seat.piece;
         let pieceId = null;
         if (accepted) {
@@ -491,8 +407,6 @@ class Room {
         this.enterBuild();
     }
 
-    // ---------- 6. Build ----------
-
     enterBuild() {
         for (const seat of this.seats.values()) {
             seat.buildCursor = { ...this.startCell };
@@ -533,18 +447,6 @@ class Room {
             payload: { seatIndex: seat.seatIndex, col, row, rotation }
         });
     }
-
-    // Bounds-check + overlap-check a piece's rotated footprint against
-    // the room's authoritative map — the server-side twin of game.js's
-    // footprintFits()/isPlaceableCell(), reusing pieces.js's
-    // getPieceFootprintCells() as instructed. Pieces with
-    // targetsSolid: true (currently just `bomb`, see pieces.js) aren't
-    // required to land on a solid/functional tile to be *accepted* —
-    // bounds are all that matter here, so a player is free to drop a
-    // bomb on open air. Whether that actually deletes anything is
-    // decided separately at write time (see placePieceOnMap()'s caller,
-    // which gates each cell write on isDeletableCell()) — landing on
-    // air just wastes the bomb instead of getting rejected.
     footprintFits(piece, rotation, col, row) {
         if (!this.map) return { fits: false, cells: [] };
         const cols = this.map.size_x;
@@ -560,18 +462,13 @@ class Room {
             if (!piece.targetsSolid) {
                 const idx = cell.row * cols + cell.col;
                 const tile = this.map.MAP[idx];
-                if (!(tile === 0 || tile === 1)) return false; // isPlaceableCell()
+                if (!(tile === 0 || tile === 1)) return false;
             }
             return true;
         });
 
         return { fits, cells };
     }
-
-    // Writes `cells` into the authoritative map. For targetsSolid pieces
-    // (bomb), only cells that are actually solid/functional get cleared
-    // (isDeletableCell()) — a cell that was already open air is left
-    // untouched, so a bomb dropped on air simply does nothing.
     placePieceOnMap(cells, rotation, piece = null) {
         const cols = this.map.size_x;
         const mapPatch = [];
@@ -588,7 +485,7 @@ class Room {
 
     handlePlacePieceRequest(seat, payload) {
         if (this.phase !== PHASE.BUILD) return;
-        if (seat.buildPlaced) return; // already placed this round
+        if (seat.buildPlaced) return;
         if (!seat.piece || seat.piece !== payload.pieceId) {
             this.send(seat, {
                 type: 'PLACE_PIECE_RESULT',
@@ -632,11 +529,6 @@ class Room {
             const piece = getPieceById(seat.piece);
             const fallback = seat.lastBuildCursorMove || { col: seat.buildCursor.col, row: seat.buildCursor.row, rotation: seat.buildRotation };
             const { fits, cells } = this.footprintFits(piece, fallback.rotation, fallback.col, fallback.row);
-
-            // Timeout just means "place wherever the cursor currently
-            // is" — same rules as a manual placement request. If it
-            // doesn't fit there, the turn is wasted with no tiles
-            // written rather than snapping to some other cell.
             seat.buildPlaced = true;
             const mapPatch = fits ? this.placePieceOnMap(cells, fallback.rotation, piece) : [];
             this.broadcast({
@@ -658,15 +550,6 @@ class Room {
     completeBuild() {
         if (this.phase !== PHASE.BUILD) return;
         clearTimeout(this.timers.build);
-
-        // Hand players back a levelCode for exactly what BUILD just
-        // produced (spawn tile + every piece placed this round and every
-        // round before it) in the same format as the hardcoded
-        // LEVEL_POOL entries, so it can be pasted into ?level= or shared
-        // like any other stage. Built from this.map (kept up to date by
-        // placePieceOnMap()) plus the static per-stage fields stashed in
-        // this.levelMeta back in lockStage(). Falls back to null if
-        // either is somehow missing rather than throwing.
         const levelCode = (this.map && this.levelMeta)
             ? encodeLevelCode({
                 map: this.map.MAP,
@@ -680,8 +563,6 @@ class Room {
         this.enterRace();
     }
 
-    // ---------- 7. Race ----------
-
     enterRace() {
         for (const seat of this.seats.values()) {
             seat.hasFinished = false;
@@ -691,9 +572,9 @@ class Room {
         }
 
         this.race = {
-            eliminationObserved: new Map(), // eliminatedSeatIndex -> Array<{ tick, observerSeatIndex, cause }>
-            finishConfirmed: new Map(), // seatIndex -> finishTick
-            eliminationConfirmed: new Map(), // seatIndex -> cause
+            eliminationObserved: new Map(),
+            finishConfirmed: new Map(),
+            eliminationConfirmed: new Map(),
             startedAt: Date.now()
         };
 
@@ -705,26 +586,13 @@ class Room {
                 tick: 0,
                 timeLimit: RACE_TIME_LIMIT,
                 spawns: [...this.seats.values()].map(s => ({ seatIndex: s.seatIndex, x: null, y: null }))
-                // x/y left null: the server doesn't run physics and
-                // doesn't know the level's real spawn pixel coords —
-                // clients already derive spawn position locally from
-                // physics.spawnOBJ()/the level's spawn tile the same
-                // way single-player does today.
             }
         });
 
         clearTimeout(this.timers.race);
         this.timers.race = setTimeout(() => this.expireRace(), RACE_TIME_LIMIT * 1000);
-
-        // Stray leftover from a previous round shouldn't be possible
-        // (endRound() clears it before ever flipping the phase away from
-        // RACE), but clear it defensively so a fresh race never inherits
-        // a pending delayed-end from the round before it.
         clearTimeout(this.timers.roundEndDelay);
         this.timers.roundEndDelay = null;
-
-        // Heartbeat so disconnected/bot seats keep producing idle
-        // INPUT_RELAY frames instead of just going silent (§9).
         clearInterval(this.timers.raceIdleHeartbeat);
         this.timers.raceIdleHeartbeat = setInterval(() => {
             if (this.phase !== PHASE.RACE) return;
@@ -738,8 +606,6 @@ class Room {
 
     handleInputFrame(seat, payload) {
         if (this.phase !== PHASE.RACE) return;
-        // Cheat flag: seatIndex is bound to the authenticated socket,
-        // never taken from the payload.
         this.broadcast({
             type: 'INPUT_RELAY',
             phase: PHASE.RACE,
@@ -766,15 +632,6 @@ class Room {
             }
         });
     }
-
-    // Plain relay, same shape as handleInputFrame()/handlePositionSnapshot()
-    // above — the sending client already fully resolved the tile write
-    // locally (see the client's physics.js's tileUpdates), this just
-    // forwards it to every other seat so their map matches exactly. Not
-    // folded into this.map (the BUILD-time authoritative map used for
-    // reconnect resync) since these are transient RACE-only tile states
-    // that get thrown away every round anyway (see game.js's
-    // snapshotBuiltMap()/resetRoundState()).
     handleTileUpdate(seat, payload) {
         if (this.phase !== PHASE.RACE) return;
         this.broadcast({
@@ -786,18 +643,7 @@ class Room {
 
     requiredQuorum(excludeSeatIndex) {
         const others = this.connectedSeats.filter(s => s.seatIndex !== excludeSeatIndex);
-        if (others.length === 0) return 0; // solo/dev testing: nothing to corroborate against, so trust the lone client
-        // Simple majority (>= half), not strict majority (> half). With
-        // floor(others/2)+1, a 3-player room (others.length === 2) rounded
-        // up to needing BOTH other clients to independently corroborate —
-        // the only room size in the whole player range that demands
-        // unanimous agreement instead of a real fraction. If either of
-        // those two observers was slightly behind on this seat's
-        // POSITION_SYNC, or just missed the FINISH_TICK_TOLERANCE window,
-        // the finish would never confirm and silently ride out the round
-        // to a RACE_TIME_LIMIT DNF instead. ceil(others/2) still requires
-        // a genuine majority everywhere else (2 of 3, 3 of 5, ...) but
-        // only asks for 1-of-2 rather than 2-of-2 at the 3-player size.
+        if (others.length === 0) return 0;
         return Math.ceil(others.length / 2);
     }
 
@@ -805,18 +651,9 @@ class Room {
         if (this.phase !== PHASE.RACE) return;
         const finishedSeatIndex = payload.finishedSeatIndex | 0;
         if (!this.seats.has(finishedSeatIndex)) return;
-        if (this.race.finishConfirmed.has(finishedSeatIndex)) return; // already confirmed
+        if (this.race.finishConfirmed.has(finishedSeatIndex)) return;
 
         const tick = payload.tick | 0;
-
-        // Trust a seat's own report of its own finish immediately, same
-        // as handleEliminationObserved() does for deaths — no quorum
-        // wait, no corroboration bucket, no dependency on how quickly
-        // (or slowly) other clients' POSITION_SYNC catches up. Simpler
-        // and, per player preference, an acceptable trust tradeoff: a
-        // cheating client could lie about finishing early, but that's
-        // true of the self-reported-death path already and hasn't been
-        // a problem.
         if (seat.seatIndex === finishedSeatIndex) {
             this.confirmFinish(finishedSeatIndex, tick);
             return;
@@ -839,15 +676,7 @@ class Room {
         const eliminatedSeatIndex = payload.eliminatedSeatIndex | 0;
         if (!this.seats.has(eliminatedSeatIndex)) return;
         if (this.race.eliminationConfirmed.has(eliminatedSeatIndex)) return;
-        if (this.race.finishConfirmed.has(eliminatedSeatIndex)) return; // already finished, can't also die
-
-        // Clients each simulate only their own physics now (see
-        // network.js's sendPositionSnapshot()/game.js's update()) — a
-        // hazard death is something only the player it happened to can
-        // actually witness, unlike a finish (which every client can see
-        // independently via everyone's synced position). So trust a
-        // seat's own report of its own death immediately instead of
-        // requiring corroboration nobody else is in a position to give.
+        if (this.race.finishConfirmed.has(eliminatedSeatIndex)) return;
         if (seat.seatIndex === eliminatedSeatIndex) {
             this.confirmElimination(eliminatedSeatIndex, payload.cause === 'death' ? 'death' : 'death');
             return;
@@ -894,9 +723,6 @@ class Room {
 
     expireRace() {
         if (this.phase !== PHASE.RACE) return;
-
-        // Purely server-clock-driven: no corroboration needed. Anyone
-        // not already FINISH_CONFIRMED/ELIMINATION_CONFIRMED becomes DNF.
         for (const seat of this.seats.values()) {
             if (this.race.finishConfirmed.has(seat.seatIndex)) continue;
             if (this.race.eliminationConfirmed.has(seat.seatIndex)) continue;
@@ -909,13 +735,6 @@ class Room {
         this.broadcast({ type: 'RACE_TIMER_EXPIRED', phase: PHASE.RACE, payload: {} });
         this.endRound();
     }
-
-    // Falls back to a majority vote among whatever reports arrived, once
-    // every seat has *some* resolution — used as a last resort if a
-    // quorum-worthy bucket never quite formed but the race timer forces
-    // things anyway (expireRace already resolves any stragglers, so this
-    // is mainly here for the case where every seat resolved itself
-    // before the timer, letting the round end early).
     checkRoundEnd() {
         if (this.phase !== PHASE.RACE) return;
         const allResolved = [...this.seats.values()].every(
@@ -926,14 +745,6 @@ class Room {
             this.scheduleRoundEnd();
         }
     }
-
-    // Everyone's resolved (finished/eliminated/DNF), but don't cut to
-    // ROUND_RESULTS immediately — wait ROUND_END_DELAY_MS so the last
-    // finish/death is actually visible and the RACE camera has time to
-    // zoom out and show the whole field before the screen changes.
-    // Re-entrant-safe (a stray extra call while already pending is a
-    // no-op) since finish/elimination confirmations can still trickle in
-    // right up to the last one that makes allResolved true.
     scheduleRoundEnd() {
         if (this.timers.roundEndDelay) return;
         this.timers.roundEndDelay = setTimeout(() => {
@@ -942,42 +753,46 @@ class Room {
         }, ROUND_END_DELAY_MS);
     }
 
-    // ---------- 7.5 / 8. Round end + results ----------
-
     endRound() {
         clearTimeout(this.timers.race);
         clearTimeout(this.timers.roundEndDelay);
         this.timers.roundEndDelay = null;
         clearInterval(this.timers.raceIdleHeartbeat);
-
-        // Server-side reimplementation of awardRoundPoints(), run only
-        // over this.race.finishConfirmed — never a client-supplied score.
         const finishers = [...this.race.finishConfirmed.entries()]
             .map(([seatIndex, finishTick]) => ({ seatIndex, finishTick }))
             .sort((a, b) => a.finishTick - b.finishTick);
 
-        // No points at all unless someone actually died (or DNF'd) this
-        // round — if the whole room clears the level clean, nobody gets
-        // rewarded for merely finishing (see this.race.eliminationConfirmed,
-        // populated by confirmElimination()/expireRace()). This also
-        // covers "everyone beats it" automatically: if every seat
-        // finished, nobody was eliminated, so anyDied is false.
-        const anyDied = this.race.eliminationConfirmed.size > 0;
-
+        const totalSeats = this.seats.size;
+        const tooEasy = totalSeats > 0 && finishers.length === totalSeats;
+        const tooHard = finishers.length === 0;
+        const COMEBACK_SCORE_GAP = 10;
+        const preRoundScores = new Map([...this.seats.values()].map(s => [s.seatIndex, s.score]));
+        const leaderScore = Math.max(0, ...preRoundScores.values());
         const roundPoints = new Map();
-        if (anyDied && finishers.length === 1) {
-            // Solo clear while at least one other player died: base 3,
-            // plus a +2 "no help" bonus once the room is big enough
-            // (3+) that finishing alone actually means something.
-            const soloBonus = this.seats.size >= 3 ? 2 : 0;
-            roundPoints.set(finishers[0].seatIndex, 3 + soloBonus);
-        } else if (anyDied && finishers.length >= 2) {
-            roundPoints.set(finishers[0].seatIndex, 1);
+        const roundBreakdown = new Map();
+        if (!tooEasy && !tooHard) {
+            for (let i = 0; i < finishers.length; i++) {
+                const { seatIndex } = finishers[i];
+                const breakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
+
+                breakdown.goal = 3;
+
+                if (finishers.length === 1) breakdown.solo = 2;
+                else if (i === 0) breakdown.firstPlace = 1;
+
+                const behindBy = leaderScore - (preRoundScores.get(seatIndex) || 0);
+                if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = 2;
+
+                const points = breakdown.goal + breakdown.firstPlace + breakdown.comeback + breakdown.solo;
+                roundPoints.set(seatIndex, points);
+                roundBreakdown.set(seatIndex, breakdown);
+            }
         }
 
         const results = [];
         for (const seat of this.seats.values()) {
             const points = roundPoints.get(seat.seatIndex) || 0;
+            const breakdown = roundBreakdown.get(seat.seatIndex) || { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
             seat.score += points;
             results.push({
                 seatIndex: seat.seatIndex,
@@ -986,17 +801,15 @@ class Room {
                 eliminated: seat.eliminated,
                 finishTick: seat.finishTick,
                 roundPoints: points,
+                pointBreakdown: breakdown,
                 totalScore: seat.score
             });
         }
 
         this.phase = PHASE.ROUND_RESULTS;
         this.locks.continueAdvanced = false;
+        this.continueConfirmations = new Set();
         this.broadcast({ type: 'ROUND_END', phase: PHASE.RACE, payload: { round: this.currentRound, results } });
-
-        // Drives bomb availability in the next party box (see
-        // pickPartySlots()): no bomb at all unless someone died this
-        // round, guaranteed bomb if everyone died.
         const seatList = [...this.seats.values()];
         this.lastRoundDeaths = {
             anyEliminated: seatList.some(s => s.eliminated),
@@ -1006,13 +819,39 @@ class Room {
 
     handleContinueRequest(seat) {
         if (this.phase !== PHASE.ROUND_RESULTS) return;
-        if (this.locks.continueAdvanced) return; // first receive wins
+        if (this.locks.continueAdvanced) return;
+        if (!this.continueConfirmations) this.continueConfirmations = new Set();
+        if (this.continueConfirmations.has(seat.seatIndex)) return;
+
+        this.continueConfirmations.add(seat.seatIndex);
+        this.broadcast({
+            type: 'CONTINUE_PROGRESS',
+            phase: PHASE.ROUND_RESULTS,
+            payload: {
+                seatIndex: seat.seatIndex,
+                confirmedSeats: [...this.continueConfirmations],
+                totalConnected: this.connectedSeats.length
+            }
+        });
+
+        this.checkContinueVotesComplete();
+    }
+
+    checkContinueVotesComplete() {
+        if (this.phase !== PHASE.ROUND_RESULTS) return;
+        if (this.locks.continueAdvanced) return;
+        const allConfirmed = this.connectedSeats.length > 0 &&
+            this.connectedSeats.every(s => this.continueConfirmations.has(s.seatIndex));
+        if (allConfirmed) this.advanceRound();
+    }
+
+    advanceRound() {
+        if (this.locks.continueAdvanced) return;
         this.locks.continueAdvanced = true;
 
-        if (this.currentRound >= this.totalRounds) {
+        const someoneWon = [...this.seats.values()].some(s => s.score >= POINTS_TO_WIN);
+        if (someoneWon || this.currentRound >= this.totalRounds) {
             this.phase = PHASE.FINAL_RESULTS;
-
-            // Dense ranking: ties share a rank (e.g. scores [5,5,3] -> ranks [1,1,3]).
             let rank = 0, lastScore = null;
             const finalStandings = [...this.seats.values()]
                 .map(s => ({ seatIndex: s.seatIndex, totalScore: s.score }))
@@ -1023,12 +862,6 @@ class Room {
                 });
 
             this.broadcast({ type: 'MATCH_END', phase: PHASE.FINAL_RESULTS, payload: { finalStandings } });
-
-            // Server-side record of how the match ended: the level code
-            // for whatever got built up over the match (same encoding
-            // completeBuild() hands back in BUILD_COMPLETE, built from
-            // this.map + this.levelMeta), every seat's final score, and
-            // who won (supports a tie at the top rank).
             const finalLevelCode = (this.map && this.levelMeta)
                 ? encodeLevelCode({
                     map: this.map.MAP,
@@ -1044,7 +877,7 @@ class Room {
         } else {
             this.currentRound += 1;
             this.broadcast({ type: 'NEXT_ROUND_START', phase: PHASE.ROUND_RESULTS, payload: { round: this.currentRound } });
-            this.enterPartyBox(); // same accumulated map — see enterPartyBox()/this.map
+            this.enterPartyBox();
         }
     }
 
@@ -1067,6 +900,7 @@ class Room {
         this.map = null;
         this.levelMeta = null;
         this.stageVotes = new Map();
+        this.continueConfirmations = new Set();
         this.locks.stagePicked = false;
         this.locks.continueAdvanced = false;
         this.locks.playAgainAdvanced = false;
@@ -1074,8 +908,6 @@ class Room {
         this.broadcast({ type: 'REMATCH_STARTING', phase: PHASE.FINAL_RESULTS, payload: {} });
         this.enterStageSelect();
     }
-
-    // ---------- 9. Disconnects ----------
 
     handleDisconnect(seat) {
         seat.connected = false;
@@ -1091,11 +923,9 @@ class Room {
             }
         } else if (this.phase === PHASE.LOBBY) {
             this.broadcastRoomState();
+        } else if (this.phase === PHASE.ROUND_RESULTS) {
+            this.checkContinueVotesComplete();
         }
-
-        // A departed host doesn't auto-transfer here — per spec, the
-        // room stays alive as long as at least one player remains, and
-        // it's on the host to explicitly close it (see README/CLOSE_ROOM).
     }
 
     handleReconnect(seat, ws) {
@@ -1107,12 +937,6 @@ class Room {
         this.updateEmptiedAt();
 
         this.broadcast({ type: 'PLAYER_RECONNECTED', phase: this.phase, payload: { seatIndex: seat.seatIndex } });
-
-        // Full resync so the rejoining client can rebuild state instead
-        // of replaying match history: every seat's last-known finish
-        // status doubles as a lightweight position/state summary here
-        // since the server doesn't hold live physics positions itself;
-        // the map patch is the authoritative piece placements so far.
         const mapPatch = this.map
             ? this.map.MAP.map((tile, idx) => ({ idx, tile, rot: this.map.MAP_R[idx] })).filter(p => p.tile !== 0 && p.tile !== 1)
             : [];

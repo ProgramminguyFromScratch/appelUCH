@@ -6,10 +6,6 @@ class LevelRenderer {
         this.tilesetCache = new Map();
         this.wallCache = new Map();
         this.backgroundVariants = new Map();
-        // hue -> { normal, crouch } hue-shifted player sprite canvases,
-        // generated once per hue and reused every frame (see
-        // getHuedPlayerSprite()) instead of recompositing a tint on top
-        // of the base sprite on every renderPlayer() call.
         this.playerSpriteCache = new Map();
         
         this.tiles = [];
@@ -147,13 +143,6 @@ class LevelRenderer {
         this.getHuedTileset(hue);
         this.getHuedWalls(hue2);
     }
-
-    // Returns { normal, crouch } canvases for a hue-shifted player sprite,
-    // generating them once with applyColorEffect() (the same hue-shift
-    // utility used to reskin tiles/walls per level — see
-    // getHuedTileset()/getHuedWalls()) and caching the result by hue so
-    // repeat calls (every frame, for every player) are just a Map lookup.
-    // hue === 0 returns the original assets untouched — no copy needed.
     getHuedPlayerSprite(hue) {
         if (!hue) return { normal: this.playerNormal, crouch: this.playerCrouch };
         if (this.playerSpriteCache.has(hue)) return this.playerSpriteCache.get(hue);
@@ -165,15 +154,7 @@ class LevelRenderer {
         this.playerSpriteCache.set(hue, sprite);
         return sprite;
     }
-
-    // `hue` is a hue-shift value in the same 0-200 space applyColorEffect()
-    // expects (0 = no shift, i.e. the sprite's native colors). Each player
-    // gets a real palette-swapped sprite (generated once and cached — see
-    // getHuedPlayerSprite()) instead of a translucent color composited on
-    // top of the sprite every frame, so the character's actual shading and
-    // detail survive the recolor instead of being washed out by a flat
-    // overlay.
-    renderPlayer(playerPos, camera, hue = 0, name = "", color = "#ffffff") {
+    renderPlayer(playerPos, camera, hue = 0, name = "", color = "#ffffff", status = null) {
         if (!this.playerNormal || !this.playerCrouch) return;
 
         const sprite = this.getHuedPlayerSprite(hue);
@@ -185,12 +166,8 @@ class LevelRenderer {
         this.ctx.translate(-camera.x, camera.y);
 
         this.ctx.translate(playerPos.x, -playerPos.y);
-
-        // --- NAMEPLATE RENDERING ---
         if (name) {
             this.ctx.save();
-            // Scale inversely to the camera zoom so the text font size remains 
-            // consistent on-screen even when zooming out
             this.ctx.scale(1 / camera.zoom, 1 / camera.zoom);
             
             const yOffset = playerPos.crouched && !playerPos.onWall ? 15 : 25;
@@ -198,18 +175,13 @@ class LevelRenderer {
 
             this.ctx.font = "bold 12px Arial, sans-serif";
             this.ctx.textAlign = "center";
-            
-            // Black outline for legibility against bright backgrounds
             this.ctx.lineWidth = 3;
             this.ctx.strokeStyle = "#000000";
             this.ctx.strokeText(name, 0, scaledY);
-            
-            // Colored fill
             this.ctx.fillStyle = color;
             this.ctx.fillText(name, 0, scaledY);
             this.ctx.restore();
         }
-        // ---------------------------
 
         const angle = (playerPos.angle - 90) || 0; 
         this.ctx.rotate(angle * Math.PI / 180);
@@ -228,7 +200,18 @@ class LevelRenderer {
             dx = -12; dy = -16; dw = 24; dh = 32;
         }
 
+        if (status === 'dead' || status === 'won') {
+            this.ctx.globalAlpha = 0.45;
+        }
+
         this.ctx.drawImage(image, dx, dy, dw, dh);
+
+        if (status === 'dead' || status === 'won') {
+            this.ctx.globalCompositeOperation = 'source-atop';
+            this.ctx.fillStyle = status === 'dead' ? '#ff3b30' : '#ffffff';
+            this.ctx.fillRect(dx, dy, dw, dh);
+            this.ctx.globalCompositeOperation = 'source-over';
+        }
 
         this.ctx.restore();
     }
@@ -254,7 +237,7 @@ class LevelRenderer {
             const image = this.dynamicImages[0];
             this.ctx.drawImage(image, -image.width/2, -image.height/2);
 
-            this.ctx.restore(); // reset before next object
+            this.ctx.restore(); 
         }
 
         this.ctx.restore();
@@ -290,7 +273,7 @@ class LevelRenderer {
             const c = txt[i];
 
             if (c === "g" || c === "G") {
-                i++; // move to character after g/G
+                i++; 
 
                 while (i < txt.length && DIGITS.includes(txt[i])) {
                     num += txt[i];
@@ -301,7 +284,7 @@ class LevelRenderer {
             }
         }
 
-        return null; // no g/G found
+        return null; 
     }
 
     getHuedTileset(hue) {
@@ -369,11 +352,7 @@ class LevelRenderer {
         canvas.height = source.height || 60;
 
         const ctx = canvas.getContext('2d');
-
-        // Optional: disable smoothing for pixel art
         ctx.imageSmoothingEnabled = false;
-
-        // Draw image at original size
         ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
 
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -414,49 +393,20 @@ class LevelRenderer {
     betterModBcJsIsWeird(n, m) {
         return ((n % m) + m) % m;
     }
-
-    // Renders a semi-transparent preview of arbitrary tile cells — used
-    // by the BUILD screen (see game.js's drawBuildCursor()) to show
-    // players the *real* artwork of the piece they're about to place,
-    // at whatever rotation they've currently got dialed in, instead of
-    // an abstract colored shape. Draws both the background and
-    // foreground tileset layers for each cell, exactly like render()
-    // does for the actual map (see its isForeground loop) — many tiles
-    // (e.g. platforms) are two-layered, so previewing only one layer
-    // would look wrong/incomplete.
-    //
-    // `cells` is an array of {col, row, tile, rotation} — not baked
-    // into levelData, so this can draw a piece before it's actually
-    // been written into the map. Uses the same camera transform as
-    // render(), so a preview cell lines up pixel-for-pixel with the
-    // real level tile that would end up there.
-    // Simple vector bomb icon — deliberately NOT tile-art-based. `bomb`
-    // (see pieces.js) is a delete-target action, not a real placeable
-    // tile, so it has no natural sprite of its own the way every other
-    // piece does (their `tiles` values point at real level art). Drawing
-    // it procedurally means it always renders correctly regardless of
-    // whether dedicated bomb art ever gets added to assets/tiles/.
-    // `size` is the full icon width/height in px, centered on (cx, cy).
     drawBombGlyph(ctx, cx, cy, size) {
         const r = size * 0.36;
         ctx.save();
         ctx.translate(cx, cy);
-
-        // Fuse.
         ctx.strokeStyle = '#c98a3d';
         ctx.lineWidth = Math.max(2, size * 0.05);
         ctx.beginPath();
         ctx.moveTo(r * 0.35, -r * 0.95);
         ctx.quadraticCurveTo(r * 0.9, -r * 1.6, r * 1.3, -r * 1.3);
         ctx.stroke();
-
-        // Spark at the fuse tip.
         ctx.fillStyle = '#ffcc55';
         ctx.beginPath();
         ctx.arc(r * 1.3, -r * 1.3, size * 0.05, 0, Math.PI * 2);
         ctx.fill();
-
-        // Body.
         ctx.fillStyle = '#2b2b2b';
         ctx.beginPath();
         ctx.arc(0, size * 0.05, r, 0, Math.PI * 2);
@@ -464,8 +414,6 @@ class LevelRenderer {
         ctx.strokeStyle = '#000';
         ctx.lineWidth = Math.max(1, size * 0.025);
         ctx.stroke();
-
-        // Highlight.
         ctx.fillStyle = 'rgba(255,255,255,0.18)';
         ctx.beginPath();
         ctx.arc(-r * 0.35, size * 0.05 - r * 0.35, r * 0.3, 0, Math.PI * 2);
@@ -490,12 +438,6 @@ class LevelRenderer {
         for (const cell of cells) {
             const tileX = cell.col * 60 + 30;
             const tileY = -cell.row * 60 - 30;
-
-            // targetsSolid pieces (bomb) delete the target cell rather
-            // than paint a new tile there — showing the "new" tile
-            // (open air) as a preview would just look like nothing's
-            // there, so draw the bomb glyph over the *existing* tile
-            // art instead, which is left undisturbed underneath.
             if (piece && piece.targetsSolid) {
                 this.drawBombGlyph(ctx, tileX, tileY, 60 * 0.7);
                 continue;
@@ -522,23 +464,9 @@ class LevelRenderer {
 
         ctx.restore();
     }
-
-    // Renders the *real* tile art for a piece (as defined by its
-    // footprint cells at rotation 0 — see pieces.js's
-    // getPieceFootprintCells()) into an arbitrary screen-space box, with
-    // no camera transform involved. This is for UI contexts that aren't
-    // part of the level view at all (e.g. game.js's drawPartyBoxScreen()
-    // party-box slots), unlike renderTilePreviews() above, which is
-    // specifically for previewing a piece *in the level* under the
-    // camera. Draws both tileset layers per cell, same as render()/
-    // renderTilePreviews(), scaled uniformly so the whole footprint fits
-    // inside boxSize x boxSize and stays centered on (cx, cy).
     renderPieceIcon(levelData, piece, cx, cy, boxSize) {
         if (!this.assetsLoaded || !piece) return;
         const ctx = this.ctx;
-
-        // See renderTilePreviews()'s comment: bomb deletes a tile rather
-        // than placing one, so it has no tile art of its own to show.
         if (piece.targetsSolid) {
             this.drawBombGlyph(ctx, cx, cy, boxSize * 0.9);
             return;
@@ -549,9 +477,6 @@ class LevelRenderer {
 
         const cells = getPieceFootprintCells(piece, 0);
         const { width, height } = piece.footprint;
-        // width/height are in footprint cells at rotation 0; since we
-        // always draw at rotation 0 here, cell bounds line up directly
-        // with them.
         const footprintPxW = width * this.tileSize;
         const footprintPxH = height * this.tileSize;
         const scale = Math.min(boxSize / footprintPxW, boxSize / footprintPxH);
@@ -562,9 +487,6 @@ class LevelRenderer {
 
         for (const cell of cells) {
             if (!cell.tile) continue;
-            // getPieceFootprintCells's dCol/dRow are offsets from the
-            // anchor cell (0,0 for row 0/col 0), so this centers the
-            // whole footprint on (cx, cy) once scaled/translated above.
             const tileX = (cell.dCol - (width - 1) / 2) * this.tileSize;
             const tileY = (cell.dRow - (height - 1) / 2) * this.tileSize;
 

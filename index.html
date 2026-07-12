@@ -154,7 +154,6 @@
         <button id="copyLevelCodeBtn">Copy Level Code</button>
     </div>
 
-    <!-- Screen 1: name entry + create/join room by code -->
     <div id="nameScreen" class="overlay">
         <h1>APPEL</h1>
         <input id="displayNameInput" type="text" placeholder="Your name" maxlength="24" />
@@ -167,7 +166,6 @@
         <div id="errorText"></div>
     </div>
 
-    <!-- Screen 2: lobby — connected players + host-only Start -->
     <div id="lobbyScreen" class="overlay" style="display:none;">
         <h1>Lobby</h1>
         <div id="roomCodeLabel">Room code</div>
@@ -190,11 +188,6 @@
         const params = new URLSearchParams(window.location.search);
         const replayCode = null;
 
-        // N-PLAYER REFACTOR: ?players=N (1-6) still selects the initial
-        // seat count for fully offline/local testing (see the `offline`
-        // branch below) — it has no effect once a networked room's
-        // ROOM_STATE arrives, since the seat list becomes server-driven
-        // at that point (see game.js's handleRoomState()).
         const playersParam = parseInt(params.get("players"), 10);
         const playerCount = Number.isFinite(playersParam) ? playersParam : 2;
 
@@ -209,17 +202,8 @@
         const btnStartMatch = document.getElementById('btnStartMatch');
         const waitingForHost = document.getElementById('waitingForHost');
 
-        // ?offline=1 skips networking entirely and plays exactly like the
-        // old single "Play" button did (kept for local dev/testing of
-        // the N-player code paths without spinning up the server — see
-        // README). Any other launch goes through the lobby.
         const offline = params.get('offline') === '1';
 
-        // Shared by both the offline and networked launch paths below:
-        // shows/hides the FINAL_RESULTS "Copy Level Code" button and
-        // wires its click to the clipboard. `game` is assigned in each
-        // branch before this runs (game.onFinalResults fires once the
-        // match actually reaches FINAL_RESULTS — see game.js).
         const copyLevelCodeBtn = document.getElementById('copyLevelCodeBtn');
         function wireCopyLevelCodeButton(game) {
             game.onFinalResults = (levelCode) => {
@@ -238,15 +222,13 @@
             try {
                 await navigator.clipboard.writeText(levelCode);
             } catch (err) {
-                // Clipboard API unavailable/blocked (e.g. no HTTPS) —
-                // fall back to a manual-select textarea trick.
                 const ta = document.createElement('textarea');
                 ta.value = levelCode;
                 ta.style.position = 'fixed';
                 ta.style.opacity = '0';
                 document.body.appendChild(ta);
                 ta.select();
-                try { document.execCommand('copy'); } catch (e2) { /* give up silently */ }
+                try { document.execCommand('copy'); } catch (e2) {}
                 document.body.removeChild(ta);
             }
             copyLevelCodeBtn.classList.add('copied');
@@ -267,10 +249,6 @@
             wireCopyLevelCodeButton(game);
             game.startGame(levelCode);
         } else {
-            // NETWORK REFACTOR: real multiplayer flow.
-            //   1. name entry + create/join-by-code (this screen)
-            //   2. lobby: connected players list + host-only Start
-            //   3. Game takes over the canvas once MATCH_STARTING arrives
 
             // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
             const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
@@ -278,10 +256,6 @@
             const game = new Game('gameCanvas', playerCount, network);
             wireCopyLevelCodeButton(game);
 
-            // Reconnect support: remember our playerId across a reload
-            // (Room.js treats a rejoin with a matching, currently-
-            // disconnected playerId as PLAYER_RECONNECTED rather than a
-            // brand new seat — see index.js's handleJoinRoom()).
             const STORAGE_KEY = 'appel_player_id';
 
             function showError(message) {
@@ -306,7 +280,7 @@
                 if (network.isConnected) {
                     attemptJoin();
                 } else {
-                    const priorOnOpen = network.onOpen; // set by game.js's bindNetwork()
+                    const priorOnOpen = network.onOpen;
                     network.onOpen = () => {
                         if (priorOnOpen) priorOnOpen();
                         attemptJoin();
@@ -315,15 +289,6 @@
                 }
             });
 
-            // IMPORTANT: game.js's bindNetwork() already assigned
-            // network.onSeatAssigned (to Game.handleSeatAssigned, which
-            // sets this.localSeatIndex — everything about which seat is
-            // "ours" flows from that). Overwriting it here instead of
-            // chaining it meant this.localSeatIndex never left its
-            // default of 0, so every non-host client silently drove and
-            // read back seat 0's (the host's) data for the whole match
-            // (stage cursor, build cursor/placement, race input). Chain
-            // it the same way onOpen/onMatchStarting do below.
             const priorOnSeatAssigned = network.onSeatAssigned;
             network.onSeatAssigned = (payload) => {
                 if (priorOnSeatAssigned) priorOnSeatAssigned(payload);
@@ -342,9 +307,6 @@
                 );
             };
 
-            // game.js's handleRoomState() calls this optional hook with
-            // the raw ROOM_STATE payload plus whether we're the host, so
-            // the lobby DOM can stay purely presentational.
             game.onLobbyUpdate = (payload, isHost) => {
                 roomCodeValue.textContent = payload.roomCode;
 
@@ -377,10 +339,7 @@
                 game.requestStartMatch();
             });
 
-            // Once the host's START_MATCH_REQUEST is accepted, MATCH_STARTING
-            // arrives for every seat — hide the lobby overlay and let the
-            // Game start pulling assets in over the wire.
-            const priorOnMatchStarting = network.onMatchStarting; // set by game.js's bindNetwork()
+            const priorOnMatchStarting = network.onMatchStarting;
             network.onMatchStarting = (payload, type) => {
                 if (priorOnMatchStarting) priorOnMatchStarting(payload, type);
                 lobbyScreen.style.display = 'none';
