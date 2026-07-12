@@ -109,6 +109,7 @@ class Game {
         this.players = this.createPlayers(this.playerCount, this.localSeatIndex);
 
         this.camera = { x: 0, y: 0, zoom: 1.25};
+        this.cameraLookahead = { x: 0, y: 0 }; // eased "push" offset ahead of travel direction, see updateCameraLookahead()
         this.cameraMode = 0; // 0 = follow active players (default), 1 = fit start & finish, 2 = center on local player
         this.showDebugMenu = false;
         this._fpsFrameTimes = [];
@@ -1134,6 +1135,27 @@ class Game {
         }
     }
 
+    // Computes a "camera push" offset that leans the view in the direction of
+    // travel, scaled by speed and capped so it settles into a consistent
+    // lookahead gap rather than growing unbounded at high speed. It's eased
+    // on its own (slower than the camera's position tracking) so the push
+    // builds in smoothly instead of snapping frame-to-frame with raw velocity
+    // noise (bumps, wall-jump impulses, etc).
+    updateCameraLookahead(vx, vy) {
+        const LOOKAHEAD_PER_SPEED_X = 16;
+        const LOOKAHEAD_PER_SPEED_Y = 16;
+        const LOOKAHEAD_MAX_X = 260;
+        const LOOKAHEAD_MAX_Y = 130;
+        const LOOKAHEAD_EASE = 0.08;
+
+        const targetX = Math.max(-LOOKAHEAD_MAX_X, Math.min(LOOKAHEAD_MAX_X, vx * LOOKAHEAD_PER_SPEED_X));
+        const targetY = Math.max(-LOOKAHEAD_MAX_Y, Math.min(LOOKAHEAD_MAX_Y, vy * LOOKAHEAD_PER_SPEED_Y));
+
+        this.cameraLookahead.x += (targetX - this.cameraLookahead.x) * LOOKAHEAD_EASE;
+        this.cameraLookahead.y += (targetY - this.cameraLookahead.y) * LOOKAHEAD_EASE;
+        return this.cameraLookahead;
+    }
+
     updateRaceCamera() {
         if (this.cameraMode === 1) {
             this.updateRaceCameraFitStartFinish();
@@ -1151,9 +1173,17 @@ class Game {
 
         const xs = active.map(p => p.physicsState.PLAYER_X);
         const ys = active.map(p => p.physicsState.PLAYER_Y);
+        const vxs = active.map(p => p.physicsState.PLAYER_SX || 0);
+        const vys = active.map(p => p.physicsState.PLAYER_SY || 0);
 
-        const targetCameraX = xs.reduce((a, b) => a + b, 0) / xs.length;
-        const targetCameraY = ys.reduce((a, b) => a + b, 0) / ys.length;
+        const avgX = xs.reduce((a, b) => a + b, 0) / xs.length;
+        const avgY = ys.reduce((a, b) => a + b, 0) / ys.length;
+        const avgVX = vxs.reduce((a, b) => a + b, 0) / vxs.length;
+        const avgVY = vys.reduce((a, b) => a + b, 0) / vys.length;
+        const lookahead = this.updateCameraLookahead(avgVX, avgVY);
+
+        const targetCameraX = avgX + lookahead.x;
+        const targetCameraY = avgY + lookahead.y;
 
         const minX = Math.min(...xs), maxX = Math.max(...xs);
         const minY = Math.min(...ys), maxY = Math.max(...ys);
@@ -1215,8 +1245,12 @@ class Game {
         const localPlayer = this.players[this.localSeatIndex] || this.players[0];
         if (!localPlayer || !localPlayer.physicsState) return;
 
-        const targetCameraX = localPlayer.physicsState.PLAYER_X;
-        const targetCameraY = localPlayer.physicsState.PLAYER_Y;
+        const lookahead = this.updateCameraLookahead(
+            localPlayer.physicsState.PLAYER_SX || 0,
+            localPlayer.physicsState.PLAYER_SY || 0
+        );
+        const targetCameraX = localPlayer.physicsState.PLAYER_X + lookahead.x;
+        const targetCameraY = localPlayer.physicsState.PLAYER_Y + lookahead.y;
         const targetZoom = 1.25;
 
         this.camera.x += (targetCameraX - this.camera.x) * 0.15;
@@ -2471,6 +2505,8 @@ class Game {
                 this.remotePositions.clear();
                 this.gameState = GameState.RACE;
                 this.resetRoundState();
+                this.cameraLookahead.x = 0;
+                this.cameraLookahead.y = 0;
                 break;
             case 'RACE_TIMER_EXPIRED':
                 this.raceTimeRemaining = 0;
