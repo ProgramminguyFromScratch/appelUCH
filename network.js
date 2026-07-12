@@ -30,6 +30,10 @@ class NetworkClient {
         this.onPlayerLeft = null;        
         this.onPlayerDisconnected = null;
         this.onPlayerReconnected = null; 
+        this.onTimeSync = null;          
+        this.onKicked = null;            
+        this.onPong = null;              
+        this.onScoreAdjusted = null;     
         this._GROUPED_MAP = {
             STAGE_SELECT_START: 'onStageState',
             STAGE_CURSOR_MOVE: 'onStageState',
@@ -74,6 +78,10 @@ class NetworkClient {
             PLAYER_DISCONNECTED: 'onPlayerDisconnected',
             PLAYER_RECONNECTED: 'onPlayerReconnected'
         };
+        this._DIRECT_MAP.TIME_SYNC = 'onTimeSync';
+        this._DIRECT_MAP.KICKED = 'onKicked';
+        this._DIRECT_MAP.PONG = 'onPong';
+        this._DIRECT_MAP.SCORE_ADJUSTED = 'onScoreAdjusted';
     }
 
     connect() {
@@ -212,8 +220,8 @@ class NetworkClient {
         this._send('CONTINUE_REQUEST', {});
     }
 
-    sendPlayAgainRequest() {
-        this._send('PLAY_AGAIN_REQUEST', {});
+    sendPing() {
+        this._send('PING', { t: performance.now() });
     }
 }
 if (typeof module !== 'undefined' && module.exports) {

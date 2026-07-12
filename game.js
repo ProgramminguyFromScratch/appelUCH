@@ -82,7 +82,12 @@ class Game {
         this.players = this.createPlayers(this.playerCount, this.localSeatIndex);
 
         this.camera = { x: 0, y: 0, zoom: 1.25};
-        this.debugMode = false;
+        this.cameraMode = 0; // 0 = follow active players (default), 1 = fit start & finish, 2 = center on local player
+        this.showDebugMenu = false;
+        this._fpsFrameTimes = [];
+        this._fps = 0;
+        this.ping = null;
+        this.lastPingSentAt = null;
         this.keys = {};
         this.tick = 0;
         this.gameState = GameState.MENU;
@@ -126,26 +131,10 @@ class Game {
 
         window.addEventListener('keydown', e => {
             this.keys[e.code] = true;
-            if (e.code === 'F' && !e.repeat) {
-                this.debugMode = !this.debugMode;
-                console.log(`[debug] overlay ${this.debugMode ? 'ON' : 'OFF'}`);
-            }
-            if (this.debugMode && this.physics && this.physics.touching) {
-                const touching = this.physics.touching;
-                const localState = this.players[0] && this.players[0].physicsState;
-                const direction = localState ? localState.direction : 90;
-                let handled = true;
-                if (e.code === 'Numpad8') touching.adjustCrouchOffset(0, 1, direction);
-                else if (e.code === 'Numpad2') touching.adjustCrouchOffset(0, -1, direction);
-                else if (e.code === 'Numpad4') touching.adjustCrouchOffset(-1, 0, direction);
-                else if (e.code === 'Numpad6') touching.adjustCrouchOffset(1, 0, direction);
-                else if (e.code === 'Numpad5') touching.resetCrouchOffset(direction);
-                else handled = false;
-                if (handled) {
-                    const key = touching.normalizeDirection(direction);
-                    const offset = touching.getCrouchOffset(direction);
-                    console.log(`[debug] crouch offset (dir ${key}): x=${offset.x} y=${offset.y}`);
-                }
+            if (e.code === 'Digit2' && !e.repeat) {
+                this.showDebugMenu = !this.showDebugMenu;
+                if (this.showDebugMenu && this.network && this.network.isConnected) this.network.sendPing();
+                console.log(`[debug] menu ${this.showDebugMenu ? 'ON' : 'OFF'}`);
             }
 
             if (this.gameState === GameState.STAGE_SELECT) {
@@ -154,6 +143,9 @@ class Game {
                 this.handlePartyBoxInput(e.code);
             } else if (this.gameState === GameState.BUILD) {
                 this.handleBuildInput(e.code);
+            }
+            if (e.code === 'Digit1' && !e.repeat && this.gameState === GameState.RACE) {
+                this.cameraMode = (this.cameraMode + 1) % 3;
             }
             if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
                 this.advanceFromPlaceholder();
@@ -453,6 +445,14 @@ class Game {
         const rows = Math.floor(this.physics.MAP.length / cols);
         return { col: Math.floor(cols / 2), row: Math.floor(rows / 2) };
     }
+    getFinishCell() {
+        const cols = this.levelData.size_x;
+        const finishIdx = this.physics.MAP.indexOf(63);
+        if (finishIdx >= 0) {
+            return { col: finishIdx % cols, row: Math.floor(finishIdx / cols) };
+        }
+        return this.getSpawnCell();
+    }
     buildCellIndex(cell) {
         return cell.col + cell.row * this.levelData.size_x;
     }
@@ -664,34 +664,29 @@ class Game {
         this.remoteSfxState.clear();
     }
     advanceFromPlaceholder() {
-        if (this.gameState === GameState.ROUND_RESULTS || this.gameState === GameState.FINAL_RESULTS) {
-            playSfx('select');
-        }
         if (this.network) {
             if (this.gameState === GameState.ROUND_RESULTS) {
                 if (this.localContinueConfirmed) return;
                 this.localContinueConfirmed = true;
+                playSfx('select');
                 this.network.sendContinueRequest();
-            } else if (this.gameState === GameState.FINAL_RESULTS) {
-                this.network.sendPlayAgainRequest();
             }
             return;
+        }
+        if (this.gameState === GameState.ROUND_RESULTS) {
+            playSfx('select');
         }
         switch (this.gameState) {
             case GameState.ROUND_RESULTS: {
                 const someoneWon = this.players.some(p => p && p.score >= this.POINTS_TO_WIN);
                 if (someoneWon || this.currentRound >= this.totalRounds) {
-                    this.gameState = GameState.FINAL_RESULTS;
-                    if (this.onFinalResults) this.onFinalResults(this.lastBuiltLevelCode);
+                    this.playAgain();
                 } else {
                     this.currentRound += 1;
                     this.enterPartyBox();
                 }
                 break;
             }
-            case GameState.FINAL_RESULTS:
-                this.playAgain();
-                break;
             default:
                 break;
         }
@@ -780,6 +775,7 @@ class Game {
             const delta = now - lastFrameTime;
             if (delta >= frameDuration - 1) {
                 lastFrameTime = now;
+                this.recordFrame(now);
 
                 if (this.gameState === GameState.LOADING) {
                     this.checkLoadStatus();
@@ -787,8 +783,17 @@ class Game {
                 } else {
                     this.gameLoop();
                 }
+
+                if (this.showDebugMenu) this.drawDebugMenu();
             }
         }, 1);
+
+        if (this.network) {
+            this.network.sendPing();
+            setInterval(() => {
+                if (this.network.isConnected) this.network.sendPing();
+            }, 2000);
+        }
     }
     checkLoadStatus() {
         if (this.assetsLoadedCount < this.totalAssets) return;
@@ -1092,6 +1097,10 @@ class Game {
                     anyEliminated: this.players.some(p => p.eliminated),
                     allEliminated: this.players.length > 0 && this.players.every(p => p.eliminated)
                 };
+                const someoneWon = this.players.some(p => p && p.score >= this.POINTS_TO_WIN);
+                if ((someoneWon || this.currentRound >= this.totalRounds) && this.onFinalResults) {
+                    this.onFinalResults(this.lastBuiltLevelCode);
+                }
             }
         } else {
             this.roundEndFrames = 0;
@@ -1099,6 +1108,15 @@ class Game {
     }
 
     updateRaceCamera() {
+        if (this.cameraMode === 1) {
+            this.updateRaceCameraFitStartFinish();
+            return;
+        }
+        if (this.cameraMode === 2) {
+            this.updateRaceCameraFollowLocalPlayer();
+            return;
+        }
+
         let active = this.players.filter(p => !p.eliminated && !p.hasFinished);
         const roundWrappingUp = active.length === 0;
         if (roundWrappingUp) active = this.players;
@@ -1139,6 +1157,44 @@ class Game {
             ? ZOOM_REVEAL_EASE
             : (targetZoom < this.camera.zoom ? ZOOM_OUT_EASE : ZOOM_IN_EASE);
         this.camera.zoom += (targetZoom - this.camera.zoom) * zoomEase;
+    }
+
+    updateRaceCameraFitStartFinish() {
+        const startWorld = this.buildCellToWorld(this.getSpawnCell());
+        const finishWorld = this.buildCellToWorld(this.getFinishCell());
+
+        const targetCameraX = (startWorld.x + finishWorld.x) / 2;
+        const targetCameraY = (startWorld.y + finishWorld.y) / 2;
+
+        const PADDING_X = 160;
+        const PADDING_Y = 80;
+        const boxW = Math.max(Math.abs(finishWorld.x - startWorld.x), 1);
+        const boxH = Math.max(Math.abs(finishWorld.y - startWorld.y), 1);
+
+        const zoomToFitX = Math.max(0, this.canvas.width - PADDING_X * 2) / boxW;
+        const zoomToFitY = Math.max(0, this.canvas.height - PADDING_Y * 2) / boxH;
+        const fitZoom = Math.min(zoomToFitX, zoomToFitY);
+
+        const MAX_ZOOM = 1.25;
+        const ZOOM_EPSILON = 0.05;
+        const targetZoom = Math.max(ZOOM_EPSILON, Math.min(MAX_ZOOM, fitZoom));
+
+        this.camera.x += (targetCameraX - this.camera.x) * 0.1;
+        this.camera.y += (targetCameraY - this.camera.y) * 0.1;
+        this.camera.zoom += (targetZoom - this.camera.zoom) * 0.1;
+    }
+
+    updateRaceCameraFollowLocalPlayer() {
+        const localPlayer = this.players[this.localSeatIndex] || this.players[0];
+        if (!localPlayer || !localPlayer.physicsState) return;
+
+        const targetCameraX = localPlayer.physicsState.PLAYER_X;
+        const targetCameraY = localPlayer.physicsState.PLAYER_Y;
+        const targetZoom = 1.25;
+
+        this.camera.x += (targetCameraX - this.camera.x) * 0.15;
+        this.camera.y += ((targetCameraY - this.camera.y) + 8) * 0.15;
+        this.camera.zoom += (targetZoom - this.camera.zoom) * 0.1;
     }
 
     pushPointHistoryEntries(player, breakdown) {
@@ -1226,68 +1282,128 @@ class Game {
         this.renderer.renderDynamic(firstPlayer.physicsState.OBJ, this.camera);
     }
 
-    drawDebugOverlay() {
+    drawOffscreenIndicators() {
         const ctx = this.ctx;
-        const touching = this.physics.touching;
-        if (!touching || !touching.ready) return;
-        const step = 2;
-        ctx.fillStyle = 'rgba(255, 0, 0, 0.55)';
+        const localPlayer = this.players[this.localSeatIndex] || this.players[0];
+        if (!localPlayer) return;
 
-        for (let x = 0; x < this.canvas.width; x += step) {
-            for (let y = 0; y < this.canvas.height; y += step) {
-                const worldX = (x - this.canvas.width / 2) / this.camera.zoom + this.camera.x;
-                const worldY = this.camera.y - (y - this.canvas.height / 2) / this.camera.zoom;
-
-                const tx = Math.floor(worldX / 60);
-                const ty = Math.floor(worldY / 60);
-                const idx = tx + ty * this.physics.LSX;
-                if (idx < 0 || idx >= this.physics.MAP.length) continue;
-
-                if (touching.is_pixel_on_spike(worldX, worldY, this.physics)) {
-                    ctx.fillRect(x, y, step, step);
-                }
-            }
-        }
-        ctx.fillStyle = 'rgba(0, 220, 255, 0.9)';
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+        const margin = 28;
+        const cx = w / 2;
+        const cy = h / 2;
+        const halfW = w / 2 - margin;
+        const halfH = h / 2 - margin;
 
         for (const player of this.players) {
-            const state = player.physicsState;
-            if (!state) continue;
+            if (player === localPlayer || !player.physicsState) continue;
+            if (player.eliminated || player.hasFinished) continue;
 
-            const offsets = touching._getHitboxOffsets(state);
-            const px = state.PLAYER_X | 0;
-            const py = state.PLAYER_Y | 0;
+            const worldX = player.physicsState.PLAYER_X;
+            const worldY = player.physicsState.PLAYER_Y;
+            const screenX = cx + this.camera.zoom * (worldX - this.camera.x);
+            const screenY = cy + this.camera.zoom * (this.camera.y - worldY);
 
-            for (let i = 0; i < offsets.length; i += 2) {
-                const worldX = px + offsets[i];
-                const worldY = py + offsets[i + 1];
+            const offscreen = screenX < margin || screenX > w - margin || screenY < margin || screenY > h - margin;
+            if (!offscreen) continue;
 
-                const screenX = this.canvas.width / 2 + this.camera.zoom * (worldX - this.camera.x);
-                const screenY = this.canvas.height / 2 + this.camera.zoom * (this.camera.y - worldY);
+            const dx = screenX - cx;
+            const dy = screenY - cy;
+            const angle = Math.atan2(dy, dx);
 
-                ctx.fillRect(screenX - 1, screenY - 1, 2, 2);
+            const scale = Math.min(
+                dx !== 0 ? Math.abs(halfW / dx) : Infinity,
+                dy !== 0 ? Math.abs(halfH / dy) : Infinity
+            );
+            const arrowX = cx + dx * scale;
+            const arrowY = cy + dy * scale;
+
+            ctx.save();
+            ctx.translate(arrowX, arrowY);
+            ctx.rotate(angle);
+            ctx.beginPath();
+            ctx.moveTo(11, 0);
+            ctx.lineTo(-7, -8);
+            ctx.lineTo(-7, 8);
+            ctx.closePath();
+            ctx.fillStyle = player.color || '#ffffff';
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
+            ctx.lineWidth = 2;
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+
+            if (player.name) {
+                const labelX = arrowX - Math.cos(angle) * 18;
+                const labelY = arrowY - Math.sin(angle) * 18;
+                ctx.save();
+                ctx.font = 'bold 11px Arial, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#000000';
+                ctx.strokeText(player.name, labelX, labelY);
+                ctx.fillStyle = player.color || '#ffffff';
+                ctx.fillText(player.name, labelX, labelY);
+                ctx.restore();
             }
         }
-        const localState = this.players[0] && this.players[0].physicsState;
-        const activeDir = localState ? touching.normalizeDirection(localState.direction) : null;
-        const labels = { 0: 'right wall', 90: 'floor', 180: 'left wall', 270: 'ceiling' };
+    }
+
+    recordFrame(now) {
+        const times = this._fpsFrameTimes;
+        times.push(now);
+        const cutoff = now - 1000;
+        while (times.length && times[0] < cutoff) times.shift();
+        this._fps = times.length;
+    }
+
+    drawDebugMenu() {
+        const ctx = this.ctx;
+        const localPlayer = this.players[this.localSeatIndex];
+        const connectedCount = this.players.filter(p => p.connected !== false).length;
+
+        const lines = [
+            `FPS: ${this._fps}`,
+            `Ping: ${this.ping !== null ? this.ping + ' ms' : 'n/a'}`,
+            `Game state: ${this.gameState}`,
+            `Tick: ${this.tick}`,
+            `Round: ${this.currentRound}/${this.totalRounds}`,
+            `Room: ${this.roomCode || 'offline'}`,
+            `Seat: ${this.localSeatIndex} ${this.isHost ? '(host)' : ''}`,
+            `Players: ${this.players.length} (${connectedCount} connected)`,
+            `Camera mode: ${this.cameraMode}  zoom: ${this.camera.zoom.toFixed(2)}`,
+            `Camera pos: ${this.camera.x.toFixed(0)}, ${this.camera.y.toFixed(0)}`
+        ];
+
+        if (localPlayer && localPlayer.physicsState) {
+            const s = localPlayer.physicsState;
+            lines.push(`Local pos: ${(s.PLAYER_X | 0)}, ${(s.PLAYER_Y | 0)}`);
+        }
 
         ctx.save();
         ctx.font = '12px monospace';
+        const paddingX = 10;
+        const paddingY = 8;
+        const lineHeight = 16;
+        const boxWidth = 220;
+        const boxHeight = paddingY * 2 + lineHeight * lines.length;
+        const boxX = this.canvas.width - boxWidth - 10;
+        const boxY = 10;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
         ctx.textAlign = 'left';
-        let y = this.canvas.height - 8 - 14 * 3;
-        for (const dirKey of [90, 270, 0, 180]) {
-            const o = touching.crouchOffsets[dirKey] || { x: 0, y: 0 };
-            const isActive = dirKey === activeDir;
-            ctx.fillStyle = isActive ? '#00dcff' : 'rgba(0, 220, 255, 0.4)';
-            const marker = isActive ? '> ' : '  ';
-            ctx.fillText(`${marker}${labels[dirKey]}: x=${o.x} y=${o.y}`, 8, y);
-            y += 14;
-        }
-        ctx.fillStyle = '#00dcff';
-        ctx.fillText('(numpad 8/2/4/6 to adjust active orientation, 5 to reset it)', 8, this.canvas.height - 8);
+        ctx.fillStyle = '#4ade80';
+        lines.forEach((line, i) => {
+            ctx.fillText(line, boxX + paddingX, boxY + paddingY + lineHeight * (i + 1) - 4);
+        });
         ctx.restore();
     }
+
 
     gameLoop() {
         switch (this.gameState) {
@@ -1330,11 +1446,10 @@ class Game {
         }
 
         this.drawEntities();
+        this.drawOffscreenIndicators();
 
         this.drawRaceTimer();
         this.drawGiveUpRing();
-
-        if (this.debugMode) this.drawDebugOverlay();
 
         this.tick += 1;
     }
@@ -1741,22 +1856,58 @@ class Game {
         const progress = 1 - Math.pow(1 - rawProgress, 3);
         ctx.fillStyle = '#1a1a2e';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        const allPlayersForCheck = this.players.filter(p => p !== null);
+        const someoneWon = allPlayersForCheck.some(p => (p.score || 0) >= this.POINTS_TO_WIN);
+        const isLastRound = someoneWon || this.currentRound >= this.totalRounds;
+
         if (this.gameState === GameState.ROUND_RESULTS) {
-            this.drawScreenTitle('Round Results');
+            this.drawScreenTitle(isLastRound ? 'Final Results' : 'Round Results');
+
+            if (isLastRound) {
+                const maxScore = allPlayersForCheck.length ? Math.max(...allPlayersForCheck.map(p => p.score || 0)) : 0;
+                const winners = allPlayersForCheck.filter(p => (p.score || 0) === maxScore);
+                let announcement = '';
+                if (winners.length === 1) {
+                    announcement = `${winners[0].name} wins with ${maxScore} pts!`;
+                } else if (winners.length > 1) {
+                    announcement = `${winners.map(p => p.name).join(' & ')} tie at ${maxScore} pts!`;
+                }
+                ctx.font = 'bold 18px ' + THEME.font;
+                ctx.fillStyle = '#ffdd57';
+                ctx.textAlign = 'center';
+                ctx.fillText(announcement, this.canvas.width / 2, 68);
+            }
+
+            const promptY = isLastRound ? 90 : 66;
             ctx.font = "13px " + THEME.font;
             ctx.fillStyle = THEME.textMuted;
             ctx.textAlign = 'center';
-            if (this.network && this.localContinueConfirmed) {
+            if (this.network) {
                 const confirmedCount = (this.continueConfirmedSeats || []).length;
                 const totalCount = this.continueTotalConnected || 0;
-                ctx.fillText(
-                    `Waiting for other players... (${confirmedCount}/${totalCount})`,
-                    this.canvas.width / 2, 66
-                );
+                const confirmedSet = new Set(this.continueConfirmedSeats || []);
+                const pendingPlayers = this.players
+                    .map((p, seatIndex) => (p && p.connected !== false && !confirmedSet.has(seatIndex)) ? p : null)
+                    .filter(p => p !== null);
+
+                const statusLine = pendingPlayers.length === 1
+                    ? `Waiting on ${pendingPlayers[0].name}... (${confirmedCount}/${totalCount})`
+                    : `${confirmedCount}/${totalCount} ready`;
+
+                if (this.localContinueConfirmed) {
+                    ctx.fillText(statusLine, this.canvas.width / 2, promptY);
+                } else {
+                    ctx.fillText(
+                        isLastRound ? 'Press Enter/Shift to play again.' : 'Press Enter/Shift to continue.',
+                        this.canvas.width / 2, promptY
+                    );
+                    ctx.fillText(statusLine, this.canvas.width / 2, promptY + 16);
+                }
             } else {
                 ctx.fillText(
-                    'Press Enter/Shift to continue.',
-                    this.canvas.width / 2, 66
+                    isLastRound ? 'Press Enter/Shift to play again.' : 'Press Enter/Shift to continue.',
+                    this.canvas.width / 2, promptY
                 );
             }
         }
@@ -1766,12 +1917,26 @@ class Game {
         const chartWidth = 600;
         const chartLeft = (this.canvas.width - chartWidth) / 2;
         
-        const chartTop = 160;     
-        const barHeight = 60;     
-        const barSpacing = 30;    
-        
+        const chartTop = 160;
+
         const activePlayers = this.players.filter(p => p !== null);
-        const chartBottom = chartTop + activePlayers.length * (barHeight + barSpacing) - barSpacing;
+        const n = Math.max(activePlayers.length, 1);
+
+        // Budget matches the space 4 players used at the original fixed size
+        // (4 * 60 + 3 * 30 = 330px). Scale bar height/spacing down to fit
+        // more players in the same budget instead of overflowing the canvas.
+        const CHART_HEIGHT_BUDGET = 330;
+        const BASE_BAR_HEIGHT = 60;
+        const BASE_BAR_SPACING = 30;
+        let barHeight = BASE_BAR_HEIGHT;
+        let barSpacing = BASE_BAR_SPACING;
+        if (n > 4) {
+            barHeight = Math.max(26, (2 * CHART_HEIGHT_BUDGET) / (3 * n - 1));
+            barSpacing = barHeight / 2;
+        }
+        const fontScale = Math.min(1, barHeight / BASE_BAR_HEIGHT);
+
+        const chartBottom = chartTop + n * (barHeight + barSpacing) - barSpacing;
         ctx.lineWidth = 2;
         for (let p = 3; p <= POINTS_TO_WIN; p += 3) {
             const x = chartLeft + (p / POINTS_TO_WIN) * chartWidth;
@@ -1856,7 +2021,7 @@ class Game {
                 ctx.stroke();
             }
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 18px ' + THEME.font;
+            ctx.font = `bold ${Math.round(18 * fontScale)}px ` + THEME.font;
             ctx.textAlign = 'left';
             ctx.textBaseline = 'middle';
             
@@ -1866,9 +2031,9 @@ class Game {
             ctx.fillText(`${player.name} - ${displayedScore} Pts`, textX, textY);
             if (roundPoints > 0) {
                 ctx.globalAlpha = progress; 
-                ctx.font = 'bold 13px ' + THEME.font;
+                ctx.font = `bold ${Math.round(13 * fontScale)}px ` + THEME.font;
                 let labelX = chartLeft + 15;
-                const labelY = currentY - 8;
+                const labelY = currentY - 8 * fontScale;
                 for (const entry of roundEntries) {
                     const value = entry.value || 0;
                     if (value <= 0) continue;
@@ -1901,7 +2066,6 @@ class Game {
         }
         
         ctx.textBaseline = 'alphabetic';
-        const isLastRound = this.currentRound >= this.totalRounds;
         
         if (progress >= 1.0 && activePlayers.length > 0 && !isLastRound) {
             let globalSplashText = "";
@@ -1991,6 +2155,18 @@ class Game {
         net.onPlayerReconnected = (payload, type, phase) => {
             this.markSeatReconnected(payload.seatIndex);
             if (payload.seatIndex === this.localSeatIndex) this.syncGameStateToPhase(phase);
+        };
+        net.onTimeSync = (payload, type, phase) => {
+            const remaining = payload && typeof payload.remaining === 'number' ? payload.remaining : null;
+            if (remaining === null) return;
+            if (phase === GameState.PARTY_BOX) this.partyTimeRemaining = remaining;
+            else if (phase === GameState.BUILD) this.buildTimeRemaining = remaining;
+            else if (phase === GameState.RACE) this.raceTimeRemaining = remaining;
+        };
+        net.onPong = (payload) => {
+            if (payload && typeof payload.t === 'number') {
+                this.ping = Math.max(0, Math.round(performance.now() - payload.t));
+            }
         };
     }
 
@@ -2268,6 +2444,11 @@ class Game {
         this.localContinueConfirmed = false;
         this.continueConfirmedSeats = [];
         this.continueTotalConnected = 0;
+
+        const someoneWon = this.players.some(p => p && p.score >= this.POINTS_TO_WIN);
+        if ((someoneWon || this.currentRound >= this.totalRounds) && this.onFinalResults) {
+            this.onFinalResults(this.lastBuiltLevelCode);
+        }
     }
 
     handleMatchEnd(payload) {
@@ -2275,8 +2456,6 @@ class Game {
             const player = this.players[standing.seatIndex];
             if (player) player.score = standing.totalScore;
         }
-        this.gameState = GameState.FINAL_RESULTS;
-        if (this.onFinalResults) this.onFinalResults(this.lastBuiltLevelCode);
     }
     resetForRematch() {
         this.players.forEach(p => {

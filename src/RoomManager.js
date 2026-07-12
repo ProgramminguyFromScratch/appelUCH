@@ -33,6 +33,44 @@ class RoomManager {
         return this.rooms.get(code) || null;
     }
 
+    listPlayers() {
+        const list = [];
+        for (const room of this.rooms.values()) {
+            for (const seat of room.seats.values()) {
+                list.push({ roomCode: room.roomCode, seatIndex: seat.seatIndex, name: seat.name, connected: seat.connected });
+            }
+        }
+        return list;
+    }
+
+    // Finds a seat by name (case-insensitive substring match) or by "ROOMCODE#seatIndex".
+    // Returns { room, seat } or null. If multiple names match, returns { matches: [...] } instead.
+    findSeat(query) {
+        if (!query) return null;
+        const hashIdx = query.indexOf('#');
+        if (hashIdx !== -1) {
+            const roomCode = query.slice(0, hashIdx).toUpperCase();
+            const seatIndex = parseInt(query.slice(hashIdx + 1), 10);
+            const room = this.getRoom(roomCode);
+            if (!room) return null;
+            const seat = room.seats.get(seatIndex);
+            return seat ? { room, seat } : null;
+        }
+
+        const needle = query.trim().toLowerCase();
+        const matches = [];
+        for (const room of this.rooms.values()) {
+            for (const seat of room.seats.values()) {
+                if (seat.name.toLowerCase().includes(needle)) {
+                    matches.push({ room, seat });
+                }
+            }
+        }
+        if (matches.length === 0) return null;
+        if (matches.length === 1) return matches[0];
+        return { matches };
+    }
+
     removeRoom(code) {
         const room = this.rooms.get(code);
         if (room) {

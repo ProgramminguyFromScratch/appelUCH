@@ -880,6 +880,15 @@ class AppelPhysics {
     }
 
     tickCrumble(playerState, idx, a, max, costume, inc){
+        if (playerState.activeFrame[a] > max && playerState.activeFrame[a] <= 80) {
+            if (playerState.activeFrame[a] + 0.5 > 81) {
+                const nx = ((idx % this.LSX + this.LSX) % this.LSX) * 60 + 30
+                const ny = Math.floor(idx / this.LSX) * 60 + 30
+                if (Math.abs(playerState.PLAYER_X - nx) < 45 && Math.abs(playerState.PLAYER_Y - ny) < 45) {
+                    return;
+                }
+            }
+        }
         playerState.activeFrame[a] += inc;
         if (playerState.activeFrame[a] <= max) {
             if (playerState.activeFrame[a] % 1 < inc) {
@@ -892,14 +901,6 @@ class AppelPhysics {
         } else {
             playerState.activeFrame[a] += 0.5 - inc;
             if (playerState.activeFrame[a] > 80) {
-                if (Math.round(playerState.activeFrame[a] * 100) === 8050) {
-                    const nx = ((idx % this.LSX + this.LSX) % this.LSX) * 60 + 30
-                    const ny = Math.floor(idx / this.LSX) * 60 + 30
-                    if (Math.abs(playerState.PLAYER_X - nx) < 45 && Math.abs(playerState.PLAYER_Y - ny) < 45) {
-                        playerState.activeFrame[a] -= inc;
-                        return;
-                    }
-                }
                 if (playerState.activeFrame[a] > 80 + max) {
                     this.MAP[idx] = costume;
                     playerState.activeIdx.splice(a, 1);
@@ -915,6 +916,17 @@ class AppelPhysics {
         }
     }
     tickCrumbleWorld(idx, a, max, costume, inc, playerStates) {
+        if (this.worldActiveFrame[a] > max && this.worldActiveFrame[a] <= 80) {
+            if (this.worldActiveFrame[a] + 0.5 > 80) {
+                const nx = ((idx % this.LSX + this.LSX) % this.LSX) * 60 + 30
+                const ny = Math.floor(idx / this.LSX) * 60 + 30
+                const someoneStanding = playerStates.some(ps => ps &&
+                    Math.abs(ps.PLAYER_X - nx) < 45 && Math.abs(ps.PLAYER_Y - ny) < 45);
+                if (someoneStanding) {
+                    return;
+                }
+            }
+        }
         this.worldActiveFrame[a] += inc;
         if (this.worldActiveFrame[a] <= max) {
             if (this.worldActiveFrame[a] % 1 < inc) {
@@ -929,16 +941,6 @@ class AppelPhysics {
         } else {
             this.worldActiveFrame[a] += 0.5 - inc;
             if (this.worldActiveFrame[a] > 80) {
-                if (Math.round(this.worldActiveFrame[a] * 100) === 8050) {
-                    const nx = ((idx % this.LSX + this.LSX) % this.LSX) * 60 + 30
-                    const ny = Math.floor(idx / this.LSX) * 60 + 30
-                    const someoneStanding = playerStates.some(ps => ps &&
-                        Math.abs(ps.PLAYER_X - nx) < 45 && Math.abs(ps.PLAYER_Y - ny) < 45);
-                    if (someoneStanding) {
-                        this.worldActiveFrame[a] -= inc;
-                        return;
-                    }
-                }
                 if (this.worldActiveFrame[a] > 80 + max) {
                     this.MAP[idx] = costume;
                     this.tileUpdates.push({ idx, tile: this.MAP[idx] });

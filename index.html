@@ -250,8 +250,8 @@
             game.startGame(levelCode);
         } else {
 
-            // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
-            const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
+            const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
+            // const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
             const network = new NetworkClient(serverUrl);
             const game = new Game('gameCanvas', playerCount, network);
             wireCopyLevelCodeButton(game);
@@ -346,8 +346,15 @@
                 game.startGameNetworked();
             };
 
+            network.onKicked = () => {
+                lobbyScreen.style.display = 'none';
+                nameScreen.style.display = 'flex';
+                btnCreateOrJoin.disabled = false;
+                showError('You were removed from the room by the host/admin.');
+            };
+
             network.onClose = () => {
-                showError('Disconnected from server.');
+                if (!errorText.textContent) showError('Disconnected from server.');
             };
         }
     </script>

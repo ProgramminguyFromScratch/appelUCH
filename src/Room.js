@@ -43,7 +43,7 @@ class Room {
 
         this.partySlots = [];
         this.lastRoundDeaths = { anyEliminated: false, allEliminated: false };
-        this.locks = { stagePicked: false, continueAdvanced: false, playAgainAdvanced: false };
+        this.locks = { stagePicked: false, continueAdvanced: false };
         this.continueConfirmations = new Set();
 
         this.timers = {};
@@ -313,6 +313,17 @@ class Room {
         return slots;
     }
 
+    startTimeSync(phase, seconds) {
+        clearInterval(this.timers.timeSync);
+        const deadline = Date.now() + seconds * 1000;
+        const tick = () => {
+            const remaining = Math.max(0, (deadline - Date.now()) / 1000);
+            this.broadcast({ type: 'TIME_SYNC', phase, payload: { remaining } });
+        };
+        tick();
+        this.timers.timeSync = setInterval(tick, 1000);
+    }
+
     enterPartyBox() {
         const { anyEliminated, allEliminated } = this.lastRoundDeaths;
         this.partySlots = this.pickPartySlots(getPartyBoxSlotCount(this.seats.size), anyEliminated, allEliminated);
@@ -332,6 +343,7 @@ class Room {
 
         clearTimeout(this.timers.partyBox);
         this.timers.partyBox = setTimeout(() => this.expirePartyBox(), PARTY_TIME_LIMIT * 1000);
+        this.startTimeSync(PHASE.PARTY_BOX, PARTY_TIME_LIMIT);
     }
 
     handlePartyCursorMove(seat, payload) {
@@ -430,6 +442,7 @@ class Room {
 
         clearTimeout(this.timers.build);
         this.timers.build = setTimeout(() => this.expireBuild(), BUILD_TIME_LIMIT * 1000);
+        this.startTimeSync(PHASE.BUILD, BUILD_TIME_LIMIT);
     }
 
     handleBuildCursorMove(seat, payload) {
@@ -591,6 +604,7 @@ class Room {
 
         clearTimeout(this.timers.race);
         this.timers.race = setTimeout(() => this.expireRace(), RACE_TIME_LIMIT * 1000);
+        this.startTimeSync(PHASE.RACE, RACE_TIME_LIMIT);
         clearTimeout(this.timers.roundEndDelay);
         this.timers.roundEndDelay = null;
         clearInterval(this.timers.raceIdleHeartbeat);
@@ -758,6 +772,7 @@ class Room {
         clearTimeout(this.timers.roundEndDelay);
         this.timers.roundEndDelay = null;
         clearInterval(this.timers.raceIdleHeartbeat);
+        clearInterval(this.timers.timeSync);
         const finishers = [...this.race.finishConfirmed.entries()]
             .map(([seatIndex, finishTick]) => ({ seatIndex, finishTick }))
             .sort((a, b) => a.finishTick - b.finishTick);
@@ -777,8 +792,10 @@ class Room {
 
                 breakdown.goal = 3;
 
-                if (finishers.length === 1) breakdown.solo = 2;
-                else if (i === 0) breakdown.firstPlace = 1;
+                if (totalSeats > 2) {
+                    if (finishers.length === 1) breakdown.solo = 2;
+                    else if (i === 0) breakdown.firstPlace = 1;
+                }
 
                 const behindBy = leaderScore - (preRoundScores.get(seatIndex) || 0);
                 if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = 2;
@@ -851,7 +868,6 @@ class Room {
 
         const someoneWon = [...this.seats.values()].some(s => s.score >= POINTS_TO_WIN);
         if (someoneWon || this.currentRound >= this.totalRounds) {
-            this.phase = PHASE.FINAL_RESULTS;
             let rank = 0, lastScore = null;
             const finalStandings = [...this.seats.values()]
                 .map(s => ({ seatIndex: s.seatIndex, totalScore: s.score }))
@@ -861,7 +877,6 @@ class Room {
                     return { ...entry, rank };
                 });
 
-            this.broadcast({ type: 'MATCH_END', phase: PHASE.FINAL_RESULTS, payload: { finalStandings } });
             const finalLevelCode = (this.map && this.levelMeta)
                 ? encodeLevelCode({
                     map: this.map.MAP,
@@ -870,10 +885,36 @@ class Room {
                     ...this.levelMeta
                 })
                 : null;
+
+            this.broadcast({ type: 'MATCH_END', phase: PHASE.ROUND_RESULTS, payload: { finalStandings, levelCode: finalLevelCode } });
             const winners = finalStandings.filter(s => s.rank === 1).map(s => this.seats.get(s.seatIndex)?.name);
             console.log(`[room ${this.roomCode}] MATCH_END levelCode=${finalLevelCode}`);
             console.log(`[room ${this.roomCode}] final standings:`, finalStandings.map(s => `${this.seats.get(s.seatIndex)?.name} (${s.totalScore} pts, rank ${s.rank})`));
             console.log(`[room ${this.roomCode}] winner(s): ${winners.join(', ')}`);
+
+            // The players already confirmed via the continue vote above — roll straight
+            // into a fresh match instead of parking on a separate "final results" screen
+            // that would require a second vote.
+            for (const s of this.seats.values()) {
+                s.score = 0;
+                s.piece = null;
+                s.buildPlaced = false;
+                s.hasFinished = false;
+                s.finishTick = null;
+                s.eliminated = false;
+                s.dnf = false;
+            }
+            this.currentRound = 1;
+            this.lastRoundDeaths = { anyEliminated: false, allEliminated: false };
+            this.map = null;
+            this.levelMeta = null;
+            this.stageVotes = new Map();
+            this.continueConfirmations = new Set();
+            this.locks.stagePicked = false;
+            this.locks.continueAdvanced = false;
+
+            this.broadcast({ type: 'REMATCH_STARTING', phase: PHASE.ROUND_RESULTS, payload: {} });
+            this.enterStageSelect();
         } else {
             this.currentRound += 1;
             this.broadcast({ type: 'NEXT_ROUND_START', phase: PHASE.ROUND_RESULTS, payload: { round: this.currentRound } });
@@ -881,51 +922,72 @@ class Room {
         }
     }
 
-    handlePlayAgainRequest(seat) {
-        if (this.phase !== PHASE.FINAL_RESULTS) return;
-        if (this.locks.playAgainAdvanced) return;
-        this.locks.playAgainAdvanced = true;
-
-        for (const s of this.seats.values()) {
-            s.score = 0;
-            s.piece = null;
-            s.buildPlaced = false;
-            s.hasFinished = false;
-            s.finishTick = null;
-            s.eliminated = false;
-            s.dnf = false;
-        }
-        this.currentRound = 1;
-        this.lastRoundDeaths = { anyEliminated: false, allEliminated: false };
-        this.map = null;
-        this.levelMeta = null;
-        this.stageVotes = new Map();
-        this.continueConfirmations = new Set();
-        this.locks.stagePicked = false;
-        this.locks.continueAdvanced = false;
-        this.locks.playAgainAdvanced = false;
-
-        this.broadcast({ type: 'REMATCH_STARTING', phase: PHASE.FINAL_RESULTS, payload: {} });
-        this.enterStageSelect();
-    }
-
     handleDisconnect(seat) {
-        seat.connected = false;
-        seat.isBot = true;
-        this.updateEmptiedAt();
+        const wasHost = seat.seatIndex === this.hostSeatIndex;
 
-        this.broadcast({ type: 'PLAYER_LEFT', phase: this.phase, payload: { seatIndex: seat.seatIndex, reason: 'disconnected' } });
-        this.broadcast({ type: 'PLAYER_DISCONNECTED', phase: this.phase, payload: { seatIndex: seat.seatIndex } });
-
+        // Resolve them out of the current race before removing the seat so
+        // finish/elimination bookkeeping (and any pending quorum) stays consistent.
         if (this.phase === PHASE.RACE && this.race) {
             if (!this.race.finishConfirmed.has(seat.seatIndex) && !this.race.eliminationConfirmed.has(seat.seatIndex)) {
                 this.confirmElimination(seat.seatIndex, 'dnf');
             }
-        } else if (this.phase === PHASE.LOBBY) {
-            this.broadcastRoomState();
-        } else if (this.phase === PHASE.ROUND_RESULTS) {
-            this.checkContinueVotesComplete();
         }
+
+        this.seats.delete(seat.seatIndex);
+        this.updateEmptiedAt();
+
+        // Hand the host badge to whoever's left, so the room isn't stuck without one.
+        if (wasHost && this.seats.size > 0) {
+            this.hostSeatIndex = this.seats.keys().next().value;
+        }
+
+        this.broadcast({ type: 'PLAYER_LEFT', phase: this.phase, payload: { seatIndex: seat.seatIndex, reason: 'disconnected' } });
+
+        switch (this.phase) {
+            case PHASE.LOBBY:
+                this.broadcastRoomState();
+                break;
+            case PHASE.STAGE_SELECT:
+                this.checkStageVotesComplete();
+                break;
+            case PHASE.PARTY_BOX:
+                this.checkPartyBoxComplete();
+                break;
+            case PHASE.BUILD:
+                this.checkBuildComplete();
+                break;
+            case PHASE.ROUND_RESULTS:
+                this.checkContinueVotesComplete();
+                break;
+            // RACE is already resolved above via confirmElimination(), which
+            // internally calls checkRoundEnd() for us.
+        }
+    }
+
+    adjustScore(seat, delta) {
+        if (!seat) return false;
+        seat.score = Math.max(0, seat.score + delta);
+        this.broadcast({
+            type: 'SCORE_ADJUSTED',
+            phase: this.phase,
+            payload: { seatIndex: seat.seatIndex, delta, totalScore: seat.score }
+        });
+        return true;
+    }
+
+    kickSeat(seat, reason = 'kicked') {
+        if (!seat) return false;
+        this.send(seat, { type: 'KICKED', phase: this.phase, payload: { reason } });
+        if (seat.connected && seat.ws) {
+            try { seat.ws.close(); } catch (err) { /* ignore */ }
+        }
+        // handleDisconnect() does all the real bookkeeping (race resolution,
+        // host handoff, phase-specific quorum checks, broadcasting PLAYER_LEFT).
+        // The socket's 'close' event will also fire and call handleDisconnect
+        // again, but by then the seat will already be removed from this.seats,
+        // so seatFor() will return null and it'll be a no-op.
+        this.handleDisconnect(seat);
+        return true;
     }
 
     handleReconnect(seat, ws) {
@@ -956,6 +1018,7 @@ class Room {
         clearTimeout(this.timers.race);
         clearTimeout(this.timers.roundEndDelay);
         clearInterval(this.timers.raceIdleHeartbeat);
+        clearInterval(this.timers.timeSync);
     }
 }
 
