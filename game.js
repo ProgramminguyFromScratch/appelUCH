@@ -1257,15 +1257,24 @@ class Game {
             p.lastRoundEntries = [];
         });
 
-        if (!tooEasy && !tooHard) {
+        if (!tooHard) {
             finishers.forEach((player, i) => {
-                const breakdown = { goal: 3, firstPlace: 0, comeback: 0, solo: 0 };
+                const breakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
 
-                if (finishers.length === 1) breakdown.solo = 2;
-                else if (i === 0) breakdown.firstPlace = 1;
+                if (!tooEasy) {
+                    breakdown.goal = 3;
 
-                const behindBy = leaderScore - player.score;
-                if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = 2;
+                    if (finishers.length === 1) breakdown.solo = 2;
+                    else if (i === 0) breakdown.firstPlace = 1;
+
+                    const behindBy = leaderScore - player.score;
+                    if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = 2;
+                } else if (i === 0 && totalPlayers > 2 && finishers.length > 1) {
+                    // Everyone cleared the level, so no goal/comeback points, but the
+                    // first player across the line still earns their placement point —
+                    // unless this was a two-player match or a solo finish.
+                    breakdown.firstPlace = 1;
+                }
 
                 player.lastRoundBreakdown = breakdown;
                 player.lastRoundPoints = breakdown.goal + breakdown.firstPlace + breakdown.comeback + breakdown.solo;
@@ -2101,7 +2110,12 @@ class Game {
             if (totalCleared === 0) {
                 globalSplashText = "NO POINTS - TOO HARD!";
             } else if (totalCleared === activePlayers.length) {
-                globalSplashText = "NO POINTS - TOO EASY!";
+                // Matches the scoring exclusions in awardRoundPoints()/Room.endRound():
+                // a first-place point still goes out here unless it's a two-player
+                // game or everyone-clears-with-one-player (solo) situation.
+                globalSplashText = (activePlayers.length > 2 && totalCleared > 1)
+                    ? "TOO EASY - FIRST PLACE ONLY!"
+                    : "NO POINTS - TOO EASY!";
             }
 
             if (globalSplashText) {

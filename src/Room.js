@@ -804,20 +804,27 @@ class Room {
         const leaderScore = Math.max(0, ...preRoundScores.values());
         const roundPoints = new Map();
         const roundBreakdown = new Map();
-        if (!tooEasy && !tooHard) {
+        if (!tooHard) {
             for (let i = 0; i < finishers.length; i++) {
                 const { seatIndex } = finishers[i];
                 const breakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
 
-                breakdown.goal = 3;
+                if (!tooEasy) {
+                    breakdown.goal = 3;
 
-                if (totalSeats > 2) {
-                    if (finishers.length === 1) breakdown.solo = 2;
-                    else if (i === 0) breakdown.firstPlace = 1;
+                    if (totalSeats > 2) {
+                        if (finishers.length === 1) breakdown.solo = 2;
+                        else if (i === 0) breakdown.firstPlace = 1;
+                    }
+
+                    const behindBy = leaderScore - (preRoundScores.get(seatIndex) || 0);
+                    if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = 2;
+                } else if (i === 0 && totalSeats > 2 && finishers.length > 1) {
+                    // Everyone cleared the level, so no goal/comeback points, but the
+                    // first player across the line still earns their placement point —
+                    // unless this was a two-player match or a solo finish.
+                    breakdown.firstPlace = 1;
                 }
-
-                const behindBy = leaderScore - (preRoundScores.get(seatIndex) || 0);
-                if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = 2;
 
                 const points = breakdown.goal + breakdown.firstPlace + breakdown.comeback + breakdown.solo;
                 roundPoints.set(seatIndex, points);
