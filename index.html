@@ -185,6 +185,16 @@
     <script src="game.js"></script>
 
     <script>
+        (function restoreGithubPagesRedirect() {
+            const saved = sessionStorage.getItem('appel_redirect_path');
+            if (saved) {
+                sessionStorage.removeItem('appel_redirect_path');
+                if (saved !== window.location.pathname + window.location.search) {
+                    window.history.replaceState({}, '', saved);
+                }
+            }
+        })();
+
         const params = new URLSearchParams(window.location.search);
         const replayCode = null;
 
@@ -258,6 +268,33 @@
 
             const STORAGE_KEY = 'appel_player_id';
 
+            // Support joining via [baseurl]/[joincode], e.g. https://example.com/ABCDE
+            function getRoomCodeFromPath() {
+                const segment = window.location.pathname.replace(/^\/+|\/+$/g, '');
+                if (!segment) return '';
+                // room codes are 5 chars from a fixed alphabet; be lenient and just
+                // accept short alphanumeric path segments so this degrades gracefully
+                if (!/^[A-Za-z0-9]{1,5}$/.test(segment)) return '';
+                return segment.toUpperCase();
+            }
+
+            const codeFromUrl = getRoomCodeFromPath();
+            if (codeFromUrl) {
+                roomCodeInput.value = codeFromUrl;
+                btnCreateOrJoin.textContent = `Join Room ${codeFromUrl}`;
+                displayNameInput.focus();
+            }
+
+            // Keep the URL in sync with the room the player ends up in, so the
+            // address bar always shows a shareable /[joincode] link.
+            function updateUrlForRoom(roomCode) {
+                if (!roomCode) return;
+                const newPath = `/${roomCode}`;
+                if (window.location.pathname !== newPath) {
+                    window.history.replaceState({}, '', newPath + window.location.search);
+                }
+            }
+
             function showError(message) {
                 errorText.textContent = message || '';
             }
@@ -299,6 +336,7 @@
 
             network.onJoinRejected = (payload) => {
                 btnCreateOrJoin.disabled = false;
+                window.history.replaceState({}, '', '/' + window.location.search);
                 showError(
                     payload.reason === 'room_full' ? 'That room is full.' :
                     payload.reason === 'match_in_progress' ? 'That room already started a match.' :
@@ -309,6 +347,7 @@
 
             game.onLobbyUpdate = (payload, isHost) => {
                 roomCodeValue.textContent = payload.roomCode;
+                updateUrlForRoom(payload.roomCode);
 
                 playerList.innerHTML = '';
                 for (const seat of payload.seats) {
@@ -351,6 +390,7 @@
                 nameScreen.style.display = 'flex';
                 btnCreateOrJoin.disabled = false;
                 showError('You were removed from the room by the host/admin.');
+                window.history.replaceState({}, '', '/' + window.location.search);
             };
 
             network.onClose = () => {
