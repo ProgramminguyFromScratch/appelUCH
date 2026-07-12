@@ -152,6 +152,11 @@ class Game {
         this.buildTimeRemaining = this.BUILD_TIME_LIMIT;
         this.giveUpHoldFrames = 0;
         this.GIVE_UP_HOLD_FRAMES = 90;
+        // Ignore give-up input for the first stretch of a race. Without this,
+        // players who mash/hold confirm to place their last build piece (or
+        // are still holding it down as the race loads in) can end up
+        // accidentally starting a give-up hold the instant they spawn.
+        this.GIVE_UP_LOCKOUT_SECONDS = 1;
 
         if (typeof replayCode !== 'undefined' && replayCode) {
             this.decodedReplayCode = decodeReplayCode(replayCode);
@@ -1519,6 +1524,7 @@ class Game {
         this.drawOffscreenIndicators();
 
         this.drawRaceTimer();
+        this.drawGiveUpHint();
         this.drawGiveUpRing();
 
         this.tick += 1;
@@ -1531,6 +1537,13 @@ class Game {
         }
         const player = this.players.find(p => p && p.controls);
         if (!player || player.hasFinished || player.eliminated) {
+            this.giveUpHoldFrames = 0;
+            return;
+        }
+        const raceElapsedSeconds = this.RACE_TIME_LIMIT - this.raceTimeRemaining;
+        if (raceElapsedSeconds < this.GIVE_UP_LOCKOUT_SECONDS) {
+            // Still in the post-spawn grace period - don't let a held confirm
+            // key (e.g. from placing the last build piece) count toward giving up.
             this.giveUpHoldFrames = 0;
             return;
         }
@@ -1558,6 +1571,30 @@ class Game {
         } else if (typeof playSfx === 'function') {
             playSfx('boom');
         }
+    }
+
+    // A quiet, always-there hint so players can discover the give-up hold
+    // without needing to already be pressing it. Hidden while the ring is
+    // active (holding) and during the post-spawn lockout, so it doesn't
+    // flicker on right as the race starts.
+    drawGiveUpHint() {
+        if (this.gameState !== GameState.RACE) return;
+        if (this.giveUpHoldFrames > 0) return;
+
+        const player = this.players.find(p => p && p.controls);
+        if (!player || player.hasFinished || player.eliminated) return;
+
+        const raceElapsedSeconds = this.RACE_TIME_LIMIT - this.raceTimeRemaining;
+        if (raceElapsedSeconds < this.GIVE_UP_LOCKOUT_SECONDS) return;
+
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.font = '12px ' + THEME.font;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillText('Hold SHIFT to give up', this.canvas.width / 2, this.canvas.height - 10);
+        ctx.restore();
     }
 
     drawGiveUpRing() {
