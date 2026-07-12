@@ -565,6 +565,14 @@
                 game.requestStartMatch();
             });
 
+            function returnToNameScreen(message) {
+                lobbyScreen.style.display = 'none';
+                nameScreen.style.display = 'flex';
+                btnCreateOrJoin.disabled = false;
+                showError(message || '');
+                window.history.replaceState({}, '', '/' + window.location.search);
+            }
+
             const priorOnMatchStarting = network.onMatchStarting;
             network.onMatchStarting = (payload, type) => {
                 if (priorOnMatchStarting) priorOnMatchStarting(payload, type);
@@ -573,11 +581,17 @@
             };
 
             network.onKicked = () => {
-                lobbyScreen.style.display = 'none';
-                nameScreen.style.display = 'flex';
-                btnCreateOrJoin.disabled = false;
-                showError('You were removed from the room by the host/admin.');
-                window.history.replaceState({}, '', '/' + window.location.search);
+                returnToNameScreen('You were removed from the room by the host/admin.');
+            };
+
+            // Host handoff can now happen mid-match (see game.onHostChanged),
+            // long before the lobby screen is visible again — just log it so
+            // it's visible for debugging; the lobby list picks up the new
+            // HOST tag automatically next time ROOM_STATE renders it.
+            game.onHostChanged = (hostSeatIndex, isHost) => {
+                console.log(`[lobby] host is now seat ${hostSeatIndex}${isHost ? ' (you)' : ''}`);
+                btnStartMatch.style.display = isHost ? 'inline-block' : 'none';
+                waitingForHost.style.display = isHost ? 'none' : 'block';
             };
 
             network.onClose = () => {

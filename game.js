@@ -103,6 +103,7 @@ class Game {
         this.onLevelCodeSaved = null;
         this.onFinalResults = null;
         this.onFinalResultsHidden = null;
+        this.onHostChanged = null; // (hostSeatIndex, isHost) - fired outside of ROOM_STATE, e.g. when the host's tab closes mid-match
         this.playerCount = Math.max(MIN_PLAYERS, Math.min(MAX_PLAYERS, Math.floor(playerCount) || 2));
         this.localSeatIndex = 0;
         this.players = this.createPlayers(this.playerCount, this.localSeatIndex);
@@ -2190,7 +2191,10 @@ class Game {
         net.onMatchEnd = (payload) => this.handleMatchEnd(payload);
         net.onRematchStarting = () => this.resetForRematch();
 
-        net.onPlayerLeft = (payload) => this.markSeatDisconnected(payload.seatIndex);
+        net.onPlayerLeft = (payload) => {
+            this.markSeatDisconnected(payload.seatIndex);
+            this.applyHostSeatIndex(payload.hostSeatIndex);
+        };
         net.onPlayerDisconnected = (payload) => this.markSeatDisconnected(payload.seatIndex);
         net.onPlayerReconnected = (payload, type, phase) => {
             this.markSeatReconnected(payload.seatIndex);
@@ -2305,6 +2309,20 @@ class Game {
         const player = this.players[seatIndex];
         if (player) player.connected = true;
     }
+
+    // Keeps this.isHost correct any time the server tells us who the host is,
+    // not just from ROOM_STATE (which is only rebroadcast while in the lobby).
+    // Without this, a host handoff mid-match wouldn't show up client-side
+    // until/unless the room happened to pass back through the lobby.
+    applyHostSeatIndex(hostSeatIndex) {
+        if (typeof hostSeatIndex !== 'number') return;
+        const wasHost = this.isHost;
+        this.isHost = hostSeatIndex === this.localSeatIndex;
+        if (this.isHost !== wasHost && this.onHostChanged) {
+            this.onHostChanged(hostSeatIndex, this.isHost);
+        }
+    }
+
     requestStartMatch() {
         if (!this.network) return;
         this.network.requestStartMatch();

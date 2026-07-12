@@ -948,7 +948,7 @@ class Room {
         }
     }
 
-    handleDisconnect(seat) {
+    handleDisconnect(seat, reason = 'disconnected') {
         const wasHost = seat.seatIndex === this.hostSeatIndex;
 
         // Resolve them out of the current race before removing the seat so
@@ -963,11 +963,19 @@ class Room {
         this.updateEmptiedAt();
 
         // Hand the host badge to whoever's left, so the room isn't stuck without one.
+        // Prefer a connected human seat over a disconnected or bot-controlled one,
+        // falling back to whatever's left if nothing better is available.
         if (wasHost && this.seats.size > 0) {
-            this.hostSeatIndex = this.seats.keys().next().value;
+            const remaining = [...this.seats.values()];
+            const successor = remaining.find(s => s.connected && !s.isBot) || remaining.find(s => s.connected) || remaining[0];
+            this.hostSeatIndex = successor.seatIndex;
         }
 
-        this.broadcast({ type: 'PLAYER_LEFT', phase: this.phase, payload: { seatIndex: seat.seatIndex, reason: 'disconnected' } });
+        // hostSeatIndex is included here (not just in ROOM_STATE) because a host
+        // handoff can happen mid-match, long before the room is back in the LOBBY
+        // phase where ROOM_STATE gets rebroadcast — clients need this to keep their
+        // local "am I host" flag correct in the meantime.
+        this.broadcast({ type: 'PLAYER_LEFT', phase: this.phase, payload: { seatIndex: seat.seatIndex, reason, hostSeatIndex: this.hostSeatIndex } });
 
         switch (this.phase) {
             case PHASE.LOBBY:
@@ -1012,7 +1020,7 @@ class Room {
         // The socket's 'close' event will also fire and call handleDisconnect
         // again, but by then the seat will already be removed from this.seats,
         // so seatFor() will return null and it'll be a no-op.
-        this.handleDisconnect(seat);
+        this.handleDisconnect(seat, 'kicked');
         return true;
     }
 
