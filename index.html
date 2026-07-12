@@ -55,6 +55,17 @@
             background: #333;
             cursor: not-allowed;
         }
+        .overlay button.secondary {
+            background: #2a2f3a;
+            font-size: 14px;
+            padding: 8px 18px;
+        }
+        .overlay button.secondary:hover {
+            background: #3a4150;
+        }
+        .overlay button.secondary.copied {
+            background: #22c55e;
+        }
         .overlay input {
             font-size: 16px;
             padding: 10px 14px;
@@ -170,6 +181,7 @@
         <h1>Lobby</h1>
         <div id="roomCodeLabel">Room code</div>
         <div id="roomCodeValue">-----</div>
+        <button id="btnCopyInvite" class="secondary">Copy Invite Link</button>
         <ul id="playerList"></ul>
         <button id="btnStartMatch" style="display:none;">Start</button>
         <div id="waitingForHost" style="display:none;">Waiting for the host to start...</div>
@@ -208,6 +220,7 @@
         const btnCreateOrJoin = document.getElementById('btnCreateOrJoin');
         const errorText = document.getElementById('errorText');
         const roomCodeValue = document.getElementById('roomCodeValue');
+        const btnCopyInvite = document.getElementById('btnCopyInvite');
         const playerList = document.getElementById('playerList');
         const btnStartMatch = document.getElementById('btnStartMatch');
         const waitingForHost = document.getElementById('waitingForHost');
@@ -265,6 +278,34 @@
             const network = new NetworkClient(serverUrl);
             const game = new Game('gameCanvas', playerCount, network);
             wireCopyLevelCodeButton(game);
+
+            async function copyTextToClipboard(text) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                } catch (err) {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    try { document.execCommand('copy'); } catch (e2) {}
+                    document.body.removeChild(ta);
+                }
+            }
+
+            btnCopyInvite.addEventListener('click', async () => {
+                const roomCode = roomCodeValue.textContent.trim();
+                if (!roomCode || roomCode === '-----') return;
+                const inviteUrl = `${window.location.origin}/${roomCode}`;
+                await copyTextToClipboard(inviteUrl);
+                btnCopyInvite.classList.add('copied');
+                btnCopyInvite.textContent = 'Copied!';
+                setTimeout(() => {
+                    btnCopyInvite.classList.remove('copied');
+                    btnCopyInvite.textContent = 'Copy Invite Link';
+                }, 1500);
+            });
 
             const STORAGE_KEY = 'appel_player_id';
 
