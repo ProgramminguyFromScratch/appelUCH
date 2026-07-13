@@ -65,7 +65,8 @@ const HANDLERS = {
     TILE_UPDATE: (room, seat, payload) => room.handleTileUpdate(seat, payload),
     FINISH_OBSERVED: (room, seat, payload) => room.handleFinishObserved(seat, payload),
     ELIMINATION_OBSERVED: (room, seat, payload) => room.handleEliminationObserved(seat, payload),
-    CONTINUE_REQUEST: (room, seat) => room.handleContinueRequest(seat)
+    CONTINUE_REQUEST: (room, seat) => room.handleContinueRequest(seat),
+    CHAT_MESSAGE: (room, seat, payload) => room.handleChatMessage(seat, payload)
 };
 
 function handleMessage(ws, raw) {

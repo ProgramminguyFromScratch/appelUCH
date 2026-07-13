@@ -38,13 +38,15 @@ const THEME = {
         goal: '#4ade80',       
         firstPlace: '#ffdd57', 
         comeback: '#a78bfa',   
-        solo: '#ff8c42'        
+        solo: '#ff8c42',
+        postmortem: '#808080'
     },
     pointLabels: {
         goal: 'Goal',
         firstPlace: 'First Place',
         comeback: 'Comeback',
-        solo: 'Solo Finish'
+        solo: 'Solo Finish',
+        postmortem: 'Postmortem'
     }
 };
 // Turns a sprite hue-shift value (0-199, see LevelRenderer.applyColorEffect)
@@ -157,12 +159,37 @@ class Game {
         // accidentally starting a give-up hold the instant they spawn.
         this.GIVE_UP_LOCKOUT_SECONDS = 1;
 
+        // --- In-game chat ---------------------------------------------------
+        this.chatOpen = false;
+        this.chatInputText = '';
+        this.chatMessages = []; // { seatIndex, name, color, text, expiresAt }
+        this.CHAT_MAX_LENGTH = 140;
+        this.CHAT_MESSAGE_DURATION_MS = 6000;
+        this.CHAT_MAX_VISIBLE = 6;
+        this.CHAT_MAX_HISTORY = 300; // scrollback buffer — much longer than what fits on screen
+        this.chatScrollOffset = 0;   // 0 = pinned to newest; higher = scrolled up into history
+        this.chatSentHistory = [];   // messages this client has sent, most recent last
+        this.chatHistoryIndex = -1;  // -1 = not currently browsing sent history
+        this.chatHistoryDraft = '';  // in-progress text saved when browsing sent history starts
+
         if (typeof replayCode !== 'undefined' && replayCode) {
             this.decodedReplayCode = decodeReplayCode(replayCode);
         }
 
         window.addEventListener('keydown', e => {
+            if (this.chatOpen) {
+                this.handleChatKeydown(e);
+                return;
+            }
+
             this.keys[e.code] = true;
+
+            if (e.code === 'KeyT' && !e.repeat && this.gameState !== GameState.MENU) {
+                e.preventDefault();
+                this.openChat();
+                return;
+            }
+
             if (e.code === 'Digit2' && !e.repeat) {
                 this.showDebugMenu = !this.showDebugMenu;
                 if (this.showDebugMenu && this.network && this.network.isConnected) this.network.sendPing();
@@ -186,6 +213,116 @@ class Game {
         window.addEventListener('keyup', e => {
             this.keys[e.code] = false;
         });
+        window.addEventListener('wheel', e => {
+            if (!this.chatOpen) return;
+            e.preventDefault();
+            const maxOffset = Math.max(0, this.chatMessages.length - 1);
+            const delta = e.deltaY > 0 ? -1 : 1; // scroll down = toward newest, up = toward history
+            this.chatScrollOffset = Math.max(0, Math.min(maxOffset, this.chatScrollOffset + delta));
+        }, { passive: false });
+    }
+
+    openChat() {
+        this.chatOpen = true;
+        this.chatInputText = '';
+        this.chatScrollOffset = 0;
+        this.chatHistoryIndex = -1;
+        this.chatHistoryDraft = '';
+        this.keys = {}; // release any held movement keys so the player doesn't drift while typing
+    }
+
+    closeChat() {
+        this.chatOpen = false;
+        this.chatInputText = '';
+        this.chatScrollOffset = 0;
+        this.chatHistoryIndex = -1;
+        this.chatHistoryDraft = '';
+    }
+
+    handleChatKeydown(e) {
+        e.preventDefault();
+        if (e.repeat && e.code !== 'Backspace') return;
+
+        if (e.code === 'Escape') {
+            this.closeChat();
+            return;
+        }
+        if (e.code === 'Enter' || e.code === 'NumpadEnter') {
+            const text = this.chatInputText.trim();
+            this.closeChat();
+            if (text) this.sendChatMessage(text);
+            return;
+        }
+        if (e.code === 'Backspace') {
+            this.chatInputText = this.chatInputText.slice(0, -1);
+            return;
+        }
+        if (e.code === 'ArrowUp') {
+            if (this.chatSentHistory.length === 0) return;
+            if (this.chatHistoryIndex === -1) {
+                this.chatHistoryDraft = this.chatInputText; // remember what was being typed
+                this.chatHistoryIndex = this.chatSentHistory.length - 1;
+            } else if (this.chatHistoryIndex > 0) {
+                this.chatHistoryIndex--;
+            }
+            this.chatInputText = this.chatSentHistory[this.chatHistoryIndex];
+            return;
+        }
+        if (e.code === 'ArrowDown') {
+            if (this.chatHistoryIndex === -1) return;
+            if (this.chatHistoryIndex < this.chatSentHistory.length - 1) {
+                this.chatHistoryIndex++;
+                this.chatInputText = this.chatSentHistory[this.chatHistoryIndex];
+            } else {
+                this.chatHistoryIndex = -1;
+                this.chatInputText = this.chatHistoryDraft;
+            }
+            return;
+        }
+        if (e.key && e.key.length === 1 && this.chatInputText.length < this.CHAT_MAX_LENGTH) {
+            this.chatInputText += e.key;
+        }
+    }
+
+    sendChatMessage(text) {
+        const trimmed = text.trim().slice(0, this.CHAT_MAX_LENGTH);
+        if (!trimmed) return;
+
+        // Track sent messages for terminal-style up-arrow recall (skip consecutive dupes).
+        if (this.chatSentHistory[this.chatSentHistory.length - 1] !== trimmed) {
+            this.chatSentHistory.push(trimmed);
+            if (this.chatSentHistory.length > 50) this.chatSentHistory.shift();
+        }
+
+        if (this.network && this.network.isConnected) {
+            this.network.sendChatMessage(trimmed);
+            return;
+        }
+
+        // Offline/local play: no server to echo the message back, so show it immediately.
+        const localPlayer = this.players[this.localSeatIndex];
+        this.handleChatMessage({
+            seatIndex: this.localSeatIndex,
+            name: localPlayer ? localPlayer.name : 'You',
+            hue: localPlayer ? localPlayer.hue : 0,
+            text: trimmed
+        });
+    }
+
+    handleChatMessage(payload) {
+        if (!payload) return;
+        const player = this.players[payload.seatIndex];
+        const color = (player && player.color) || hueShiftToHex(payload.hue || 0);
+        this.chatMessages.push({
+            seatIndex: payload.seatIndex,
+            name: payload.name || (player ? player.name : '???'),
+            color,
+            text: payload.text || '',
+            expiresAt: performance.now() + this.CHAT_MESSAGE_DURATION_MS
+        });
+        if (this.chatMessages.length > this.CHAT_MAX_HISTORY) {
+            this.chatMessages.splice(0, this.chatMessages.length - this.CHAT_MAX_HISTORY);
+        }
     }
     createPlayers(count, localSeatIndex = 0) {
         const players = [];
@@ -209,9 +346,9 @@ class Game {
                 score: 0,
                 scoreBeforeRound: 0,
                 lastRoundPoints: 0,
-                lastRoundBreakdown: { goal: 0, firstPlace: 0, comeback: 0, solo: 0 },
-                scoreBreakdown: { goal: 0, firstPlace: 0, comeback: 0, solo: 0 },
-                breakdownBeforeRound: { goal: 0, firstPlace: 0, comeback: 0, solo: 0 },
+                lastRoundBreakdown: { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 },
+                scoreBreakdown: { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 },
+                breakdownBeforeRound: { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 },
                 pointHistory: [],
                 historyBeforeRound: [],
                 lastRoundEntries: [],
@@ -440,11 +577,7 @@ class Game {
     }
     findNextPartySlot(fromIndex, direction) {
         const n = this.partySlots.length;
-        for (let step = 1; step <= n; step++) {
-            const idx = ((fromIndex + direction * step) % n + n) % n;
-            if (this.partySlots[idx]) return idx;
-        }
-        return fromIndex;
+        return ((fromIndex + direction) % n + n) % n;
     }
     confirmPartyPick(player) {
         const slot = this.partySlots[player.partyCursor];
@@ -767,9 +900,9 @@ class Game {
             p.score = 0;
             p.scoreBeforeRound = 0;
             p.lastRoundPoints = 0;
-            p.lastRoundBreakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
-            p.scoreBreakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
-            p.breakdownBeforeRound = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
+            p.lastRoundBreakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
+            p.scoreBreakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
+            p.breakdownBeforeRound = { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
             p.pointHistory = [];
             p.historyBeforeRound = [];
             p.lastRoundEntries = [];
@@ -1302,7 +1435,7 @@ class Game {
     }
 
     pushPointHistoryEntries(player, breakdown) {
-        const WITHIN_ROUND_ORDER = ['goal', 'firstPlace', 'solo', 'comeback'];
+        const WITHIN_ROUND_ORDER = ['goal', 'firstPlace', 'solo', 'comeback', 'postmortem'];
         const entries = [];
         for (const source of WITHIN_ROUND_ORDER) {
             const value = breakdown[source] || 0;
@@ -1316,9 +1449,17 @@ class Game {
     }
     
     awardRoundPoints() {
-        const finishers = this.players
+        const allFinishers = this.players
             .filter(p => p.hasFinished)
             .sort((a, b) => a.finishTick - b.finishTick);
+
+        // A player can end up both "finished" and "eliminated" if they died but
+        // still crossed the goal (momentum, etc). That doesn't count as legitimately
+        // beating the level, so it's excluded from normal scoring below and instead
+        // earns a flat Postmortem award.
+        const finishers = allFinishers.filter(p => !p.eliminated);
+        const postmortemFinishers = allFinishers.filter(p => p.eliminated);
+        const POSTMORTEM_POINTS = 2;
 
         const totalPlayers = this.players.filter(p => p !== null).length;
         const tooEasy = totalPlayers > 0 && finishers.length === totalPlayers;
@@ -1330,14 +1471,14 @@ class Game {
         this.players.forEach(p => {
             if (!p) return;
             p.lastRoundPoints = 0;
-            p.lastRoundBreakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
+            p.lastRoundBreakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
             p.historyBeforeRound = [...p.pointHistory];
             p.lastRoundEntries = [];
         });
 
         if (!tooHard) {
             finishers.forEach((player, i) => {
-                const breakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
+                const breakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
 
                 if (!tooEasy) {
                     breakdown.goal = 3;
@@ -1347,10 +1488,10 @@ class Game {
 
                     const behindBy = leaderScore - player.score;
                     if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = 2;
-                } else if (i === 0 && totalPlayers > 2 && finishers.length > 1) {
+                } else if (i === 0 && finishers.length > 1) {
                     // Everyone cleared the level, so no goal/comeback points, but the
                     // first player across the line still earns their placement point —
-                    // unless this was a two-player match or a solo finish.
+                    // unless this was a solo finish.
                     breakdown.firstPlace = 1;
                 }
 
@@ -1363,6 +1504,14 @@ class Game {
                 this.pushPointHistoryEntries(player, breakdown);
             });
         }
+
+        postmortemFinishers.forEach(player => {
+            const breakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: POSTMORTEM_POINTS };
+            player.lastRoundBreakdown = breakdown;
+            player.lastRoundPoints = POSTMORTEM_POINTS;
+            player.scoreBreakdown.postmortem = (player.scoreBreakdown.postmortem || 0) + POSTMORTEM_POINTS;
+            this.pushPointHistoryEntries(player, breakdown);
+        });
 
         this.players.forEach(p => { if (p) p.score += p.lastRoundPoints; });
 
@@ -1393,6 +1542,100 @@ class Game {
         }
 
         this.renderer.renderDynamic(firstPlayer.physicsState.OBJ, this.camera);
+    }
+
+    drawChat() {
+        const ctx = this.ctx;
+        const now = performance.now();
+        // Expiry only controls fade-out opacity for the transient HUD view now — we no
+        // longer delete from this.chatMessages here, so history (capped at
+        // CHAT_MAX_HISTORY) survives and reopening chat shows past messages again.
+
+        const padX = 20;
+        const lineHeight = 22;
+        const fadeWindow = 1000; // ms — messages fade out over their last second
+        const inputBoxHeight = lineHeight + 6;
+        const inputBoxGap = 13; // extra breathing room between the input box and the message log
+
+        ctx.save();
+        ctx.font = `bold 15px ${THEME.font}`;
+        ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'left'; // don't inherit 'center' left over from earlier draw calls
+
+        // Reserve space for the input box (if open) so the message log never overlaps it.
+        let y = this.canvas.height - 20 - (this.chatOpen ? inputBoxHeight + inputBoxGap : 0);
+
+        // While chat is open, show history (scrollback, shifted by chatScrollOffset) at
+        // full opacity; while closed, only show recently-sent messages fading out over time.
+        let visible;
+        if (this.chatOpen) {
+            const maxOffset = Math.max(0, this.chatMessages.length - 1);
+            this.chatScrollOffset = Math.max(0, Math.min(maxOffset, this.chatScrollOffset));
+            const endIdx = this.chatMessages.length - this.chatScrollOffset;
+            visible = this.chatMessages.slice(0, endIdx);
+        } else {
+            visible = this.chatMessages.filter(m => m.expiresAt > now).slice(-this.CHAT_MAX_VISIBLE);
+        }
+
+        for (let i = visible.length - 1; i >= 0; i--) {
+            const msg = visible[i];
+            const remaining = msg.expiresAt - now;
+            const alpha = this.chatOpen ? 1 : Math.max(0, Math.min(1, remaining / fadeWindow));
+            if (alpha <= 0) continue;
+
+            ctx.globalAlpha = alpha;
+            const nameText = `${msg.name}: `;
+            const nameWidth = ctx.measureText(nameText).width;
+            const bodyWidth = ctx.measureText(msg.text).width;
+            const boxWidth = nameWidth + bodyWidth + padX;
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            ctx.fillRect(padX - 8, y - lineHeight + 5, boxWidth, lineHeight);
+
+            ctx.fillStyle = msg.color || THEME.text;
+            ctx.fillText(nameText, padX, y);
+            ctx.fillStyle = THEME.text;
+            ctx.fillText(msg.text, padX + nameWidth, y);
+
+            y -= lineHeight;
+            if (y < 20) break; // stop before drawing off the top of the screen
+        }
+        ctx.globalAlpha = 1;
+
+        if (!this.chatOpen) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.font = `12px ${THEME.font}`;
+            ctx.fillText('Press T to chat', padX, this.canvas.height - 6);
+            ctx.font = `bold 15px ${THEME.font}`;
+        }
+
+        if (this.chatOpen && this.chatScrollOffset > 0) {
+            ctx.fillStyle = THEME.accent;
+            ctx.font = `12px ${THEME.font}`;
+            ctx.fillText(`▲ scrolled up ${this.chatScrollOffset} — scroll down to catch up`, padX, y - 4);
+            ctx.font = `bold 15px ${THEME.font}`;
+        }
+
+        if (this.chatOpen) {
+            const boxY = this.canvas.height - 20 - lineHeight + 5;
+            const label = 'Chat: ';
+            const cursor = (Math.floor(now / 400) % 2 === 0) ? '|' : '';
+            const fullText = label + this.chatInputText + cursor;
+            const boxWidth = Math.max(160, ctx.measureText(fullText).width + padX);
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.fillRect(padX - 8, boxY - lineHeight + 5, boxWidth, inputBoxHeight);
+            ctx.strokeStyle = THEME.panelBorderActive;
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(padX - 8, boxY - lineHeight + 5, boxWidth, inputBoxHeight);
+
+            ctx.textAlign = 'left';
+            ctx.fillStyle = THEME.accent;
+            ctx.fillText(label, padX, boxY);
+            ctx.fillStyle = THEME.text;
+            ctx.fillText(this.chatInputText + cursor, padX + ctx.measureText(label).width, boxY);
+        }
+        ctx.restore();
     }
 
     drawOffscreenIndicators() {
@@ -1544,6 +1787,8 @@ class Game {
             default:
                 break;
         }
+
+        this.drawChat();
     }
 
     raceLoop() {
@@ -1699,7 +1944,11 @@ class Game {
     }
 
     updateBuildCamera() {
-        const worlds = this.players.map(p => this.buildCellToWorld(p.buildCursor));
+        // Ignore players who've disconnected so the camera doesn't keep
+        // framing a box that includes their last known cursor position.
+        const activePlayers = this.players.filter(p => p && p.connected !== false);
+        const source = activePlayers.length ? activePlayers : this.players;
+        const worlds = source.map(p => this.buildCellToWorld(p.buildCursor));
         const xs = worlds.map(w => w.x);
         const ys = worlds.map(w => w.y);
 
@@ -1761,7 +2010,7 @@ class Game {
         this.drawCountdownRing(this.buildTimeRemaining, this.BUILD_TIME_LIMIT);
 
         for (const player of this.players) {
-            if (player.piece) {
+            if (player.connected !== false && player.piece) {
                 this.drawBuildCursor(player.buildCursor, player.buildRotation, player.piece, player.buildPlaced, player.color, player.name);
             }
         }
@@ -1803,6 +2052,23 @@ class Game {
 
         this.drawPartyBoxScreen();
     }
+    drawSelectionOutlines(x, y, width, height, radius, playersHere, lockedField) {
+        // One ring per player whose cursor is on this box, in that player's
+        // own color, so everyone can see at a glance where they and others
+        // are. Once a player has locked in (voted / grabbed a piece) their
+        // ring turns grey to show they're done and no longer choosing.
+        const RING_GAP = 4;
+        playersHere.forEach((player, i) => {
+            const locked = lockedField ? !!player[lockedField] : false;
+            const inset = i * RING_GAP;
+            this.roundRectPath(x - inset, y - inset, width + inset * 2, height + inset * 2, radius + inset);
+            this.ctx.strokeStyle = locked ? THEME.textMuted : player.color;
+            this.ctx.lineWidth = locked ? 1.5 : 2.5;
+            this.ctx.globalAlpha = locked ? 0.6 : 1;
+            this.ctx.stroke();
+            this.ctx.globalAlpha = 1;
+        });
+    }
     drawCursorChips(cursorField, itemIndex, cx, boxY, lockedField = null) {
         const here = this.players.filter(p => p[cursorField] === itemIndex);
         if (here.length === 0) return;
@@ -1815,7 +2081,7 @@ class Game {
         here.forEach((player, i) => {
             const y = startY + i * (chipHeight + gap);
             const locked = lockedField && player[lockedField];
-            this.ctx.fillStyle = locked ? THEME.success : player.color;
+            this.ctx.fillStyle = locked ? THEME.textMuted : player.color;
             this.ctx.fillText(locked ? `${player.name} ✓` : `${player.name} ▲`, cx, y);
         });
     }
@@ -1887,13 +2153,13 @@ class Game {
 
         slots.forEach((piece, i) => {
             const cx = spacing * (i + 1);
-            const hasCursorHere = this.players.some(p => p.partyCursor === i);
+            const playersHere = this.players.filter(p => p.partyCursor === i);
 
             this.roundRectPath(cx - boxWidth / 2, boxY, boxWidth, boxHeight, 10);
             this.ctx.fillStyle = piece ? THEME.panel : 'rgba(255,255,255,0.02)';
             this.ctx.fill();
-            this.ctx.strokeStyle = hasCursorHere ? THEME.panelBorderActive : THEME.panelBorder;
-            this.ctx.lineWidth = hasCursorHere ? 2.5 : 1.5;
+            this.ctx.strokeStyle = THEME.panelBorder;
+            this.ctx.lineWidth = 1.5;
             this.ctx.stroke();
 
             if (piece) {
@@ -1907,7 +2173,9 @@ class Game {
                 this.ctx.fillText('taken', cx, boxY + boxHeight / 2 + 4);
             }
 
-            this.drawCursorChips('partyCursor', i, cx, boxY);
+            this.drawSelectionOutlines(cx - boxWidth / 2, boxY, boxWidth, boxHeight, 10, playersHere, 'piece');
+
+            this.drawCursorChips('partyCursor', i, cx, boxY, 'piece');
         });
 
         this.drawPartyStatusList(boxY + boxHeight + 45);
@@ -1936,8 +2204,7 @@ class Game {
 
         candidates.forEach((code, i) => {
             const cx = startCx + i * (boxWidth + boxGap);
-            const hasCursorHere = this.players.some(p => p.stageCursor === i);
-            const hasLockedVoteHere = this.players.some(p => p.stageCursor === i && p.stageVoteLocked);
+            const playersHere = this.players.filter(p => p.stageCursor === i);
 
             this.ctx.save();
 
@@ -1945,8 +2212,8 @@ class Game {
             this.ctx.fillStyle = THEME.panel;
             this.ctx.fill();
 
-            this.ctx.strokeStyle = hasLockedVoteHere ? THEME.success : (hasCursorHere ? THEME.panelBorderActive : THEME.panelBorder);
-            this.ctx.lineWidth = hasLockedVoteHere || hasCursorHere ? 2.5 : 1.5;
+            this.ctx.strokeStyle = THEME.panelBorder;
+            this.ctx.lineWidth = 1.5;
             this.ctx.stroke();
 
             const thumbPad = 12;
@@ -1973,6 +2240,8 @@ class Game {
             this.ctx.font = "19px " + THEME.font;
             this.ctx.fillText(levelTitle, cx, thumbY + thumbH + 24);
 
+            this.drawSelectionOutlines(cx - boxWidth / 2, boxY, boxWidth, boxHeight, 10, playersHere, 'stageVoteLocked');
+
             this.drawCursorChips('stageCursor', i, cx, boxY, 'stageVoteLocked');
 
             this.ctx.restore();
@@ -1984,6 +2253,7 @@ class Game {
     }
     getRoundResultLabel(player) {
         if (!player) return { text: '-', color: THEME.textMuted };
+        if (player.hasFinished && player.eliminated) return { text: 'Postmortem', color: THEME.pointColors.postmortem };
         if (player.hasFinished) return { text: 'Finished', color: THEME.success };
         if (player.dnf) return { text: 'DNF', color: THEME.warning };
         if (player.eliminated) return { text: 'Eliminated', color: THEME.danger };
@@ -2110,7 +2380,7 @@ class Game {
         ctx.textAlign = 'center';
         ctx.fillText(`GOAL: ${POINTS_TO_WIN} TO WIN`, winLineX, chartTop - 45);
 
-        const POINT_SOURCE_ORDER = ['goal', 'firstPlace', 'solo', 'comeback'];
+        const POINT_SOURCE_ORDER = ['goal', 'firstPlace', 'solo', 'comeback', 'postmortem'];
         const FALLBACK_COLORS = ['#ff4757', '#2ed573', '#ffa502', '#1e90ff', '#ff6b81', '#00d2d3', '#a4b0be', '#3742fa'];
         let currentY = chartTop;
         
@@ -2215,15 +2485,16 @@ class Game {
         if (progress >= 1.0 && activePlayers.length > 0 && !isLastRound) {
             let globalSplashText = "";
 
-            const totalCleared = activePlayers.filter(p => p.hasFinished).length;
+            const totalCleared = activePlayers.filter(p => p.hasFinished && !p.eliminated).length;
+            const anyPostmortem = activePlayers.some(p => p.hasFinished && p.eliminated);
 
-            if (totalCleared === 0) {
+            if (totalCleared === 0 && !anyPostmortem) {
                 globalSplashText = "NO POINTS - TOO HARD!";
             } else if (totalCleared === activePlayers.length) {
                 // Matches the scoring exclusions in awardRoundPoints()/Room.endRound():
-                // a first-place point still goes out here unless it's a two-player
-                // game or everyone-clears-with-one-player (solo) situation.
-                globalSplashText = (activePlayers.length > 2 && totalCleared > 1)
+                // a first-place point still goes out here unless it was a
+                // solo (everyone-clears-with-one-player) finish.
+                globalSplashText = (totalCleared > 1)
                     ? "TOO EASY - FIRST PLACE ONLY!"
                     : "NO POINTS - TOO EASY!";
             }
@@ -2303,6 +2574,12 @@ class Game {
         net.onPlayerLeft = (payload) => {
             this.markSeatDisconnected(payload.seatIndex);
             this.applyHostSeatIndex(payload.hostSeatIndex);
+            // Recompute the continue-vote total so the results/final-results
+            // screen doesn't keep waiting on a confirmation count that includes
+            // a seat which just left (looked like an AFK player before this fix).
+            if (this.gameState === GameState.ROUND_RESULTS) {
+                this.continueTotalConnected = this.players.filter(p => p && p.connected !== false).length;
+            }
         };
         net.onPlayerDisconnected = (payload) => this.markSeatDisconnected(payload.seatIndex);
         net.onPlayerReconnected = (payload, type, phase) => {
@@ -2321,6 +2598,7 @@ class Game {
                 this.ping = Math.max(0, Math.round(performance.now() - payload.t));
             }
         };
+        net.onChatMessage = (payload) => this.handleChatMessage(payload);
     }
 
     requestSetColor(hue) {
@@ -2615,11 +2893,12 @@ class Game {
             player.eliminated = result.eliminated;
             player.finishTick = result.finishTick;
             player.lastRoundPoints = result.roundPoints;
-            player.lastRoundBreakdown = result.pointBreakdown || { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
+            player.lastRoundBreakdown = result.pointBreakdown || { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
             player.scoreBreakdown.goal += player.lastRoundBreakdown.goal || 0;
             player.scoreBreakdown.firstPlace += player.lastRoundBreakdown.firstPlace || 0;
             player.scoreBreakdown.comeback += player.lastRoundBreakdown.comeback || 0;
             player.scoreBreakdown.solo += player.lastRoundBreakdown.solo || 0;
+            player.scoreBreakdown.postmortem = (player.scoreBreakdown.postmortem || 0) + (player.lastRoundBreakdown.postmortem || 0);
             player.score = result.totalScore;
             this.pushPointHistoryEntries(player, player.lastRoundBreakdown);
         }
@@ -2628,7 +2907,7 @@ class Game {
         this.gameState = GameState.ROUND_RESULTS;
         this.localContinueConfirmed = false;
         this.continueConfirmedSeats = [];
-        this.continueTotalConnected = 0;
+        this.continueTotalConnected = this.players.filter(p => p && p.connected !== false).length;
 
         const someoneWon = this.players.some(p => p && p.score >= this.POINTS_TO_WIN);
         if ((someoneWon || this.currentRound >= this.totalRounds) && this.onFinalResults) {
@@ -2647,9 +2926,9 @@ class Game {
             p.score = 0;
             p.scoreBeforeRound = 0;
             p.lastRoundPoints = 0;
-            p.lastRoundBreakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
-            p.scoreBreakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
-            p.breakdownBeforeRound = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
+            p.lastRoundBreakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
+            p.scoreBreakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
+            p.breakdownBeforeRound = { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
             p.pointHistory = [];
             p.historyBeforeRound = [];
             p.lastRoundEntries = [];

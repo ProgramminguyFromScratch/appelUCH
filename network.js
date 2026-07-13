@@ -34,6 +34,7 @@ class NetworkClient {
         this.onKicked = null;            
         this.onPong = null;              
         this.onScoreAdjusted = null;     
+        this.onChatMessage = null;       
         this._GROUPED_MAP = {
             STAGE_SELECT_START: 'onStageState',
             STAGE_CURSOR_MOVE: 'onStageState',
@@ -82,6 +83,7 @@ class NetworkClient {
         this._DIRECT_MAP.KICKED = 'onKicked';
         this._DIRECT_MAP.PONG = 'onPong';
         this._DIRECT_MAP.SCORE_ADJUSTED = 'onScoreAdjusted';
+        this._DIRECT_MAP.CHAT_BROADCAST = 'onChatMessage';
     }
 
     connect() {
@@ -222,6 +224,10 @@ class NetworkClient {
 
     sendContinueRequest() {
         this._send('CONTINUE_REQUEST', {});
+    }
+
+    sendChatMessage(text) {
+        this._send('CHAT_MESSAGE', { text });
     }
 
     sendPing() {

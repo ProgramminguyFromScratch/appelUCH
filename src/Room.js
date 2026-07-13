@@ -9,7 +9,8 @@ const {
     MAX_PLAYERS,
     FINISH_TICK_TOLERANCE,
     LOADING_BARRIER_TIMEOUT_MS,
-    ROUND_END_DELAY_MS
+    ROUND_END_DELAY_MS,
+    CHAT_MESSAGE_MAX_LENGTH
 } = require('./protocol');
 const { decodeLevelCode, encodeLevelCode } = require('./levelCode');
 const { PIECE_POOL, getPieceById, getPieceFootprintCells } = require('./pieces');
@@ -777,9 +778,17 @@ class Room {
         this.timers.roundEndDelay = null;
         clearInterval(this.timers.raceIdleHeartbeat);
         clearInterval(this.timers.timeSync);
-        const finishers = [...this.race.finishConfirmed.entries()]
-            .map(([seatIndex, finishTick]) => ({ seatIndex, finishTick }))
+        const allFinishers = [...this.race.finishConfirmed.entries()]
+            .map(([seatIndex, finishTick]) => ({ seatIndex, finishTick, eliminated: this.seats.get(seatIndex)?.eliminated === true }))
             .sort((a, b) => a.finishTick - b.finishTick);
+
+        // A seat can end up both "finished" and "eliminated" if it died but its
+        // momentum/others' observations still carried it across the goal. That
+        // doesn't count as legitimately beating the level, so it's excluded from
+        // normal scoring and instead earns a flat Postmortem award below.
+        const finishers = allFinishers.filter(f => !f.eliminated);
+        const postmortemFinishers = allFinishers.filter(f => f.eliminated);
+        const POSTMORTEM_POINTS = 2;
 
         const totalSeats = this.seats.size;
         const tooEasy = totalSeats > 0 && finishers.length === totalSeats;
@@ -792,22 +801,20 @@ class Room {
         if (!tooHard) {
             for (let i = 0; i < finishers.length; i++) {
                 const { seatIndex } = finishers[i];
-                const breakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
+                const breakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
 
                 if (!tooEasy) {
                     breakdown.goal = 3;
 
-                    if (totalSeats > 2) {
-                        if (finishers.length === 1) breakdown.solo = 2;
-                        else if (i === 0) breakdown.firstPlace = 1;
-                    }
+                    if (totalSeats > 2 && finishers.length === 1) breakdown.solo = 2;
+                    else if (i === 0 && finishers.length > 1) breakdown.firstPlace = 1;
 
                     const behindBy = leaderScore - (preRoundScores.get(seatIndex) || 0);
                     if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = 2;
-                } else if (i === 0 && totalSeats > 2 && finishers.length > 1) {
+                } else if (i === 0 && finishers.length > 1) {
                     // Everyone cleared the level, so no goal/comeback points, but the
                     // first player across the line still earns their placement point —
-                    // unless this was a two-player match or a solo finish.
+                    // unless this was a solo finish.
                     breakdown.firstPlace = 1;
                 }
 
@@ -817,10 +824,16 @@ class Room {
             }
         }
 
+        for (const { seatIndex } of postmortemFinishers) {
+            const breakdown = { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: POSTMORTEM_POINTS };
+            roundPoints.set(seatIndex, POSTMORTEM_POINTS);
+            roundBreakdown.set(seatIndex, breakdown);
+        }
+
         const results = [];
         for (const seat of this.seats.values()) {
             const points = roundPoints.get(seat.seatIndex) || 0;
-            const breakdown = roundBreakdown.get(seat.seatIndex) || { goal: 0, firstPlace: 0, comeback: 0, solo: 0 };
+            const breakdown = roundBreakdown.get(seat.seatIndex) || { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
             seat.score += points;
             results.push({
                 seatIndex: seat.seatIndex,
@@ -992,6 +1005,25 @@ class Room {
             payload: { seatIndex: seat.seatIndex, delta, totalScore: seat.score }
         });
         return true;
+    }
+
+    handleChatMessage(seat, payload) {
+        if (!seat) return;
+        const raw = payload && typeof payload.text === 'string' ? payload.text : '';
+        const text = raw.replace(/\s+/g, ' ').trim().slice(0, CHAT_MESSAGE_MAX_LENGTH);
+        if (!text) return;
+
+        // Simple flood guard: at most 5 messages per seat per 5 seconds.
+        const now = Date.now();
+        seat.chatTimestamps = (seat.chatTimestamps || []).filter(t => now - t < 5000);
+        if (seat.chatTimestamps.length >= 5) return;
+        seat.chatTimestamps.push(now);
+
+        this.broadcast({
+            type: 'CHAT_BROADCAST',
+            phase: this.phase,
+            payload: { seatIndex: seat.seatIndex, name: seat.name, hue: seat.hue, text }
+        });
     }
 
     kickSeat(seat, reason = 'kicked') {
