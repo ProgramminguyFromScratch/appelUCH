@@ -2,6 +2,7 @@ const {
     PHASE,
     TOTAL_ROUNDS,
     getPartyBoxSlotCount,
+    STAGE_VOTE_STAND_SECONDS,
     PARTY_TIME_LIMIT,
     BUILD_TIME_LIMIT,
     RACE_TIME_LIMIT,
@@ -17,13 +18,9 @@ const { PIECE_POOL, getPieceById, getPieceFootprintCells } = require('./pieces')
 const { LEVEL_POOL } = require('./levels');
 
 const POINTS_TO_WIN = 15;
-
-// Sprite tinting on the client shifts hue on a 0-199 scale (see
-// LevelRenderer.applyColorEffect's `hueShift % 200`), so seats store their
-// chosen color as a hue in that same range.
 const HUE_MIN = 0;
 const HUE_MAX = 199;
-const DEFAULT_HUE_STEP = 34; // roughly spaces out default hues for new seats
+const DEFAULT_HUE_STEP = 34; 
 
 let nextPlayerId = 1;
 function generatePlayerId() {
@@ -86,13 +83,13 @@ class Room {
         const seat = {
             seatIndex,
             playerId: generatePlayerId(),
-            name: (displayName || `P${seatIndex + 1}`).slice(0, 24),
+            name: (displayName || `P${seatIndex + 1}`).slice(0, 20),
             ws,
             connected: true,
             isBot: false,
             hue,
             ready: false,
-            stageCursor: 0,
+            stageCursor: -1,
             partyCursor: 0,
             piece: null,
             buildCursor: { col: 0, row: 0 },
@@ -206,7 +203,9 @@ class Room {
         this.stageCandidates = this.pickStageCandidates();
         this.locks.stagePicked = false;
         this.stageVotes = new Map();
-        for (const seat of this.seats.values()) seat.stageCursor = 0;
+        for (const seat of this.seats.values()) seat.stageCursor = -1;
+        clearTimeout(this.timers.stageCountdown);
+        this.timers.stageCountdown = null;
         this.phase = PHASE.STAGE_SELECT;
         this.broadcast({
             type: 'STAGE_SELECT_START',
@@ -219,14 +218,56 @@ class Room {
         if (this.phase !== PHASE.STAGE_SELECT) return;
         const n = this.stageCandidates.length;
         if (n === 0) return;
-        const cursorIndex = Math.max(0, Math.min(n - 1, payload.cursorIndex | 0));
+        const raw = payload.cursorIndex | 0;
+        const cursorIndex = raw === -1 ? -1 : Math.max(0, Math.min(n - 1, raw));
         seat.stageCursor = cursorIndex;
         this.broadcast({
             type: 'STAGE_CURSOR_MOVE',
             phase: PHASE.STAGE_SELECT,
             payload: { seatIndex: seat.seatIndex, cursorIndex }
         });
+        this.updateStageCountdown();
     }
+
+    updateStageCountdown() {
+        if (this.phase !== PHASE.STAGE_SELECT || this.locks.stagePicked) return;
+        const seats = this.connectedSeats;
+        const allStanding = seats.length > 0 && seats.every(s => s.stageCursor !== -1);
+
+        if (allStanding) {
+            if (!this.timers.stageCountdown) {
+                const startTime = Date.now();
+                this.timers.stageCountdown = setTimeout(() => this.finalizeGlobalStageVote(), STAGE_VOTE_STAND_SECONDS * 1000);
+                this.broadcast({
+                    type: 'STAGE_COUNTDOWN_START',
+                    phase: PHASE.STAGE_SELECT,
+                    payload: { startTime, duration: STAGE_VOTE_STAND_SECONDS * 1000 }
+                });
+            }
+        } else if (this.timers.stageCountdown) {
+            clearTimeout(this.timers.stageCountdown);
+            this.timers.stageCountdown = null;
+            this.broadcast({ type: 'STAGE_COUNTDOWN_CANCEL', phase: PHASE.STAGE_SELECT, payload: {} });
+        }
+    }
+
+    finalizeGlobalStageVote() {
+        this.timers.stageCountdown = null;
+        if (this.phase !== PHASE.STAGE_SELECT || this.locks.stagePicked) return;
+
+        for (const seat of this.connectedSeats) {
+            if (seat.stageCursor === -1) continue;
+            this.stageVotes.set(seat.seatIndex, seat.stageCursor);
+            this.broadcast({
+                type: 'STAGE_VOTE_CAST',
+                phase: PHASE.STAGE_SELECT,
+                payload: { seatIndex: seat.seatIndex, candidateIndex: seat.stageCursor }
+            });
+        }
+
+        this.finalizeStageVote();
+    }
+
     handleStagePickRequest(seat, payload) {
         if (this.phase !== PHASE.STAGE_SELECT) return;
         if (this.locks.stagePicked) return;
@@ -633,10 +674,10 @@ class Room {
     }
 
     handlePositionSnapshot(seat, payload) {
-        if (this.phase !== PHASE.RACE) return;
+        if (this.phase !== PHASE.RACE && this.phase !== PHASE.STAGE_SELECT) return;
         this.broadcast({
             type: 'POSITION_SYNC',
-            phase: PHASE.RACE,
+            phase: this.phase,
             payload: {
                 seatIndex: seat.seatIndex,
                 tick: payload.tick,
@@ -781,11 +822,6 @@ class Room {
         const allFinishers = [...this.race.finishConfirmed.entries()]
             .map(([seatIndex, finishTick]) => ({ seatIndex, finishTick, eliminated: this.seats.get(seatIndex)?.eliminated === true }))
             .sort((a, b) => a.finishTick - b.finishTick);
-
-        // A seat can end up both "finished" and "eliminated" if it died but its
-        // momentum/others' observations still carried it across the goal. That
-        // doesn't count as legitimately beating the level, so it's excluded from
-        // normal scoring and instead earns a flat Postmortem award below.
         const finishers = allFinishers.filter(f => !f.eliminated);
         const postmortemFinishers = allFinishers.filter(f => f.eliminated);
         const POSTMORTEM_POINTS = 2;
@@ -812,9 +848,6 @@ class Room {
                     const behindBy = leaderScore - (preRoundScores.get(seatIndex) || 0);
                     if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = 2;
                 } else if (i === 0 && finishers.length > 1) {
-                    // Everyone cleared the level, so no goal/comeback points, but the
-                    // first player across the line still earns their placement point —
-                    // unless this was a solo finish.
                     breakdown.firstPlace = 1;
                 }
 
@@ -915,10 +948,6 @@ class Room {
             console.log(`[room ${this.roomCode}] MATCH_END levelCode=${finalLevelCode}`);
             console.log(`[room ${this.roomCode}] final standings:`, finalStandings.map(s => `${this.seats.get(s.seatIndex)?.name} (${s.totalScore} pts, rank ${s.rank})`));
             console.log(`[room ${this.roomCode}] winner(s): ${winners.join(', ')}`);
-
-            // The players already confirmed via the continue vote above — roll straight
-            // into a fresh match instead of parking on a separate "final results" screen
-            // that would require a second vote.
             for (const s of this.seats.values()) {
                 s.score = 0;
                 s.piece = null;
@@ -948,9 +977,6 @@ class Room {
 
     handleDisconnect(seat, reason = 'disconnected') {
         const wasHost = seat.seatIndex === this.hostSeatIndex;
-
-        // Resolve them out of the current race before removing the seat so
-        // finish/elimination bookkeeping (and any pending quorum) stays consistent.
         if (this.phase === PHASE.RACE && this.race) {
             if (!this.race.finishConfirmed.has(seat.seatIndex) && !this.race.eliminationConfirmed.has(seat.seatIndex)) {
                 this.confirmElimination(seat.seatIndex, 'dnf');
@@ -959,20 +985,11 @@ class Room {
 
         this.seats.delete(seat.seatIndex);
         this.updateEmptiedAt();
-
-        // Hand the host badge to whoever's left, so the room isn't stuck without one.
-        // Prefer a connected human seat over a disconnected or bot-controlled one,
-        // falling back to whatever's left if nothing better is available.
         if (wasHost && this.seats.size > 0) {
             const remaining = [...this.seats.values()];
             const successor = remaining.find(s => s.connected && !s.isBot) || remaining.find(s => s.connected) || remaining[0];
             this.hostSeatIndex = successor.seatIndex;
         }
-
-        // hostSeatIndex is included here (not just in ROOM_STATE) because a host
-        // handoff can happen mid-match, long before the room is back in the LOBBY
-        // phase where ROOM_STATE gets rebroadcast — clients need this to keep their
-        // local "am I host" flag correct in the meantime.
         this.broadcast({ type: 'PLAYER_LEFT', phase: this.phase, payload: { seatIndex: seat.seatIndex, reason, hostSeatIndex: this.hostSeatIndex } });
 
         switch (this.phase) {
@@ -981,6 +998,7 @@ class Room {
                 break;
             case PHASE.STAGE_SELECT:
                 this.checkStageVotesComplete();
+                this.updateStageCountdown();
                 break;
             case PHASE.PARTY_BOX:
                 this.checkPartyBoxComplete();
@@ -991,8 +1009,6 @@ class Room {
             case PHASE.ROUND_RESULTS:
                 this.checkContinueVotesComplete();
                 break;
-            // RACE is already resolved above via confirmElimination(), which
-            // internally calls checkRoundEnd() for us.
         }
     }
 
@@ -1012,12 +1028,12 @@ class Room {
         const raw = payload && typeof payload.text === 'string' ? payload.text : '';
         const text = raw.replace(/\s+/g, ' ').trim().slice(0, CHAT_MESSAGE_MAX_LENGTH);
         if (!text) return;
-
-        // Simple flood guard: at most 5 messages per seat per 5 seconds.
         const now = Date.now();
         seat.chatTimestamps = (seat.chatTimestamps || []).filter(t => now - t < 5000);
         if (seat.chatTimestamps.length >= 5) return;
         seat.chatTimestamps.push(now);
+
+        console.log(`[room ${this.roomCode}] chat #${seat.seatIndex} ${seat.name}: ${text}`);
 
         this.broadcast({
             type: 'CHAT_BROADCAST',
@@ -1030,13 +1046,8 @@ class Room {
         if (!seat) return false;
         this.send(seat, { type: 'KICKED', phase: this.phase, payload: { reason } });
         if (seat.connected && seat.ws) {
-            try { seat.ws.close(); } catch (err) { /* ignore */ }
+            try { seat.ws.close(); } catch (err) {  }
         }
-        // handleDisconnect() does all the real bookkeeping (race resolution,
-        // host handoff, phase-specific quorum checks, broadcasting PLAYER_LEFT).
-        // The socket's 'close' event will also fire and call handleDisconnect
-        // again, but by then the seat will already be removed from this.seats,
-        // so seatFor() will return null and it'll be a no-op.
         this.handleDisconnect(seat, 'kicked');
         return true;
     }
@@ -1050,6 +1061,7 @@ class Room {
         this.updateEmptiedAt();
 
         this.broadcast({ type: 'PLAYER_RECONNECTED', phase: this.phase, payload: { seatIndex: seat.seatIndex } });
+        if (this.phase === PHASE.STAGE_SELECT) this.updateStageCountdown();
         const mapPatch = this.map
             ? this.map.MAP.map((tile, idx) => ({ idx, tile, rot: this.map.MAP_R[idx] })).filter(p => p.tile !== 0 && p.tile !== 1)
             : [];
@@ -1063,6 +1075,7 @@ class Room {
 
     destroy() {
         clearTimeout(this.timers.loadingBarrier);
+        clearTimeout(this.timers.stageCountdown);
         clearTimeout(this.timers.partyBox);
         clearTimeout(this.timers.build);
         clearTimeout(this.timers.race);

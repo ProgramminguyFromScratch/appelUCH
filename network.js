@@ -40,6 +40,8 @@ class NetworkClient {
             STAGE_CURSOR_MOVE: 'onStageState',
             STAGE_VOTE_CAST: 'onStageState',
             STAGE_LOCKED: 'onStageState',
+            STAGE_COUNTDOWN_START: 'onStageState',
+            STAGE_COUNTDOWN_CANCEL: 'onStageState',
 
             PARTY_BOX_START: 'onPartyState',
             PARTY_CURSOR_MOVE: 'onPartyState',

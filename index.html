@@ -320,8 +320,8 @@
             game.startGame(levelCode);
         } else {
 
-            const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
-            // const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
+            // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
+            const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
             const network = new NetworkClient(serverUrl);
             const game = new Game('gameCanvas', playerCount, network);
             wireCopyLevelCodeButton(game);
@@ -356,12 +356,10 @@
 
             const STORAGE_KEY = 'appel_player_id';
 
-            // Support joining via [baseurl]/[joincode], e.g. https://example.com/ABCDE
             function getRoomCodeFromPath() {
                 const segment = window.location.pathname.replace(/^\/+|\/+$/g, '');
                 if (!segment) return '';
-                // room codes are 5 chars from a fixed alphabet; be lenient and just
-                // accept short alphanumeric path segments so this degrades gracefully
+
                 if (!/^[A-Za-z0-9]{1,5}$/.test(segment)) return '';
                 return segment.toUpperCase();
             }
@@ -373,8 +371,6 @@
                 displayNameInput.focus();
             }
 
-            // Keep the URL in sync with the room the player ends up in, so the
-            // address bar always shows a shareable /[joincode] link.
             function updateUrlForRoom(roomCode) {
                 if (!roomCode) return;
                 const newPath = `/${roomCode}`;
@@ -438,8 +434,6 @@
             const previewCtx = colorPreviewCanvas.getContext('2d');
             previewCtx.imageSmoothingEnabled = false;
 
-            // Reproduces LevelRenderer.applyColorEffect's pixel-level hue shift so
-            // the lobby preview shows exactly what the in-game sprite will look like.
             function rgbToHsv(r, g, b) {
                 r /= 255; g /= 255; b /= 255;
                 const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
@@ -584,10 +578,6 @@
                 returnToNameScreen('You were removed from the room by the host/admin.');
             };
 
-            // Host handoff can now happen mid-match (see game.onHostChanged),
-            // long before the lobby screen is visible again — just log it so
-            // it's visible for debugging; the lobby list picks up the new
-            // HOST tag automatically next time ROOM_STATE renders it.
             game.onHostChanged = (hostSeatIndex, isHost) => {
                 console.log(`[lobby] host is now seat ${hostSeatIndex}${isHost ? ' (you)' : ''}`);
                 btnStartMatch.style.display = isHost ? 'inline-block' : 'none';

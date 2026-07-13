@@ -49,14 +49,6 @@ const THEME = {
         postmortem: 'Postmortem'
     }
 };
-// Turns a sprite hue-shift value (0-199, see LevelRenderer.applyColorEffect)
-// into a representative hex color for UI use (name tags, lobby swatches).
-// This is a stylistic approximation for UI only — the actual in-game look is
-// whatever applyColorEffect produces on the real sprite pixels.
-// Important: hueShift is a *rotation* applied on top of the sprite's native
-// color, and the source art (assets/player/stand.png) is yellow (#ffff00,
-// ~60deg) at hueShift 0 — not red (0deg). That base offset has to be added
-// here or this approximation drifts from the real sprite color.
 const PLAYER_BASE_HUE_DEG = 60;
 function hueShiftToHex(hueShift) {
     const degrees = (PLAYER_BASE_HUE_DEG + ((hueShift % 200) / 200) * 360) % 360;
@@ -77,6 +69,11 @@ function hueShiftToHex(hueShift) {
 
 const STAGE_SELECT_BOX_WIDTH = 255;
 const STAGE_PREVIEW_ASPECT = 10 / 15; 
+const STAGE_VOTE_ARENA_LEVEL_CODE = "1236930196Z86Z2Z2Z1Z86Z4Z10Z2Z86Z2Z10Z2Z68Z1Z86Z1Z10Z2Z68Z1Z10Z5Z2Z1Z10Z2Z86Z1Z10Z3Z20Z1Z18Z1Z17Z1Z79Z3Z2Z160Z10Z1Z86Z1Z10Z1Z1Z3Z13Z1Z10Z3Z2Z1Z10Z1Z2Z1Z86Z1Z2Z1Z86Z1Z2Z1Z10Z1Z86Z1Z10Z1Z86Z1Z2Z1Z68Z1Z86Z1Z10Z1Z2Z1Z68Z1Z20Z3Z18Z1Z17Z1Z79Z4Z2Z160Z10Z1Z68Z1Z5Z1Z1Z4Z4Z1Z68Z1Z10Z2Z86Z1Z10Z1Z20Z1Z86Z1Z20Z1Z10Z1Z86Z1Z2Z1Z86Z1Z68Z1Z10Z1Z86Z1Z10Z1Z20Z3Z18Z3Z17Z1Z79Z5Z2Z160Z4Z1Z1Z11Z76Z1Z1Z1Z86Z1Z1Z5Z20Z4Z18Z3Z17Z3Z79Z6Z1Z160Z4Z1Z1Z13Z86Z1Z5Z1Z1Z4Z20Z1Z18Z3Z17Z3Z79Z9Z1Z160Z4Z1Z1Z10Z5Z1Z1Z2Z86Z1Z8Z1Z1Z2Z5Z1Z1Z1Z20Z1Z18Z1Z17Z2Z79Z12Z1Z160Z10Z1Z1Z5Z5Z1Z20Z1Z18Z1Z20Z1Z5Z1Z1Z2Z8Z1Z86Z1Z5Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z1Z81Z1Z79Z2Z81Z9Z1Z160Z86Z1Z4Z1Z1Z11Z5Z1Z86Z1Z8Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z1Z81Z4Z79Z1Z81Z2Z82Z2Z81Z1Z79Z1Z81Z1Z1Z160Z10Z1Z86Z1Z10Z1Z1Z2Z5Z1Z1Z7Z8Z1Z68Z1Z8Z1Z13Z1Z68Z2Z5Z1Z20Z1Z18Z1Z17Z1Z79Z1Z81Z12Z1Z160Z86Z2Z10Z1Z13Z1Z1Z7Z4Z1Z21Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z169Z13Z1Z21Z2Z5Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z172Z8Z5Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z173Z8Z3Z1Z4Z20Z1Z18Z1Z17Z1Z79Z13Z1Z180Z20Z1Z18Z1Z17Z1Z79Z13Z1Z180Z20Z1Z18Z1Z17Z1Z79Z13Z1Z180Z20Z1Z18Z1Z17Z1Z79Z13Z1Z179Z20Z1Z18Z1Z17Z1Z79Z14Z1Z179Z20Z1Z18Z1Z17Z1Z79Z14Z1Z179Z20Z1Z18Z1Z17Z1Z79Z14Z1Z179Z20Z1Z18Z1Z17Z1Z79Z14Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z16Z1Z178Z20Z1Z18Z17Z1Z178Z20Z18Z1Z31324ZZ1Z7Z3Z1Z0Z1Z1Z2Z3Z1Z0Z1Z3Z1Z0Z1Z1Z1Z3Z1Z0Z2Z3Z1Z1Z1Z3Z1Z1Z2Z3Z1Z0Z1Z1Z1Z2Z1Z1Z1Z2Z1Z1Z166Z0Z1Z1Z1Z2Z1Z1Z5Z2Z1Z0Z1Z1Z1Z2Z1Z1Z1Z3Z1Z1Z1Z3Z1Z1Z1Z2Z2Z1Z3Z3Z1Z2Z1Z1Z2Z3Z1Z1Z170Z3Z1Z1Z7Z2Z1Z1Z2Z2Z1Z1Z1Z2Z1Z1Z5Z3Z1Z1Z2Z2Z1Z1Z172Z2Z1Z1Z13Z2Z1Z1Z181Z2Z1Z1Z13Z2Z2Z1Z180Z2Z1Z1Z13Z2Z1Z1Z3Z2Z1Z1Z177Z3Z1Z1Z5Z3Z1Z1Z3Z2Z1Z1Z3Z2Z2Z1Z8Z0Z1Z1Z2Z0Z1Z1Z1Z2Z1Z0Z1Z1Z1Z2Z1Z0Z1Z1Z1Z2Z1Z1Z160Z2Z2Z1Z11Z0Z1Z2Z1Z1Z9Z0Z1Z1Z1Z2Z1Z0Z1Z1Z1Z2Z1Z0Z2Z1Z1Z0Z1Z1Z1Z2Z1Z1Z162Z3Z1Z1Z11Z2Z1Z1Z1Z0Z1Z1Z1Z3Z1Z2Z1Z1Z4Z0Z1Z3Z1Z2Z1Z0Z1Z3Z1Z2Z1Z0Z1Z3Z1Z2Z1Z0Z1Z3Z1Z2Z1Z1Z162Z2Z1Z3Z1Z1Z7Z3Z1Z1Z193Z0Z1Z1Z36446ZZZ13Z0Z11Z3Z10Z1Z8Z2Z8Z1Z6Z1Z4Z2Z3Z1Z3Z2Z5Z2Z8Z2Z12Z3Z14Z2Z29Z0Z37Z1Z42Z0Z46Z0Z53Z1Z56Z3Z59Z2Z57Z1Z57Z2Z55Z1Z52Z3Z49Z2Z46Z2Z41Z3Z35Z0Z27Z1Z22Z2Z16Z0Z14Z3Z11Z0Z9Z0Z6Z1Z2Z0Z0Z0ZC1Z0ZC1Z3ZC1Z1ZZ180Z180";
+const STAGE_VOTE_STAND_SECONDS = 3;
+const STAGE_VOTE_ZONE_WIDTH = 200;
+const STAGE_VOTE_ZONE_DEPTH = 30;
+const STAGE_VOTE_MOVE_TOLERANCE = 0.6; 
 let LEVEL_POOL = [];
 let LEVEL_NAMES = [];
 fetch('levels.json')
@@ -104,14 +101,14 @@ class Game {
         this.onLevelCodeSaved = null;
         this.onFinalResults = null;
         this.onFinalResultsHidden = null;
-        this.onHostChanged = null; // (hostSeatIndex, isHost) - fired outside of ROOM_STATE, e.g. when the host's tab closes mid-match
+        this.onHostChanged = null; 
         this.playerCount = Math.max(MIN_PLAYERS, Math.min(MAX_PLAYERS, Math.floor(playerCount) || 2));
         this.localSeatIndex = 0;
         this.players = this.createPlayers(this.playerCount, this.localSeatIndex);
 
         this.camera = { x: 0, y: 0, zoom: 1.25};
-        this.cameraLookahead = { x: 0, y: 0 }; // eased "push" offset ahead of travel direction, see updateCameraLookahead()
-        this.cameraMode = 0; // 0 = follow active players (default), 1 = fit start & finish, 2 = center on local player
+        this.cameraLookahead = { x: 0, y: 0 }; 
+        this.cameraMode = 0; 
         this.showDebugMenu = false;
         this._fpsFrameTimes = [];
         this._fps = 0;
@@ -144,6 +141,18 @@ class Game {
         this.ROUND_RESULTS_ANIM_FRAMES = 15;
         this.stageCandidates = [];
         this.stageThumbnails = new Map();
+        this.stageVoteZones = []; 
+        this.stageCountdownActive = false;
+        this.stageCountdownStart = null;
+        this.stageCountdownDuration = STAGE_VOTE_STAND_SECONDS * 1000;
+        this.STAGE_VOTE_ZONES = [
+            { x: 270,  y: 77 },
+            { x: 630, y: 677 },
+            { x: 510, y: 437 },
+            { x: 1050, y: 197 },
+            { x: 120, y: 617 },
+            { x: 1080, y: 557 }
+        ];
         this.PARTY_BOX_SLOT_COUNT = Math.ceil(1.5 * this.playerCount);
         this.PARTY_TIME_LIMIT = 12; 
         this.partySlots = [];
@@ -153,24 +162,18 @@ class Game {
         this.buildTimeRemaining = this.BUILD_TIME_LIMIT;
         this.giveUpHoldFrames = 0;
         this.GIVE_UP_HOLD_FRAMES = 90;
-        // Ignore give-up input for the first stretch of a race. Without this,
-        // players who mash/hold confirm to place their last build piece (or
-        // are still holding it down as the race loads in) can end up
-        // accidentally starting a give-up hold the instant they spawn.
         this.GIVE_UP_LOCKOUT_SECONDS = 1;
-
-        // --- In-game chat ---------------------------------------------------
         this.chatOpen = false;
         this.chatInputText = '';
-        this.chatMessages = []; // { seatIndex, name, color, text, expiresAt }
+        this.chatMessages = []; 
         this.CHAT_MAX_LENGTH = 140;
         this.CHAT_MESSAGE_DURATION_MS = 6000;
         this.CHAT_MAX_VISIBLE = 6;
-        this.CHAT_MAX_HISTORY = 300; // scrollback buffer — much longer than what fits on screen
-        this.chatScrollOffset = 0;   // 0 = pinned to newest; higher = scrolled up into history
-        this.chatSentHistory = [];   // messages this client has sent, most recent last
-        this.chatHistoryIndex = -1;  // -1 = not currently browsing sent history
-        this.chatHistoryDraft = '';  // in-progress text saved when browsing sent history starts
+        this.CHAT_MAX_HISTORY = 300; 
+        this.chatScrollOffset = 0;   
+        this.chatSentHistory = [];   
+        this.chatHistoryIndex = -1;  
+        this.chatHistoryDraft = '';  
 
         if (typeof replayCode !== 'undefined' && replayCode) {
             this.decodedReplayCode = decodeReplayCode(replayCode);
@@ -196,9 +199,7 @@ class Game {
                 console.log(`[debug] menu ${this.showDebugMenu ? 'ON' : 'OFF'}`);
             }
 
-            if (this.gameState === GameState.STAGE_SELECT) {
-                this.handleStageSelectInput(e.code);
-            } else if (this.gameState === GameState.PARTY_BOX) {
+            if (this.gameState === GameState.PARTY_BOX) {
                 this.handlePartyBoxInput(e.code);
             } else if (this.gameState === GameState.BUILD) {
                 this.handleBuildInput(e.code);
@@ -217,7 +218,7 @@ class Game {
             if (!this.chatOpen) return;
             e.preventDefault();
             const maxOffset = Math.max(0, this.chatMessages.length - 1);
-            const delta = e.deltaY > 0 ? -1 : 1; // scroll down = toward newest, up = toward history
+            const delta = e.deltaY > 0 ? -1 : 1; 
             this.chatScrollOffset = Math.max(0, Math.min(maxOffset, this.chatScrollOffset + delta));
         }, { passive: false });
     }
@@ -228,7 +229,7 @@ class Game {
         this.chatScrollOffset = 0;
         this.chatHistoryIndex = -1;
         this.chatHistoryDraft = '';
-        this.keys = {}; // release any held movement keys so the player doesn't drift while typing
+        this.keys = {}; 
     }
 
     closeChat() {
@@ -260,7 +261,7 @@ class Game {
         if (e.code === 'ArrowUp') {
             if (this.chatSentHistory.length === 0) return;
             if (this.chatHistoryIndex === -1) {
-                this.chatHistoryDraft = this.chatInputText; // remember what was being typed
+                this.chatHistoryDraft = this.chatInputText; 
                 this.chatHistoryIndex = this.chatSentHistory.length - 1;
             } else if (this.chatHistoryIndex > 0) {
                 this.chatHistoryIndex--;
@@ -287,8 +288,6 @@ class Game {
     sendChatMessage(text) {
         const trimmed = text.trim().slice(0, this.CHAT_MAX_LENGTH);
         if (!trimmed) return;
-
-        // Track sent messages for terminal-style up-arrow recall (skip consecutive dupes).
         if (this.chatSentHistory[this.chatSentHistory.length - 1] !== trimmed) {
             this.chatSentHistory.push(trimmed);
             if (this.chatSentHistory.length > 50) this.chatSentHistory.shift();
@@ -298,8 +297,6 @@ class Game {
             this.network.sendChatMessage(trimmed);
             return;
         }
-
-        // Offline/local play: no server to echo the message back, so show it immediately.
         const localPlayer = this.players[this.localSeatIndex];
         this.handleChatMessage({
             seatIndex: this.localSeatIndex,
@@ -336,8 +333,9 @@ class Game {
                 controls: seatIndex === localSeatIndex ? LOCAL_PLAYER_CONTROLS : null,
                 isBot: seatIndex !== localSeatIndex,
                 physicsState: null,
-                stageCursor: 0,
+                stageCursor: -1, 
                 stageVoteLocked: false,
+                stageStandStartTime: null,
                 partyCursor: 0,
                 piece: null,
                 buildCursor: { col: 0, row: 0 },
@@ -370,24 +368,40 @@ class Game {
         return Math.max(90, Math.min(STAGE_SELECT_BOX_WIDTH, available));
     }
     getStageBoxHeight(boxWidth) {
-        // Derived from the actual thumbnail + title layout below (thumbPad,
-        // STAGE_PREVIEW_ASPECT, and the thumb-to-title gap) instead of a
-        // fixed width/height ratio. The title text is a fixed pixel size
-        // and doesn't shrink along with the box, so tying the box height to
-        // the thumbnail's own height (plus fixed padding for the label)
-        // keeps the label from leaking out the bottom when more candidates
-        // make the boxes narrower/shorter.
         const thumbPad = 12;
         const thumbW = boxWidth - thumbPad * 2;
         const thumbH = thumbW * STAGE_PREVIEW_ASPECT;
-        const titleGap = 24; // gap from bottom of thumb to title baseline
-        const bottomMargin = 20; // room below the title baseline for descenders
+        const titleGap = 24; 
+        const bottomMargin = 20; 
         return thumbPad + thumbH + titleGap + bottomMargin;
     }
     enterStageSelect() {
         this.stageCandidates = this.pickStageCandidates();
-        this.players.forEach(p => { p.stageCursor = 0; p.stageVoteLocked = false; });
         this.gameState = GameState.STAGE_SELECT;
+        this.setupStageSelectArena();
+    }
+    generateStageVoteZones() {
+        const spots = this.STAGE_VOTE_ZONES;
+        this.stageVoteZones = this.stageCandidates.map((code, i) => spots[i % spots.length]);
+    }
+    setupStageSelectArena() {
+        this.loadLevel(STAGE_VOTE_ARENA_LEVEL_CODE);
+        this.generateStageVoteZones();
+
+        const spawnWorld = this.buildCellToWorld(this.getSpawnCell());
+        this.players.forEach((p, i) => {
+            p.stageCursor = -1;
+            p.stageVoteLocked = false;
+            p.stageStandStartTime = null;
+            if (p.physicsState) {
+                p.physicsState.PLAYER_X = spawnWorld.x + (i - (this.players.length - 1) / 2) * 24;
+                p.physicsState.PLAYER_Y = spawnWorld.y;
+            }
+        });
+        this.stageCountdownActive = false;
+        this.stageCountdownStart = null;
+        this.stageCountdownDuration = STAGE_VOTE_STAND_SECONDS * 1000;
+
         const boxWidth = this.getStageBoxWidth(this.stageCandidates.length);
         const thumbW = boxWidth - 24;
         const thumbH = thumbW * STAGE_PREVIEW_ASPECT;
@@ -417,14 +431,6 @@ class Game {
 
         ctx.fillStyle = THEME.bg;
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-
-        // Anchor the "camera" on the start/finish span, mirroring the
-        // in-race "fit start & finish" camera mode - but then render every
-        // tile that actually falls within the resulting viewport, not just
-        // the tiles inside a tightly-padded box around those two points.
-        // Otherwise tiles that are on-screen (because the box was widened
-        // to match the canvas aspect ratio) never get drawn and the level
-        // looks cut off.
         const REGION_PAD = 2;
         const spawnIdx = levelData.map.indexOf(76);
         const finishIdx = levelData.map.indexOf(63);
@@ -445,9 +451,6 @@ class Game {
 
         const MARGIN = 0.9;
         const tile = Math.min(canvasWidth / boxCols, canvasHeight / boxRows) * MARGIN;
-
-        // Continuous viewport bounds in tile units (row grows upward, like
-        // the in-game world, so "top" corresponds to the largest row).
         const visibleCols = canvasWidth / tile;
         const visibleRows = canvasHeight / tile;
         const leftCol = centerCol - visibleCols / 2;
@@ -488,36 +491,110 @@ class Game {
     pickStageCandidates() {
         return LEVEL_POOL.slice();
     }
-    handleStageSelectInput(code) {
-        const numCandidates = this.stageCandidates.length;
-        if (numCandidates === 0) return;
+    getStageSelectInputKeysFor(player) {
+        if (!player.controls) return "";
+        let keys = '';
+        if (player.controls.right.some(k => this.keys[k])) keys += 'D';
+        if (player.controls.left.some(k => this.keys[k])) keys += 'A';
+        if (player.controls.down.some(k => this.keys[k])) keys += 'S';
+        if (player.controls.up.some(k => this.keys[k])) keys += 'W';
+        return keys;
+    }
+    updateStageSelectPhysics() {
+        const firstPlayer = this.players[0];
+        if (!this.physics || !firstPlayer || !firstPlayer.physicsState) return;
+        this.physics.tickObj(firstPlayer.physicsState.OBJ);
 
-        for (const player of this.players) {
-            if (!player.controls) continue; 
+        this.players.forEach(player => {
+            if (!player.physicsState) return;
+            const isRemoteNetworked = this.network && !player.controls;
 
-            if (player.controls.left.includes(code)) {
-                if (player.stageVoteLocked) continue;
-                player.stageCursor = (player.stageCursor - 1 + numCandidates) % numCandidates;
-                playSfx('hover');
-                if (this.network) this.network.sendStageCursorMove(player.stageCursor);
-            } else if (player.controls.right.includes(code)) {
-                if (player.stageVoteLocked) continue;
-                player.stageCursor = (player.stageCursor + 1) % numCandidates;
-                playSfx('hover');
-                if (this.network) this.network.sendStageCursorMove(player.stageCursor);
-            } else if (player.controls.confirm.includes(code)) {
-                if (player.stageVoteLocked) {
-                    player.stageVoteLocked = false;
-                    continue;
+            if (isRemoteNetworked) {
+                const pos = this.remotePositions.get(player.seatIndex);
+                if (pos) {
+                    player.physicsState.PLAYER_X = pos.x;
+                    player.physicsState.PLAYER_Y = pos.y;
+                    player.physicsState.PLAYER_SX = pos.sx;
+                    player.physicsState.PLAYER_SY = pos.sy;
+                    if (pos.direction !== undefined) player.physicsState.direction = pos.direction;
+                    if (pos.dir !== undefined) player.physicsState.PLAYER_DIR = pos.dir;
+                    player.physicsState.player_state = pos.crouched ? 2 : 0;
+                    player.physicsState.player_wall = pos.onWall ? 1 : null;
                 }
-                player.stageVoteLocked = true;
-                if (this.network) {
-                    this.network.sendStagePickRequest(player.stageCursor);
-                } else {
-                    playSfx('select');
-                    this.confirmStageSelection(player.stageCursor);
-                }
+                return;
             }
+
+            const keys = this.getStageSelectInputKeysFor(player);
+            player.physicsState = this.physics.tick(player.physicsState, keys);
+
+            if (player.controls && this.network) {
+                this.network.sendPositionSnapshot(
+                    this.tick,
+                    player.physicsState.PLAYER_X,
+                    player.physicsState.PLAYER_Y,
+                    player.physicsState.PLAYER_SX,
+                    player.physicsState.PLAYER_SY,
+                    player.physicsState.direction,
+                    player.physicsState.PLAYER_DIR,
+                    player.physicsState.player_state === 2,
+                    player.physicsState.player_wall != null
+                );
+            }
+        });
+
+        this.physics.tickWorldActive(this.players.map(p => p.physicsState), this.players.map(p => p.physicsState));
+        this.physics.tileUpdates.length = 0; 
+
+        this.updateStageVoteProgress();
+        this.updateRaceCamera();
+        this.tick += 1;
+    }
+    updateStageVoteProgress() {
+        const zones = this.stageVoteZones || [];
+        this.players.forEach(player => {
+            if (!player.controls || !player.physicsState) return;
+
+            const px = player.physicsState.PLAYER_X;
+            const py = player.physicsState.PLAYER_Y;
+            let zoneIndex = -1;
+            for (let i = 0; i < zones.length; i++) {
+                const dx = Math.abs(px - zones[i].x);
+                const dy = Math.abs(py - zones[i].y);
+                if (dx <= STAGE_VOTE_ZONE_WIDTH / 2 && dy <= STAGE_VOTE_ZONE_DEPTH / 2) { zoneIndex = i; break; }
+            }
+
+            const isMoving = Math.abs(player.physicsState.PLAYER_SX || 0) > STAGE_VOTE_MOVE_TOLERANCE;
+            if (isMoving) zoneIndex = -1;
+
+            if (zoneIndex !== player.stageCursor) {
+                player.stageCursor = zoneIndex;
+                player.stageStandStartTime = zoneIndex === -1 ? null : performance.now();
+                if (this.network) this.network.sendStageCursorMove(zoneIndex);
+            }
+        });
+
+        // Without a server, this client is authoritative for the countdown itself.
+        if (!this.network) this.updateOfflineStageCountdown();
+    }
+    updateOfflineStageCountdown() {
+        const controlledPlayers = this.players.filter(p => p.controls);
+        const allStanding = controlledPlayers.length > 0 && controlledPlayers.every(p => p.stageCursor !== -1);
+
+        if (allStanding) {
+            if (!this.stageCountdownActive) {
+                this.stageCountdownActive = true;
+                this.stageCountdownStart = performance.now();
+            }
+            const elapsed = performance.now() - this.stageCountdownStart;
+            if (elapsed >= this.stageCountdownDuration) {
+                this.stageCountdownActive = false;
+                if (typeof playSfx === 'function') playSfx('select');
+                const localPlayer = this.players[this.localSeatIndex];
+                this.confirmStageSelection(localPlayer ? localPlayer.stageCursor : 0);
+            }
+        } else if (this.stageCountdownActive) {
+            this.stageCountdownActive = false;
+            this.stageCountdownStart = null;
         }
     }
     confirmStageSelection(index) {
@@ -1310,13 +1387,6 @@ class Game {
             this.roundEndFrames = 0;
         }
     }
-
-    // Computes a "camera push" offset that leans the view in the direction of
-    // travel, scaled by speed and capped so it settles into a consistent
-    // lookahead gap rather than growing unbounded at high speed. It's eased
-    // on its own (slower than the camera's position tracking) so the push
-    // builds in smoothly instead of snapping frame-to-frame with raw velocity
-    // noise (bumps, wall-jump impulses, etc).
     updateCameraLookahead(vx, vy) {
         const LOOKAHEAD_PER_SPEED_X = 16;
         const LOOKAHEAD_PER_SPEED_Y = 16;
@@ -1363,8 +1433,6 @@ class Game {
 
         const minX = Math.min(...xs), maxX = Math.max(...xs);
         const minY = Math.min(...ys), maxY = Math.max(...ys);
-        
-        // Define separate padding for X and Y to account for the widescreen aspect ratio
         const PADDING_X = 160; 
         const PADDING_Y = 80;  
         
@@ -1378,8 +1446,6 @@ class Game {
         const MAX_ZOOM = 1.25;
         const ZOOM_EPSILON = 0.05;
         const targetZoom = Math.max(ZOOM_EPSILON, Math.min(MAX_ZOOM, fitZoom));
-
-        // Increased tracking interpolation (from 0.1 to 0.15) to prevent players outrunning the camera horizontally
         this.camera.x += (targetCameraX - this.camera.x) * 0.15;
         this.camera.y += ((targetCameraY - this.camera.y) + 8) * 0.15;
         
@@ -1452,11 +1518,6 @@ class Game {
         const allFinishers = this.players
             .filter(p => p.hasFinished)
             .sort((a, b) => a.finishTick - b.finishTick);
-
-        // A player can end up both "finished" and "eliminated" if they died but
-        // still crossed the goal (momentum, etc). That doesn't count as legitimately
-        // beating the level, so it's excluded from normal scoring below and instead
-        // earns a flat Postmortem award.
         const finishers = allFinishers.filter(p => !p.eliminated);
         const postmortemFinishers = allFinishers.filter(p => p.eliminated);
         const POSTMORTEM_POINTS = 2;
@@ -1489,9 +1550,6 @@ class Game {
                     const behindBy = leaderScore - player.score;
                     if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = 2;
                 } else if (i === 0 && finishers.length > 1) {
-                    // Everyone cleared the level, so no goal/comeback points, but the
-                    // first player across the line still earns their placement point —
-                    // unless this was a solo finish.
                     breakdown.firstPlace = 1;
                 }
 
@@ -1547,26 +1605,18 @@ class Game {
     drawChat() {
         const ctx = this.ctx;
         const now = performance.now();
-        // Expiry only controls fade-out opacity for the transient HUD view now — we no
-        // longer delete from this.chatMessages here, so history (capped at
-        // CHAT_MAX_HISTORY) survives and reopening chat shows past messages again.
 
         const padX = 20;
         const lineHeight = 22;
-        const fadeWindow = 1000; // ms — messages fade out over their last second
+        const fadeWindow = 1000; 
         const inputBoxHeight = lineHeight + 6;
-        const inputBoxGap = 13; // extra breathing room between the input box and the message log
+        const inputBoxGap = 13; 
 
         ctx.save();
         ctx.font = `bold 15px ${THEME.font}`;
         ctx.textBaseline = 'alphabetic';
-        ctx.textAlign = 'left'; // don't inherit 'center' left over from earlier draw calls
-
-        // Reserve space for the input box (if open) so the message log never overlaps it.
+        ctx.textAlign = 'left'; 
         let y = this.canvas.height - 20 - (this.chatOpen ? inputBoxHeight + inputBoxGap : 0);
-
-        // While chat is open, show history (scrollback, shifted by chatScrollOffset) at
-        // full opacity; while closed, only show recently-sent messages fading out over time.
         let visible;
         if (this.chatOpen) {
             const maxOffset = Math.max(0, this.chatMessages.length - 1);
@@ -1598,7 +1648,7 @@ class Game {
             ctx.fillText(msg.text, padX + nameWidth, y);
 
             y -= lineHeight;
-            if (y < 20) break; // stop before drawing off the top of the screen
+            if (y < 20) break; 
         }
         ctx.globalAlpha = 1;
 
@@ -1768,7 +1818,7 @@ class Game {
                 break;
 
             case GameState.STAGE_SELECT:
-                this.drawStageSelectScreen();
+                this.stageSelectLoop();
                 break;
 
             case GameState.PARTY_BOX:
@@ -1825,8 +1875,6 @@ class Game {
         }
         const raceElapsedSeconds = this.RACE_TIME_LIMIT - this.raceTimeRemaining;
         if (raceElapsedSeconds < this.GIVE_UP_LOCKOUT_SECONDS) {
-            // Still in the post-spawn grace period - don't let a held confirm
-            // key (e.g. from placing the last build piece) count toward giving up.
             this.giveUpHoldFrames = 0;
             return;
         }
@@ -1855,11 +1903,6 @@ class Game {
             playSfx('boom');
         }
     }
-
-    // A quiet, always-there hint so players can discover the give-up hold
-    // without needing to already be pressing it. Hidden while the ring is
-    // active (holding) and during the post-spawn lockout, so it doesn't
-    // flicker on right as the race starts.
     drawGiveUpHint() {
         if (this.gameState !== GameState.RACE) return;
         if (this.giveUpHoldFrames > 0) return;
@@ -1944,8 +1987,6 @@ class Game {
     }
 
     updateBuildCamera() {
-        // Ignore players who've disconnected so the camera doesn't keep
-        // framing a box that includes their last known cursor position.
         const activePlayers = this.players.filter(p => p && p.connected !== false);
         const source = activePlayers.length ? activePlayers : this.players;
         const worlds = source.map(p => this.buildCellToWorld(p.buildCursor));
@@ -1957,8 +1998,6 @@ class Game {
 
         const minX = Math.min(...xs), maxX = Math.max(...xs);
         const minY = Math.min(...ys), maxY = Math.max(...ys);
-
-        // Match the same dynamic padding setup used in the race camera
         const PADDING_X = 160;
         const PADDING_Y = 80;
         
@@ -1994,6 +2033,12 @@ class Game {
         return {
             x: this.canvas.width / 2 + this.camera.zoom * (world.x - this.camera.x),
             y: this.canvas.height / 2 + this.camera.zoom * (this.camera.y + tileY)
+        };
+    }
+    worldToScreen(x, y) {
+        return {
+            x: this.canvas.width / 2 + this.camera.zoom * (x - this.camera.x),
+            y: this.canvas.height / 2 + this.camera.zoom * (this.camera.y - y)
         };
     }
     drawBuildScreen() {
@@ -2053,10 +2098,6 @@ class Game {
         this.drawPartyBoxScreen();
     }
     drawSelectionOutlines(x, y, width, height, radius, playersHere, lockedField) {
-        // One ring per player whose cursor is on this box, in that player's
-        // own color, so everyone can see at a glance where they and others
-        // are. Once a player has locked in (voted / grabbed a piece) their
-        // ring turns grey to show they're done and no longer choosing.
         const RING_GAP = 4;
         playersHere.forEach((player, i) => {
             const locked = lockedField ? !!player[lockedField] : false;
@@ -2109,7 +2150,7 @@ class Game {
         const width = 110;
         const height = width * STAGE_PREVIEW_ASPECT;
         const x = this.canvas.width - 20 - width;
-        const y = 60; // below the countdown ring (ring bottom edge is ~50px)
+        const y = 60; 
 
         const thumb = this.generateStageThumbnail(levelCode, width, height) || this.stageThumbnails.get(levelCode);
 
@@ -2180,72 +2221,96 @@ class Game {
 
         this.drawPartyStatusList(boxY + boxHeight + 45);
     }
-    drawStageSelectScreen() {
-        this.fillBackground();
-        this.drawScreenTitle('Stage Select');
-        this.drawRoundBadge();
+    stageSelectLoop() {
+        this.updateStageSelectPhysics();
 
-        this.ctx.font = "14px " + THEME.font;
+        if (this.levelData) {
+            this.renderer.render(this.levelData, this.camera);
+        }
+        this.drawStageVoteZones();
+        this.drawEntities();
+        this.drawStageSelectHud();
+        this.drawStageVoteTimer();
+    }
+    drawStageSelectHud() {
+        this.drawScreenTitle('Stand on the stage you want!');
+
+        this.ctx.font = "13px " + THEME.font;
         this.ctx.fillStyle = THEME.textMuted;
+        this.ctx.textAlign = 'center';
         this.ctx.fillText(
-            'Arrow keys to move, Enter/Shift to grab',
-            this.canvas.width / 2, 82
+            `Everyone must stand still on a stage — countdown starts once all players are ready`,
+            this.canvas.width / 2, 66
         );
 
-        const candidates = this.stageCandidates;
-        if (!candidates || candidates.length === 0) return;
+        this.drawRoundBadge();
+    }
+    drawStageVoteZones() {
+        const zones = this.stageVoteZones || [];
+        const candidates = this.stageCandidates || [];
+        const ctx = this.ctx;
 
-        const boxWidth = this.getStageBoxWidth(candidates.length);
-        const boxHeight = this.getStageBoxHeight(boxWidth);
-        const boxY = this.canvas.height / 2 - boxHeight / 2;
-        const boxGap = 24;
-        const totalWidth = candidates.length * boxWidth + (candidates.length - 1) * boxGap;
-        const startCx = (this.canvas.width - totalWidth) / 2 + boxWidth / 2;
+        ctx.save();
+        zones.forEach((zone, i) => {
+            const code = candidates[i];
+            if (!code) return;
+            const screen = this.worldToScreen(zone.x, zone.y);
 
-        candidates.forEach((code, i) => {
-            const cx = startCx + i * (boxWidth + boxGap);
-            const playersHere = this.players.filter(p => p.stageCursor === i);
-
-            this.ctx.save();
-
-            this.roundRectPath(cx - boxWidth / 2, boxY, boxWidth, boxHeight, 10);
-            this.ctx.fillStyle = THEME.panel;
-            this.ctx.fill();
-
-            this.ctx.strokeStyle = THEME.panelBorder;
-            this.ctx.lineWidth = 1.5;
-            this.ctx.stroke();
-
-            const thumbPad = 12;
-            const thumbW = boxWidth - thumbPad * 2;
-            const thumbH = thumbW * STAGE_PREVIEW_ASPECT;
-            const thumbX = cx - thumbW / 2;
-            const thumbY = boxY + thumbPad;
-            const thumb = this.generateStageThumbnail(code, thumbW, thumbH);
-            if (thumb) {
-                this.ctx.save();
-                this.ctx.imageSmoothingEnabled = true;
-                this.ctx.imageSmoothingQuality = 'high';
-                this.roundRectPath(thumbX, thumbY, thumbW, thumbH, 9);
-                this.ctx.clip();
-                this.ctx.drawImage(thumb, thumbX, thumbY, thumbW, thumbH);
-                this.ctx.restore();
-            } else {
-                this.drawLevelIcon(cx, boxY + boxHeight / 2 - 21, 69, i);
-            }
+            const boxWidth = 200 * this.camera.zoom;
+            const thumbH = boxWidth * STAGE_PREVIEW_ASPECT;
+            const thumbX = screen.x - boxWidth / 2;
+            const thumbY = screen.y - thumbH + 18;
 
             const levelIndex = LEVEL_POOL.indexOf(code);
-            const levelTitle = (levelIndex !== -1 && LEVEL_NAMES[levelIndex]) ? LEVEL_NAMES[levelIndex] : 'Untitled Level';
-            this.ctx.fillStyle = THEME.text;
-            this.ctx.font = "19px " + THEME.font;
-            this.ctx.fillText(levelTitle, cx, thumbY + thumbH + 24);
+            const levelTitle = (levelIndex !== -1 && LEVEL_NAMES[levelIndex]) ? LEVEL_NAMES[levelIndex] : `Stage ${i + 1}`;
+            ctx.fillStyle = '#000000';
+            ctx.font = `${13 * this.camera.zoom}px ` + THEME.font;
+            ctx.textAlign = 'center';
+            ctx.fillText(levelTitle, screen.x, thumbY - 8 * this.camera.zoom);
 
-            this.drawSelectionOutlines(cx - boxWidth / 2, boxY, boxWidth, boxHeight, 10, playersHere, 'stageVoteLocked');
-
-            this.drawCursorChips('stageCursor', i, cx, boxY, 'stageVoteLocked');
-
-            this.ctx.restore();
+            const thumb = this.generateStageThumbnail(code, boxWidth, thumbH);
+            if (thumb) {
+                ctx.save();
+                ctx.imageSmoothingEnabled = true;
+                this.roundRectPath(thumbX, thumbY, boxWidth, thumbH, 8);
+                ctx.clip();
+                ctx.drawImage(thumb, thumbX, thumbY, boxWidth, thumbH);
+                ctx.restore();
+            } else {
+                this.drawLevelIcon(screen.x, thumbY + thumbH / 2, 48 * this.camera.zoom, i);
+            }
         });
+        ctx.restore();
+    }
+    drawStageVoteTimer() {
+        if (!this.stageCountdownActive || this.stageCountdownStart == null) return;
+
+        const elapsed = performance.now() - this.stageCountdownStart;
+        const remaining = Math.max(0, (this.stageCountdownDuration - elapsed) / 1000);
+        const remainingLabel = String(Math.ceil(remaining));
+
+        const localPlayer = this.players[this.localSeatIndex];
+        const levelIndex = localPlayer && localPlayer.stageCursor !== -1
+            ? LEVEL_POOL.indexOf(this.stageCandidates[localPlayer.stageCursor])
+            : -1;
+        const levelTitle = (levelIndex !== -1 && LEVEL_NAMES[levelIndex]) ? LEVEL_NAMES[levelIndex] : null;
+
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        ctx.font = `bold 96px ${THEME.font}`;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillText(remainingLabel, this.canvas.width / 2 + 4, this.canvas.height / 2 + 4);
+        ctx.fillStyle = THEME.accent;
+        ctx.fillText(remainingLabel, this.canvas.width / 2, this.canvas.height / 2);
+
+        ctx.font = `18px ${THEME.font}`;
+        ctx.fillStyle = 'rgb(0, 0, 0)';
+        const captionText = levelTitle ? `Voting for ${levelTitle}` : 'Everyone is ready — locking in a stage';
+        ctx.fillText(captionText, this.canvas.width / 2, this.canvas.height / 2 + 70);
+        ctx.restore();
     }
     easeOutCubic(t) {
         const clamped = Math.max(0, Math.min(1, t));
@@ -2336,10 +2401,6 @@ class Game {
 
         const activePlayers = this.players.filter(p => p !== null);
         const n = Math.max(activePlayers.length, 1);
-
-        // Budget matches the space 4 players used at the original fixed size
-        // (4 * 60 + 3 * 30 = 330px). Scale bar height/spacing down to fit
-        // more players in the same budget instead of overflowing the canvas.
         const CHART_HEIGHT_BUDGET = 330;
         const BASE_BAR_HEIGHT = 60;
         const BASE_BAR_SPACING = 30;
@@ -2491,9 +2552,6 @@ class Game {
             if (totalCleared === 0 && !anyPostmortem) {
                 globalSplashText = "NO POINTS - TOO HARD!";
             } else if (totalCleared === activePlayers.length) {
-                // Matches the scoring exclusions in awardRoundPoints()/Room.endRound():
-                // a first-place point still goes out here unless it was a
-                // solo (everyone-clears-with-one-player) finish.
                 globalSplashText = (totalCleared > 1)
                     ? "TOO EASY - FIRST PLACE ONLY!"
                     : "NO POINTS - TOO EASY!";
@@ -2574,9 +2632,6 @@ class Game {
         net.onPlayerLeft = (payload) => {
             this.markSeatDisconnected(payload.seatIndex);
             this.applyHostSeatIndex(payload.hostSeatIndex);
-            // Recompute the continue-vote total so the results/final-results
-            // screen doesn't keep waiting on a confirmation count that includes
-            // a seat which just left (looked like an AFK player before this fix).
             if (this.gameState === GameState.ROUND_RESULTS) {
                 this.continueTotalConnected = this.players.filter(p => p && p.connected !== false).length;
             }
@@ -2606,7 +2661,6 @@ class Game {
             this.network.sendSetColorRequest(hue);
             return;
         }
-        // Offline/local play: apply immediately since there's no server to confirm it.
         const player = this.players[this.localSeatIndex];
         if (!player) return;
         player.hue = hue;
@@ -2696,11 +2750,6 @@ class Game {
         const player = this.players[seatIndex];
         if (player) player.connected = true;
     }
-
-    // Keeps this.isHost correct any time the server tells us who the host is,
-    // not just from ROOM_STATE (which is only rebroadcast while in the lobby).
-    // Without this, a host handoff mid-match wouldn't show up client-side
-    // until/unless the room happened to pass back through the lobby.
     applyHostSeatIndex(hostSeatIndex) {
         if (typeof hostSeatIndex !== 'number') return;
         const wasHost = this.isHost;
@@ -2719,14 +2768,8 @@ class Game {
         switch (type) {
             case 'STAGE_SELECT_START':
                 this.stageCandidates = payload.candidates || [];
-                this.players.forEach(p => { p.stageCursor = 0; p.stageVoteLocked = false; });
                 this.gameState = GameState.STAGE_SELECT;
-                {
-                    const boxWidth = this.getStageBoxWidth(this.stageCandidates.length);
-                    const thumbW = boxWidth - 24;
-                    const thumbH = thumbW * STAGE_PREVIEW_ASPECT;
-                    this.stageCandidates.forEach(code => this.generateStageThumbnail(code, thumbW, thumbH));
-                }
+                this.setupStageSelectArena();
                 break;
             case 'STAGE_CURSOR_MOVE': {
                 const player = this.players[payload.seatIndex];
@@ -2740,6 +2783,17 @@ class Game {
                     player.stageVoteLocked = true;
                     if (typeof playSfx === 'function') playSfx('select');
                 }
+                break;
+            }
+            case 'STAGE_COUNTDOWN_START': {
+                this.stageCountdownActive = true;
+                this.stageCountdownStart = performance.now();
+                this.stageCountdownDuration = payload.duration || (STAGE_VOTE_STAND_SECONDS * 1000);
+                break;
+            }
+            case 'STAGE_COUNTDOWN_CANCEL': {
+                this.stageCountdownActive = false;
+                this.stageCountdownStart = null;
                 break;
             }
             case 'STAGE_LOCKED': {
