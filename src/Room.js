@@ -2,7 +2,6 @@ const {
     PHASE,
     TOTAL_ROUNDS,
     getPartyBoxSlotCount,
-    STAGE_TIME_LIMIT,
     PARTY_TIME_LIMIT,
     BUILD_TIME_LIMIT,
     RACE_TIME_LIMIT,
@@ -211,11 +210,8 @@ class Room {
         this.broadcast({
             type: 'STAGE_SELECT_START',
             phase: PHASE.STAGE_SELECT,
-            payload: { candidates: this.stageCandidates, timeLimit: STAGE_TIME_LIMIT }
+            payload: { candidates: this.stageCandidates }
         });
-
-        clearTimeout(this.timers.stageSelect);
-        this.timers.stageSelect = setTimeout(() => this.expireStageSelect(), STAGE_TIME_LIMIT * 1000);
     }
 
     handleStageCursorMove(seat, payload) {
@@ -252,16 +248,6 @@ class Room {
         const allVoted = this.connectedSeats.every(s => this.stageVotes.has(s.seatIndex));
         if (allVoted) this.finalizeStageVote();
     }
-    expireStageSelect() {
-        if (this.phase !== PHASE.STAGE_SELECT) return;
-        if (this.locks.stagePicked) return;
-        for (const seat of this.connectedSeats) {
-            if (!this.stageVotes.has(seat.seatIndex)) {
-                this.stageVotes.set(seat.seatIndex, Math.floor(Math.random() * this.stageCandidates.length));
-            }
-        }
-        this.finalizeStageVote();
-    }
     tallyStageVotes() {
         const counts = new Array(this.stageCandidates.length).fill(0);
         for (const candidateIndex of this.stageVotes.values()) {
@@ -277,7 +263,6 @@ class Room {
     finalizeStageVote() {
         if (this.locks.stagePicked) return;
         this.locks.stagePicked = true;
-        clearTimeout(this.timers.stageSelect);
 
         const winningIndex = this.tallyStageVotes();
         const levelCode = this.stageCandidates[winningIndex];
@@ -1046,7 +1031,6 @@ class Room {
 
     destroy() {
         clearTimeout(this.timers.loadingBarrier);
-        clearTimeout(this.timers.stageSelect);
         clearTimeout(this.timers.partyBox);
         clearTimeout(this.timers.build);
         clearTimeout(this.timers.race);

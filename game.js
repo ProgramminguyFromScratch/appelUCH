@@ -74,7 +74,6 @@ function hueShiftToHex(hueShift) {
 }
 
 const STAGE_SELECT_BOX_WIDTH = 255;
-const STAGE_SELECT_BOX_HEIGHT = 204;
 const STAGE_PREVIEW_ASPECT = 10 / 15; 
 let LEVEL_POOL = [];
 let LEVEL_NAMES = [];
@@ -234,7 +233,19 @@ class Game {
         return Math.max(90, Math.min(STAGE_SELECT_BOX_WIDTH, available));
     }
     getStageBoxHeight(boxWidth) {
-        return boxWidth * (STAGE_SELECT_BOX_HEIGHT / STAGE_SELECT_BOX_WIDTH);
+        // Derived from the actual thumbnail + title layout below (thumbPad,
+        // STAGE_PREVIEW_ASPECT, and the thumb-to-title gap) instead of a
+        // fixed width/height ratio. The title text is a fixed pixel size
+        // and doesn't shrink along with the box, so tying the box height to
+        // the thumbnail's own height (plus fixed padding for the label)
+        // keeps the label from leaking out the bottom when more candidates
+        // make the boxes narrower/shorter.
+        const thumbPad = 12;
+        const thumbW = boxWidth - thumbPad * 2;
+        const thumbH = thumbW * STAGE_PREVIEW_ASPECT;
+        const titleGap = 24; // gap from bottom of thumb to title baseline
+        const bottomMargin = 20; // room below the title baseline for descenders
+        return thumbPad + thumbH + titleGap + bottomMargin;
     }
     enterStageSelect() {
         this.stageCandidates = this.pickStageCandidates();
@@ -269,29 +280,56 @@ class Game {
 
         ctx.fillStyle = THEME.bg;
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-        const REGION_COLS = 15;
-        const REGION_ROWS = 10;
-        const regionCols = Math.min(REGION_COLS, cols);
-        const regionRows = Math.min(REGION_ROWS, rows);
-        const startCol = 0;
-        const startRow = 0;
+
+        // Anchor the "camera" on the start/finish span, mirroring the
+        // in-race "fit start & finish" camera mode - but then render every
+        // tile that actually falls within the resulting viewport, not just
+        // the tiles inside a tightly-padded box around those two points.
+        // Otherwise tiles that are on-screen (because the box was widened
+        // to match the canvas aspect ratio) never get drawn and the level
+        // looks cut off.
+        const REGION_PAD = 2;
+        const spawnIdx = levelData.map.indexOf(76);
+        const finishIdx = levelData.map.indexOf(63);
+        let centerCol = cols / 2;
+        let centerRow = rows / 2;
+        let boxCols = Math.min(15, cols);
+        let boxRows = Math.min(10, rows);
+        if (spawnIdx >= 0 && finishIdx >= 0) {
+            const spawnCol = spawnIdx % cols, spawnRow = Math.floor(spawnIdx / cols);
+            const finishCol = finishIdx % cols, finishRow = Math.floor(finishIdx / cols);
+            centerCol = (spawnCol + finishCol) / 2 + 0.5;
+            centerRow = (spawnRow + finishRow) / 2 + 0.5;
+            boxCols = Math.abs(finishCol - spawnCol) + REGION_PAD * 2;
+            boxRows = Math.abs(finishRow - spawnRow) + REGION_PAD * 2;
+        }
+        boxCols = Math.max(1, boxCols);
+        boxRows = Math.max(1, boxRows);
+
         const MARGIN = 0.9;
-        const tile = Math.min(canvasWidth / regionCols, canvasHeight / regionRows) * MARGIN;
-        const gridW = regionCols * tile;
-        const gridH = regionRows * tile;
-        const offsetX = (canvasWidth - gridW) / 2;
-        const offsetY = (canvasHeight - gridH) / 2;
-        for (let row = startRow; row < startRow + regionRows; row++) {
+        const tile = Math.min(canvasWidth / boxCols, canvasHeight / boxRows) * MARGIN;
+
+        // Continuous viewport bounds in tile units (row grows upward, like
+        // the in-game world, so "top" corresponds to the largest row).
+        const visibleCols = canvasWidth / tile;
+        const visibleRows = canvasHeight / tile;
+        const leftCol = centerCol - visibleCols / 2;
+        const topRow = centerRow + visibleRows / 2;
+
+        const firstCol = Math.max(0, Math.floor(leftCol));
+        const lastCol = Math.min(cols - 1, Math.ceil(leftCol + visibleCols) - 1);
+        const lastRow = Math.min(rows - 1, Math.ceil(topRow) - 1);
+        const firstRow = Math.max(0, Math.floor(topRow - visibleRows));
+
+        for (let row = firstRow; row <= lastRow; row++) {
             const rowBase = row * cols;
-            const screenRow = regionRows - 1 - (row - startRow);
-            for (let col = startCol; col < startCol + regionCols; col++) {
+            const tileY = (topRow - (row + 0.5)) * tile;
+            for (let col = firstCol; col <= lastCol; col++) {
                 const rawTileVal = levelData.map[rowBase + col];
                 if (!rawTileVal) continue;
 
-                const screenCol = col - startCol;
                 const rotation = levelData.rotations[rowBase + col] % 4;
-                const tileX = offsetX + screenCol * tile + tile / 2;
-                const tileY = offsetY + screenRow * tile + tile / 2;
+                const tileX = (col + 0.5 - leftCol) * tile;
                 for (let isForeground = 0; isForeground <= 1; isForeground++) {
                     const offset = isForeground * 86;
                     const tileImg = activeTileset[rawTileVal - 1 + offset];
