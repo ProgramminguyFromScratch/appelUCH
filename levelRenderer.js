@@ -14,7 +14,7 @@ class LevelRenderer {
         this.assetsLoaded = false;
         this.tileSize = 60;
 
-        this.needsHue = [..."01111110010010001101100000000001100000000111000001100000001000000001000001001111111001"]
+        this.needsHue = [..."01111110010010001101100000000001100000000111000001111111101000000001000001001111111001"]
             .flatMap((c, i) => c === "1" ? [i] : []);
     }
 
@@ -503,7 +503,7 @@ class LevelRenderer {
         ctx.restore();
     }
 
-    render(levelData, camera) {
+    render(levelData, camera, tick) {
         if (!this.assetsLoaded) return;
 
         const { width, height } = this.canvas;
@@ -578,8 +578,15 @@ class LevelRenderer {
                     const idx = rowBase + col;
                     if (idx < 0 || idx >= levelData.map.length) continue;
 
-                    const rawTileVal = levelData.map[idx];
+                    let rawTileVal = levelData.map[idx];
                     if (rawTileVal === 0) continue;
+                    if (rawTileVal === 50) {
+                        rawTileVal = 52 + tick % 6;
+                    } else if (rawTileVal === 51) {
+                        rawTileVal = 57 - tick % 6;
+                    } else if (rawTileVal === 63) {
+                        rawTileVal = 63 + Math.abs(Math.floor(tick / 3) % 8 -3);
+                    } 
 
                     const tileIndex = rawTileVal - 1 + offset;
                     const tile = activeTileset[tileIndex];

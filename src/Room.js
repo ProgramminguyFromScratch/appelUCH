@@ -19,7 +19,7 @@ const {
     LOGIN_ATTEMPT_WINDOW_MS
 } = require('./protocol');
 const { decodeLevelCode, encodeLevelCode } = require('./levelCode');
-const { PIECE_POOL, getPieceById, getPieceFootprintCells } = require('./pieces');
+const { PIECE_POOL, getPieceById, getPieceFootprintCells, pickWeightedPieces } = require('../pieces');
 const { LEVEL_POOL } = require('./levels');
 
 const HUE_MIN = 0;
@@ -507,19 +507,11 @@ class Room {
         return { col: idx % cols, row: Math.floor(idx / cols) };
     }
     pickPartySlots(count, allowBomb, guaranteeBomb) {
-        let pool = allowBomb
-            ? [...PIECE_POOL]
-            : PIECE_POOL.filter(p => p.id !== 'bomb');
-        for (let i = pool.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [pool[i], pool[j]] = [pool[j], pool[i]];
-        }
+        const pool = allowBomb ? PIECE_POOL : PIECE_POOL.filter(p => p.id !== 'bomb');
 
-        const slots = pool
-            .slice(0, Math.min(count, pool.length))
-            .map(piece => ({ pieceId: piece.id }));
+        const slots = pickWeightedPieces(pool, count).map(piece => ({ pieceId: piece.id }));
 
-        if (guaranteeBomb && !slots.some(s => s.pieceId === 'bomb')) {
+        if (guaranteeBomb && count > 0 && !slots.some(s => s.pieceId === 'bomb')) {
             const replaceIndex = Math.floor(Math.random() * slots.length);
             slots[replaceIndex] = { pieceId: 'bomb' };
         }

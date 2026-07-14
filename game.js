@@ -1395,11 +1395,9 @@ class Game {
     }
     pickPartySlots(count, allowBomb, guaranteeBomb) {
         const pool = allowBomb ? PIECE_POOL : PIECE_POOL.filter(p => p.id !== 'bomb');
-        const slots = [];
-        for (let i = 0; i < count; i++) {
-            const piece = pool[Math.floor(Math.random() * pool.length)];
-            slots.push(piece);
-        }
+        
+        const slots = pickWeightedPieces(pool, count);
+
         if (guaranteeBomb && count > 0 && !slots.some(p => p.id === 'bomb')) {
             slots[Math.floor(Math.random() * count)] = getPieceById('bomb');
         }
@@ -2801,7 +2799,7 @@ class Game {
         this.updateGiveUpHold();
 
         if (this.levelData) {
-            this.renderer.render(this.levelData, this.camera);
+            this.renderer.render(this.levelData, this.camera, this.tick);
         }
 
         this.drawEntities();
@@ -2961,7 +2959,7 @@ class Game {
         this.updateBuildCamera();
 
         if (this.levelData) {
-            this.renderer.render(this.levelData, this.camera);
+            this.renderer.render(this.levelData, this.camera, this.tick);
         }
         this.drawBuildScreen();
     }
@@ -3206,7 +3204,7 @@ class Game {
         this.updateStageSelectPhysics();
 
         if (this.levelData) {
-            this.renderer.render(this.levelData, this.camera);
+            this.renderer.render(this.levelData, this.camera, this.tick);
         }
         this.drawStageVoteZones();
         this.drawEntities();
