@@ -759,10 +759,8 @@ class AppelPhysics {
         || this.get_block_at(playerState.PLAYER_X - (playerState.PSZ[4] - 1), playerState.PLAYER_Y) === 2 
         || this.get_block_at(playerState.PLAYER_X, playerState.PLAYER_Y + playerState.PSZ[1] - 1) === 2
         || this.get_block_at(playerState.PLAYER_X, playerState.PLAYER_Y - (playerState.PSZ[3] - 1)) === 2;
-        console.log(isInSpikeTile)
 
         if (playerState.wasInSpikeTileLastFrame) {
-            console.log("yo")
             if (this.touching.is_player_touching_spike(playerState, this)) {
                 playerState.PLAYER_DEATH = true;
             }

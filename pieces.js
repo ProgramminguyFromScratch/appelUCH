@@ -68,6 +68,18 @@ const PIECE_POOL = [
         footprint: { width: 1, height: 1 }
     },
     {
+        id: 'stair',
+        name: 'Stair',
+        tiles: [13],
+        footprint: { width: 1, height: 1 }
+    },
+    {
+        id: 'banana',
+        name: 'Banana Block',
+        tiles: [7],
+        footprint: { width: 1, height: 1 }
+    },
+    {
         id: 'bomb',
         name: 'Bomb',
         targetsSolid: true,

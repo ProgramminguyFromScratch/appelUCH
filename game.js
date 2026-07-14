@@ -120,6 +120,7 @@ class Game {
         this.network = network;
         this.roomCode = null;
         this.isHost = false;
+        this.isAdmin = false; 
         this.remotePositions = new Map();
         this.remoteSfxState = new Map();
 
@@ -135,6 +136,28 @@ class Game {
         this.totalAssets = 201; 
         this.totalRounds = 10;
         this.POINTS_TO_WIN = 15;
+        this.settings = {
+            lives: 1,
+            pointsToWin: 15,
+            comebackPoints: 2,
+            firstPlacePoints: 1,
+            totalRounds: 10,
+            raceTimeLimit: 60
+        };
+        this.onSettingsUpdated = null; 
+
+        this.settingsMenuOpen = false;
+        this.settingsMenuIndex = 0;
+        this.colorPickerOpen = false;
+        this.RESPAWN_DELAY_FRAMES = 30; // 1 second at 30fps before a dead player respawns
+        this.SETTINGS_META = [
+            { key: 'lives', label: 'Lives per attempt', min: 1, max: 10, step: 1 },
+            { key: 'pointsToWin', label: 'Points to win', min: 3, max: 100, step: 1 },
+            { key: 'comebackPoints', label: 'Comeback points', min: 0, max: 10, step: 1 },
+            { key: 'firstPlacePoints', label: 'First place points', min: 0, max: 10, step: 1 },
+            { key: 'totalRounds', label: 'Rounds', min: 1, max: 30, step: 1 },
+            { key: 'raceTimeLimit', label: 'Race time limit (s)', min: 15, max: 180, step: 5 }
+        ];
         this.currentRound = 1;
         this.MAX_POSSIBLE_SCORE = this.totalRounds * 3;
         this.roundResultsAnimFrames = 0;
@@ -174,6 +197,12 @@ class Game {
         this.chatSentHistory = [];   
         this.chatHistoryIndex = -1;  
         this.chatHistoryDraft = '';  
+        this.chatCursorPos = 0;          
+        this.chatSelectionAnchor = null; 
+        this._chatInputBox = null;       
+        this._chatMouseSelecting = false;
+        this._chatCaretActivityAt = 0;   
+        this._chatAutocompleteCycle = null;
 
         if (typeof replayCode !== 'undefined' && replayCode) {
             this.decodedReplayCode = decodeReplayCode(replayCode);
@@ -184,12 +213,34 @@ class Game {
                 this.handleChatKeydown(e);
                 return;
             }
+            if (this.settingsMenuOpen) {
+                this.handleSettingsMenuKeydown(e);
+                return;
+            }
+            if (this.colorPickerOpen) {
+                this.handleColorPickerKeydown(e);
+                return;
+            }
 
             this.keys[e.code] = true;
 
             if (e.code === 'KeyT' && !e.repeat && this.gameState !== GameState.MENU) {
                 e.preventDefault();
                 this.openChat();
+                return;
+            }
+
+            if (e.code === 'KeyM' && !e.repeat && this.gameState === GameState.STAGE_SELECT) {
+                e.preventDefault();
+                this.settingsMenuOpen = true;
+                this.keys = {};
+                return;
+            }
+
+            if (e.code === 'KeyC' && !e.repeat && this.gameState === GameState.STAGE_SELECT) {
+                e.preventDefault();
+                this.colorPickerOpen = true;
+                this.keys = {};
                 return;
             }
 
@@ -204,7 +255,7 @@ class Game {
             } else if (this.gameState === GameState.BUILD) {
                 this.handleBuildInput(e.code);
             }
-            if (e.code === 'Digit1' && !e.repeat && this.gameState === GameState.RACE) {
+            if (e.code === 'Digit1' && !e.repeat && (this.gameState === GameState.RACE || this.gameState === GameState.STAGE_SELECT)) {
                 this.cameraMode = (this.cameraMode + 1) % 3;
             }
             if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
@@ -221,6 +272,55 @@ class Game {
             const delta = e.deltaY > 0 ? -1 : 1; 
             this.chatScrollOffset = Math.max(0, Math.min(maxOffset, this.chatScrollOffset + delta));
         }, { passive: false });
+
+        this.canvas.addEventListener('mousedown', e => {
+            if (!this.chatOpen || !this._chatInputBox) return;
+            const pos = this._chatCharIndexFromClientX(e.clientX);
+            if (pos === null) return;
+            e.preventDefault();
+            this._chatMouseSelecting = true;
+            this._chatCaretActivityAt = performance.now();
+            this.chatCursorPos = pos;
+            this.chatSelectionAnchor = pos;
+        });
+        window.addEventListener('mousemove', e => {
+            if (!this._chatMouseSelecting) return;
+            const pos = this._chatCharIndexFromClientX(e.clientX, true);
+            if (pos === null) return;
+            this._chatCaretActivityAt = performance.now();
+            this.chatCursorPos = pos;
+        });
+        window.addEventListener('mouseup', () => {
+            if (!this._chatMouseSelecting) return;
+            this._chatMouseSelecting = false;
+            if (this.chatSelectionAnchor === this.chatCursorPos) this.chatSelectionAnchor = null;
+        });
+    }
+
+    _chatCharIndexFromClientX(clientX, clamp = false) {
+        const box = this._chatInputBox;
+        if (!box) return null;
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const x = (clientX - rect.left) * scaleX;
+        if (!clamp && (x < box.x || x > box.x + box.width)) return null;
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.font = box.font;
+        const text = this.chatInputText;
+        let best = 0;
+        let bestDist = Infinity;
+        for (let i = 0; i <= text.length; i++) {
+            const w = ctx.measureText(text.slice(0, i)).width;
+            const charX = box.textStartX + w;
+            const dist = Math.abs(charX - x);
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = i;
+            }
+        }
+        ctx.restore();
+        return best;
     }
 
     openChat() {
@@ -229,7 +329,182 @@ class Game {
         this.chatScrollOffset = 0;
         this.chatHistoryIndex = -1;
         this.chatHistoryDraft = '';
+        this.chatCursorPos = 0;
+        this.chatSelectionAnchor = null;
+        this._chatCaretActivityAt = performance.now();
         this.keys = {}; 
+    }
+
+    // --- Hub (stage select) settings menu: fully keyboard-driven, no mouse required ---
+    handleSettingsMenuKeydown(e) {
+        const closeKeys = ['KeyM', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
+        if (closeKeys.includes(e.code)) {
+            if (!e.repeat) {
+                e.preventDefault();
+                this.settingsMenuOpen = false;
+            }
+            return;
+        }
+        if (e.repeat) return;
+
+        if (LOCAL_PLAYER_CONTROLS.up.includes(e.code)) {
+            e.preventDefault();
+            this.settingsMenuIndex = (this.settingsMenuIndex - 1 + this.SETTINGS_META.length) % this.SETTINGS_META.length;
+            if (typeof playSfx === 'function') playSfx('select');
+            return;
+        }
+        if (LOCAL_PLAYER_CONTROLS.down.includes(e.code)) {
+            e.preventDefault();
+            this.settingsMenuIndex = (this.settingsMenuIndex + 1) % this.SETTINGS_META.length;
+            if (typeof playSfx === 'function') playSfx('select');
+            return;
+        }
+
+        if (!this.isHost && !this.isAdmin) return; 
+
+        const goingRight = LOCAL_PLAYER_CONTROLS.right.includes(e.code);
+        const goingLeft = LOCAL_PLAYER_CONTROLS.left.includes(e.code);
+        if (!goingRight && !goingLeft) return;
+        e.preventDefault();
+
+        const meta = this.SETTINGS_META[this.settingsMenuIndex];
+        const current = (this.settings && typeof this.settings[meta.key] === 'number') ? this.settings[meta.key] : meta.min;
+        const dir = goingRight ? 1 : -1;
+        const next = Math.max(meta.min, Math.min(meta.max, current + dir * meta.step));
+        if (next === current) return;
+
+        this.settings[meta.key] = next; 
+        if (typeof playSfx === 'function') playSfx('select');
+        this.requestUpdateSettings({ [meta.key]: next });
+    }
+
+    drawSettingsMenu() {
+        if (!this.settingsMenuOpen) return;
+        const ctx = this.ctx;
+        const rowHeight = 26;
+        const paddingX = 20;
+        const paddingY = 16;
+        const titleHeight = 26;
+        const footerHeight = 22;
+        const width = 320;
+        const height = paddingY * 2 + titleHeight + rowHeight * this.SETTINGS_META.length + footerHeight;
+        const x = (this.canvas.width - width) / 2;
+        const y = (this.canvas.height - height) / 2;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
+        ctx.fillRect(x, y, width, height);
+        ctx.strokeStyle = THEME.panelBorderActive;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x, y, width, height);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = THEME.text;
+        ctx.font = 'bold 16px ' + THEME.font;
+        ctx.fillText('Match Settings', x + width / 2, y + paddingY + 12);
+
+        ctx.font = '13px ' + THEME.font;
+        this.SETTINGS_META.forEach((meta, i) => {
+            const rowY = y + paddingY + titleHeight + i * rowHeight;
+            const selected = i === this.settingsMenuIndex;
+            if (selected) {
+                ctx.fillStyle = 'rgba(58, 160, 255, 0.18)';
+                ctx.fillRect(x + 8, rowY, width - 16, rowHeight - 4);
+            }
+            ctx.textAlign = 'left';
+            ctx.fillStyle = selected ? THEME.accent : THEME.text;
+            ctx.fillText(meta.label, x + paddingX, rowY + rowHeight / 2 - 3);
+
+            ctx.textAlign = 'right';
+            const value = (this.settings && typeof this.settings[meta.key] === 'number') ? this.settings[meta.key] : meta.min;
+            ctx.fillStyle = selected ? THEME.accent : THEME.textMuted;
+            ctx.fillText(String(value), x + width - paddingX, rowY + rowHeight / 2 - 3);
+        });
+
+        ctx.textAlign = 'center';
+        ctx.font = '11px ' + THEME.font;
+        ctx.fillStyle = THEME.textMuted;
+        const hint = (this.isHost || this.isAdmin)
+            ? 'W/S select   A/D change   Enter/Shift/M close'
+            : 'Only the host (or a logged-in admin) can change settings   Enter/Shift/M close';
+        ctx.fillText(hint, x + width / 2, y + height - 8);
+        ctx.restore();
+    }
+
+    // --- Hub (stage select) color picker: fully keyboard-driven, no mouse required ---
+    handleColorPickerKeydown(e) {
+        const closeKeys = ['KeyC', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
+        if (closeKeys.includes(e.code)) {
+            if (!e.repeat) {
+                e.preventDefault();
+                this.colorPickerOpen = false;
+            }
+            return;
+        }
+        if (e.repeat) return;
+
+        const goingRight = LOCAL_PLAYER_CONTROLS.right.includes(e.code);
+        const goingLeft = LOCAL_PLAYER_CONTROLS.left.includes(e.code);
+        if (!goingRight && !goingLeft) return;
+        e.preventDefault();
+
+        const HUE_STEP = 8;
+        const HUE_MAX = 199;
+        const player = this.players[this.localSeatIndex];
+        const current = player ? (player.hue || 0) : 0;
+        const dir = goingRight ? 1 : -1;
+        let next = (current + dir * HUE_STEP) % (HUE_MAX + 1);
+        if (next < 0) next += HUE_MAX + 1;
+        this.requestSetColor(next);
+        if (typeof playSfx === 'function') playSfx('select');
+    }
+
+    drawColorPicker() {
+        if (!this.colorPickerOpen) return;
+        const ctx = this.ctx;
+        const width = 260;
+        const height = 90;
+        const x = (this.canvas.width - width) / 2;
+        const y = (this.canvas.height - height) / 2;
+        const player = this.players[this.localSeatIndex];
+        const hue = player ? (player.hue || 0) : 0;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
+        ctx.fillRect(x, y, width, height);
+        ctx.strokeStyle = THEME.panelBorderActive;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x, y, width, height);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = THEME.text;
+        ctx.font = 'bold 15px ' + THEME.font;
+        ctx.fillText('Your Color', x + width / 2, y + 24);
+
+        ctx.fillStyle = hueShiftToHex(hue);
+        ctx.beginPath();
+        ctx.arc(x + width / 2, y + 48, 14, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.font = '11px ' + THEME.font;
+        ctx.fillStyle = THEME.textMuted;
+        ctx.fillText('A/D to change   Enter/Shift/C close', x + width / 2, y + height - 10);
+        ctx.restore();
+    }
+
+    drawHubMenuHints() {
+        if (this.gameState !== GameState.STAGE_SELECT) return;
+        if (this.settingsMenuOpen || this.colorPickerOpen || this.chatOpen) return;
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.font = '11px ' + THEME.font;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillText('M: Settings   C: Color', this.canvas.width / 2, this.canvas.height - 10);
+        ctx.restore();
     }
 
     closeChat() {
@@ -238,27 +513,281 @@ class Game {
         this.chatScrollOffset = 0;
         this.chatHistoryIndex = -1;
         this.chatHistoryDraft = '';
+        this.chatCursorPos = 0;
+        this.chatSelectionAnchor = null;
+        this._chatMouseSelecting = false;
+    }
+
+    _chatPrevWordBoundary(text, pos) {
+        let i = pos;
+        while (i > 0 && /\s/.test(text[i - 1])) i--;
+        while (i > 0 && !/\s/.test(text[i - 1])) i--;
+        return i;
+    }
+
+    _chatNextWordBoundary(text, pos) {
+        let i = pos;
+        const len = text.length;
+        while (i < len && /\s/.test(text[i])) i++;
+        while (i < len && !/\s/.test(text[i])) i++;
+        return i;
+    }
+
+    _chatAutocompleteMatch() {
+        const text = this.chatInputText;
+        const canPrivileged = this.isHost || this.isAdmin;
+
+        let m = /^\/kick(?:\s+(\S*))?\s*$/i.exec(text);
+        if (m) {
+            if (!canPrivileged) return null;
+            return this._chatPlayerNameMatch('/kick ', m[1] || '');
+        }
+
+        m = /^\/forcestage(?:\s+(.*))?$/i.exec(text);
+        if (m) {
+            if (!canPrivileged) return null;
+            return this._chatStageNameMatch('/forcestage ', m[1] || '');
+        }
+
+        m = /^\/give\s+(lives|points)\s+(-?\d+)\s+(\S*)$/i.exec(text);
+        if (m) {
+            if (!this.isAdmin) return null;
+            return this._chatPlayerNameMatch(`/give ${m[1]} ${m[2]} `, m[3] || '');
+        }
+
+        m = /^\/set\s+(lives|points)\s+(\d+)\s+(\S*)$/i.exec(text);
+        if (m) {
+            if (!this.isAdmin) return null;
+            return this._chatPlayerNameMatch(`/set ${m[1]} ${m[2]} `, m[3] || '');
+        }
+
+        m = /^\/host(?:\s+(\S*))?\s*$/i.exec(text);
+        if (m) {
+            if (!this.isAdmin) return null;
+            return this._chatPlayerNameMatch('/host ', m[1] || '');
+        }
+
+        m = /^\/kill(?:\s+(\S*))?\s*$/i.exec(text);
+        if (m) {
+            if (!this.isAdmin) return null;
+            return this._chatPlayerNameMatch('/kill ', m[1] || '');
+        }
+
+        return null;
+    }
+
+    _chatPlayerNameMatch(prefix, queryRaw) {
+        const query = queryRaw.toLowerCase();
+        const names = (this.players || [])
+            .filter(p => p && p.name && p.seatIndex !== this.localSeatIndex)
+            .map(p => p.name);
+        let matches = query ? names.filter(n => n.toLowerCase().startsWith(query)) : names;
+        if (query && matches.length === 0) matches = names.filter(n => n.toLowerCase().includes(query));
+        return { prefix, query: queryRaw, matches };
+    }
+
+    _chatStageNameMatch(prefix, queryRaw) {
+        const query = queryRaw.toLowerCase();
+        const names = (typeof LEVEL_NAMES !== 'undefined' ? LEVEL_NAMES : []).filter(Boolean);
+        let matches = query ? names.filter(n => n.toLowerCase().startsWith(query)) : names;
+        if (query && matches.length === 0) matches = names.filter(n => n.toLowerCase().includes(query));
+        return { prefix, query: queryRaw, matches };
+    }
+
+    _chatApplyAutocomplete() {
+        const info = this._chatAutocompleteMatch();
+        if (!info || info.matches.length === 0) return;
+
+        const cycleKey = info.prefix + '\u0000' + info.query;
+        if (!this._chatAutocompleteCycle || this._chatAutocompleteCycle.key !== cycleKey) {
+            this._chatAutocompleteCycle = { key: cycleKey, prefix: info.prefix, matches: info.matches, index: 0 };
+        } else {
+            this._chatAutocompleteCycle.index = (this._chatAutocompleteCycle.index + 1) % this._chatAutocompleteCycle.matches.length;
+        }
+
+        const cyc = this._chatAutocompleteCycle;
+        const chosen = cyc.matches[cyc.index];
+        this.chatInputText = cyc.prefix + chosen;
+        this.chatCursorPos = this.chatInputText.length;
+        this.chatSelectionAnchor = null;
     }
 
     handleChatKeydown(e) {
-        e.preventDefault();
-        if (e.repeat && e.code !== 'Backspace') return;
+        this._chatCaretActivityAt = performance.now();
+        if (e.code !== 'Tab') this._chatAutocompleteCycle = null;
+
+        const text = this.chatInputText;
+        const hasSelection = this.chatSelectionAnchor !== null && this.chatSelectionAnchor !== this.chatCursorPos;
+        const selStart = hasSelection ? Math.min(this.chatSelectionAnchor, this.chatCursorPos) : this.chatCursorPos;
+        const selEnd = hasSelection ? Math.max(this.chatSelectionAnchor, this.chatCursorPos) : this.chatCursorPos;
+        const isMac = navigator.platform && navigator.platform.toUpperCase().includes('MAC');
+        const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
+
+        // Keys allowed to auto-repeat while held down.
+        const repeatable = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+        if (e.repeat && !repeatable.includes(e.code)) return;
 
         if (e.code === 'Escape') {
+            e.preventDefault();
             this.closeChat();
             return;
         }
         if (e.code === 'Enter' || e.code === 'NumpadEnter') {
-            const text = this.chatInputText.trim();
+            e.preventDefault();
+            const trimmed = this.chatInputText.trim();
             this.closeChat();
-            if (text) this.sendChatMessage(text);
+            if (trimmed) this.sendChatMessage(trimmed);
             return;
         }
+
+        // Select all
+        if (ctrlKey && e.code === 'KeyA') {
+            e.preventDefault();
+            this.chatSelectionAnchor = 0;
+            this.chatCursorPos = text.length;
+            return;
+        }
+
+        // Copy
+        if (ctrlKey && e.code === 'KeyC') {
+            e.preventDefault();
+            if (hasSelection && navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text.slice(selStart, selEnd)).catch(() => {});
+            }
+            return;
+        }
+
+        // Cut
+        if (ctrlKey && e.code === 'KeyX') {
+            e.preventDefault();
+            if (hasSelection) {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text.slice(selStart, selEnd)).catch(() => {});
+                }
+                this.chatInputText = text.slice(0, selStart) + text.slice(selEnd);
+                this.chatCursorPos = selStart;
+                this.chatSelectionAnchor = null;
+            }
+            return;
+        }
+
+        // Paste
+        if (ctrlKey && e.code === 'KeyV') {
+            e.preventDefault();
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                navigator.clipboard.readText().then(pasted => {
+                    if (!pasted) return;
+                    const clean = pasted.replace(/[\r\n]+/g, ' ');
+                    const curText = this.chatInputText;
+                    const curHasSel = this.chatSelectionAnchor !== null && this.chatSelectionAnchor !== this.chatCursorPos;
+                    const curStart = curHasSel ? Math.min(this.chatSelectionAnchor, this.chatCursorPos) : this.chatCursorPos;
+                    const curEnd = curHasSel ? Math.max(this.chatSelectionAnchor, this.chatCursorPos) : this.chatCursorPos;
+                    let combined = curText.slice(0, curStart) + clean + curText.slice(curEnd);
+                    if (combined.length > this.CHAT_MAX_LENGTH) combined = combined.slice(0, this.CHAT_MAX_LENGTH);
+                    this.chatInputText = combined;
+                    this.chatCursorPos = Math.min(curStart + clean.length, this.CHAT_MAX_LENGTH);
+                    this.chatSelectionAnchor = null;
+                }).catch(() => {});
+            }
+            return;
+        }
+
+        // Backspace
         if (e.code === 'Backspace') {
-            this.chatInputText = this.chatInputText.slice(0, -1);
+            e.preventDefault();
+            if (hasSelection) {
+                this.chatInputText = text.slice(0, selStart) + text.slice(selEnd);
+                this.chatCursorPos = selStart;
+            } else if (this.chatCursorPos > 0) {
+                const deleteFrom = ctrlKey ? this._chatPrevWordBoundary(text, this.chatCursorPos) : this.chatCursorPos - 1;
+                this.chatInputText = text.slice(0, deleteFrom) + text.slice(this.chatCursorPos);
+                this.chatCursorPos = deleteFrom;
+            }
+            this.chatSelectionAnchor = null;
             return;
         }
+
+        // Delete (forward)
+        if (e.code === 'Delete') {
+            e.preventDefault();
+            if (hasSelection) {
+                this.chatInputText = text.slice(0, selStart) + text.slice(selEnd);
+                this.chatCursorPos = selStart;
+            } else if (this.chatCursorPos < text.length) {
+                const deleteTo = ctrlKey ? this._chatNextWordBoundary(text, this.chatCursorPos) : this.chatCursorPos + 1;
+                this.chatInputText = text.slice(0, this.chatCursorPos) + text.slice(deleteTo);
+            }
+            this.chatSelectionAnchor = null;
+            return;
+        }
+
+        // Arrow left / right - cursor movement, word-jump with ctrl, selection with shift
+        if (e.code === 'ArrowLeft') {
+            e.preventDefault();
+            const newPos = ctrlKey ? this._chatPrevWordBoundary(text, this.chatCursorPos) : Math.max(0, this.chatCursorPos - 1);
+            if (e.shiftKey) {
+                if (this.chatSelectionAnchor === null) this.chatSelectionAnchor = this.chatCursorPos;
+                this.chatCursorPos = newPos;
+            } else {
+                this.chatCursorPos = hasSelection ? selStart : newPos;
+                this.chatSelectionAnchor = null;
+            }
+            return;
+        }
+        if (e.code === 'ArrowRight') {
+            e.preventDefault();
+            if (!hasSelection && !e.shiftKey && this.chatCursorPos === text.length) {
+                const info = this._chatAutocompleteMatch();
+                if (info && info.matches.length > 0) {
+                    this.chatInputText = info.prefix + info.matches[0];
+                    this.chatCursorPos = this.chatInputText.length;
+                    this.chatSelectionAnchor = null;
+                    return;
+                }
+            }
+            const newPos = ctrlKey ? this._chatNextWordBoundary(text, this.chatCursorPos) : Math.min(text.length, this.chatCursorPos + 1);
+            if (e.shiftKey) {
+                if (this.chatSelectionAnchor === null) this.chatSelectionAnchor = this.chatCursorPos;
+                this.chatCursorPos = newPos;
+            } else {
+                this.chatCursorPos = hasSelection ? selEnd : newPos;
+                this.chatSelectionAnchor = null;
+            }
+            return;
+        }
+
+        // Home / End
+        if (e.code === 'Home') {
+            e.preventDefault();
+            if (e.shiftKey) {
+                if (this.chatSelectionAnchor === null) this.chatSelectionAnchor = this.chatCursorPos;
+            } else {
+                this.chatSelectionAnchor = null;
+            }
+            this.chatCursorPos = 0;
+            return;
+        }
+        if (e.code === 'End') {
+            e.preventDefault();
+            if (e.shiftKey) {
+                if (this.chatSelectionAnchor === null) this.chatSelectionAnchor = this.chatCursorPos;
+            } else {
+                this.chatSelectionAnchor = null;
+            }
+            this.chatCursorPos = text.length;
+            return;
+        }
+
+        // Tab - autocomplete usernames/stage names for /kick, /forcestage, /give (cycles matches)
+        if (e.code === 'Tab') {
+            e.preventDefault();
+            this._chatApplyAutocomplete();
+            return;
+        }
+
+        // Sent-message history (only meaningful without an active selection drag)
         if (e.code === 'ArrowUp') {
+            e.preventDefault();
             if (this.chatSentHistory.length === 0) return;
             if (this.chatHistoryIndex === -1) {
                 this.chatHistoryDraft = this.chatInputText; 
@@ -267,9 +796,12 @@ class Game {
                 this.chatHistoryIndex--;
             }
             this.chatInputText = this.chatSentHistory[this.chatHistoryIndex];
+            this.chatCursorPos = this.chatInputText.length;
+            this.chatSelectionAnchor = null;
             return;
         }
         if (e.code === 'ArrowDown') {
+            e.preventDefault();
             if (this.chatHistoryIndex === -1) return;
             if (this.chatHistoryIndex < this.chatSentHistory.length - 1) {
                 this.chatHistoryIndex++;
@@ -278,10 +810,25 @@ class Game {
                 this.chatHistoryIndex = -1;
                 this.chatInputText = this.chatHistoryDraft;
             }
+            this.chatCursorPos = this.chatInputText.length;
+            this.chatSelectionAnchor = null;
             return;
         }
-        if (e.key && e.key.length === 1 && this.chatInputText.length < this.CHAT_MAX_LENGTH) {
-            this.chatInputText += e.key;
+
+        // Regular printable character - inserted at the cursor, replacing any selection
+        if (e.key && e.key.length === 1 && !ctrlKey && !e.altKey) {
+            e.preventDefault();
+            if (hasSelection) {
+                const newText = text.slice(0, selStart) + e.key + text.slice(selEnd);
+                if (newText.length <= this.CHAT_MAX_LENGTH) {
+                    this.chatInputText = newText;
+                    this.chatCursorPos = selStart + 1;
+                }
+            } else if (text.length < this.CHAT_MAX_LENGTH) {
+                this.chatInputText = text.slice(0, this.chatCursorPos) + e.key + text.slice(this.chatCursorPos);
+                this.chatCursorPos++;
+            }
+            this.chatSelectionAnchor = null;
         }
     }
 
@@ -291,6 +838,11 @@ class Game {
         if (this.chatSentHistory[this.chatSentHistory.length - 1] !== trimmed) {
             this.chatSentHistory.push(trimmed);
             if (this.chatSentHistory.length > 50) this.chatSentHistory.shift();
+        }
+
+        if (trimmed.startsWith('/')) {
+            this.handleChatCommand(trimmed);
+            return;
         }
 
         if (this.network && this.network.isConnected) {
@@ -304,6 +856,255 @@ class Game {
             hue: localPlayer ? localPlayer.hue : 0,
             text: trimmed
         });
+    }
+
+    // Slash commands. /kick is host-only and resolved server-side by name;
+    // /color is available to everyone and updates hue immediately.
+    handleChatCommand(raw) {
+        const spaceIdx = raw.indexOf(' ');
+        const cmd = (spaceIdx === -1 ? raw : raw.slice(0, spaceIdx)).toLowerCase();
+        const arg = spaceIdx === -1 ? '' : raw.slice(spaceIdx + 1).trim();
+
+        if (cmd === '/kick') {
+            if (!this.isHost && !this.isAdmin) {
+                this.pushSystemMessage('Only the host (or a logged-in admin) can kick players.');
+                return;
+            }
+            if (!arg) {
+                this.pushSystemMessage('Usage: /kick <username> (Tab to autocomplete)');
+                return;
+            }
+            if (this.network && this.network.isConnected) {
+                this.network.sendKickRequest(arg);
+            } else {
+                this.pushSystemMessage('Not connected to a server.');
+            }
+            return;
+        }
+
+        if (cmd === '/color') {
+            const hue = Math.round(Number(arg));
+            if (!arg || !Number.isFinite(hue) || hue < 0 || hue > 199) {
+                this.pushSystemMessage('Usage: /color <0-199>');
+                return;
+            }
+            if (this.network && this.network.isConnected) {
+                this.network.sendSetColorRequest(hue);
+            } else {
+                const localPlayer = this.players[this.localSeatIndex];
+                if (localPlayer) {
+                    localPlayer.hue = hue;
+                    localPlayer.color = hueShiftToHex(hue);
+                }
+            }
+            return;
+        }
+
+        if (cmd === '/forcestage') {
+            if (!this.isHost && !this.isAdmin) {
+                this.pushSystemMessage('Only the host (or a logged-in admin) can force a stage.');
+                return;
+            }
+            if (!arg) {
+                this.pushSystemMessage('Usage: /forcestage <stage name> (Tab to autocomplete)');
+                return;
+            }
+            if (this.gameState !== GameState.STAGE_SELECT) {
+                this.pushSystemMessage('Can only force a stage during stage select.');
+                return;
+            }
+            const levelCode = this._resolveStageNameToCode(arg);
+            if (!levelCode) {
+                this.pushSystemMessage(`No stage matching "${arg}".`);
+                return;
+            }
+            if (this.network && this.network.isConnected) {
+                this.network.sendForceStageRequest(levelCode);
+            } else {
+                this.pushSystemMessage('Not connected to a server.');
+            }
+            return;
+        }
+
+        if (cmd === '/login') {
+            if (!arg) {
+                this.pushSystemMessage('Usage: /login <password>');
+                return;
+            }
+            if (this.network && this.network.isConnected) {
+                this.network.sendLoginRequest(arg);
+            } else {
+                this.pushSystemMessage('Not connected to a server.');
+            }
+            return;
+        }
+
+        if (cmd === '/give') {
+            if (!this.isAdmin) {
+                this.pushSystemMessage('Only a logged-in admin can use /give. Try /login <password> first.');
+                return;
+            }
+            const parts = arg.split(/\s+/).filter(Boolean);
+            const kind = (parts[0] || '').toLowerCase();
+            const amount = Math.round(Number(parts[1]));
+            const targetName = parts.slice(2).join(' ');
+            const validKind = kind === 'lives' || kind === 'points';
+            if (!validKind || !Number.isFinite(amount) || amount === 0 || !targetName) {
+                this.pushSystemMessage('Usage: /give <lives|points> <amount> <username> (Tab to autocomplete name)');
+                return;
+            }
+            if (this.network && this.network.isConnected) {
+                this.network.sendGiveRequest(kind, amount, targetName);
+            } else {
+                this.pushSystemMessage('Not connected to a server.');
+            }
+            return;
+        }
+
+        if (cmd === '/set') {
+            if (!this.isAdmin) {
+                this.pushSystemMessage('Only a logged-in admin can use /set. Try /login <password> first.');
+                return;
+            }
+            const parts = arg.split(/\s+/).filter(Boolean);
+            const kind = (parts[0] || '').toLowerCase();
+            const amount = Math.round(Number(parts[1]));
+            const targetName = parts.slice(2).join(' ');
+            const validKind = kind === 'lives' || kind === 'points';
+            if (!validKind || !Number.isFinite(amount) || amount < 0 || !targetName) {
+                this.pushSystemMessage('Usage: /set <lives|points> <value> <username> (Tab to autocomplete name)');
+                return;
+            }
+            if (this.network && this.network.isConnected) {
+                this.network.sendSetRequest(kind, amount, targetName);
+            } else {
+                this.pushSystemMessage('Not connected to a server.');
+            }
+            return;
+        }
+
+        if (cmd === '/host') {
+            if (!this.isAdmin) {
+                this.pushSystemMessage('Only a logged-in admin can use /host. Try /login <password> first.');
+                return;
+            }
+            if (this.network && this.network.isConnected) {
+                this.network.sendHostRequest(arg);
+            } else {
+                this.pushSystemMessage('Not connected to a server.');
+            }
+            return;
+        }
+
+        if (cmd === '/kill') {
+            if (!this.isAdmin) {
+                this.pushSystemMessage('Only a logged-in admin can use /kill. Try /login <password> first.');
+                return;
+            }
+            if (!arg) {
+                this.pushSystemMessage('Usage: /kill <username> (Tab to autocomplete)');
+                return;
+            }
+            if (this.network && this.network.isConnected) {
+                this.network.sendKillRequest(arg);
+            } else {
+                this.pushSystemMessage('Not connected to a server.');
+            }
+            return;
+        }
+
+        if (cmd === '/help') {
+            const lines = ['Available commands:'];
+            lines.push('/color <0-199> - change your color');
+
+            if (this.isHost || this.isAdmin) {
+                lines.push('/kick <username> - remove a player from the room');
+                lines.push('/forcestage <stage name> - force the stage during stage select');
+            }
+
+            if (this.isAdmin) {
+                lines.push('/give <lives|points> <amount> <username> - add/remove lives or points');
+                lines.push('/set <lives|points> <value> <username> - set lives or points to a value');
+                lines.push('/host [username] - become host, or hand host to a player');
+                lines.push('/kill <username> - force-eliminate a player mid-race');
+            }
+
+            lines.push('/help - show this list');
+            for (const line of lines) this.pushSystemMessage(line);
+            return;
+        }
+
+        this.pushSystemMessage(`Unknown command "${cmd}".`);
+    }
+
+    // Resolves a typed/autocompleted stage name to its level code: exact match
+    // first, then prefix, then substring - same tiering as player-name lookups.
+    _resolveStageNameToCode(query) {
+        const needle = query.trim().toLowerCase();
+        if (!needle) return null;
+        const names = typeof LEVEL_NAMES !== 'undefined' ? LEVEL_NAMES : [];
+        let idx = names.findIndex(n => n && n.toLowerCase() === needle);
+        if (idx === -1) idx = names.findIndex(n => n && n.toLowerCase().startsWith(needle));
+        if (idx === -1) idx = names.findIndex(n => n && n.toLowerCase().includes(needle));
+        return idx !== -1 ? LEVEL_POOL[idx] : null;
+    }
+
+    pushSystemMessage(text) {
+        this.chatMessages.push({
+            seatIndex: -1,
+            name: 'System',
+            color: THEME.accent,
+            text,
+            expiresAt: performance.now() + this.CHAT_MESSAGE_DURATION_MS
+        });
+        if (this.chatMessages.length > this.CHAT_MAX_HISTORY) {
+            this.chatMessages.splice(0, this.chatMessages.length - this.CHAT_MAX_HISTORY);
+        }
+    }
+
+    handleColorUpdated(payload) {
+        if (!payload) return;
+        const player = this.players[payload.seatIndex];
+        if (!player) return;
+        const hue = Math.round(Number(payload.hue));
+        if (!Number.isFinite(hue)) return;
+        player.hue = hue;
+        player.color = hueShiftToHex(hue);
+    }
+
+    handleLoginResult(payload) {
+        const success = !!(payload && payload.success);
+        this.isAdmin = success;
+        if (success) {
+            this.pushSystemMessage('Logged in as admin.');
+        } else if (payload && payload.reason === 'too_many_attempts') {
+            this.pushSystemMessage('Too many login attempts - try again later.');
+        } else {
+            this.pushSystemMessage('Incorrect password.');
+        }
+        if (success && this.onAdminChanged) this.onAdminChanged(this.isAdmin);
+    }
+
+    handleScoreAdjusted(payload) {
+        if (!payload) return;
+        const player = this.players[payload.seatIndex];
+        if (!player) return;
+        if (typeof payload.totalScore === 'number') {
+            player.score = payload.totalScore;
+        } else if (typeof payload.delta === 'number') {
+            player.score = Math.max(0, (player.score || 0) + payload.delta);
+        }
+    }
+
+    handleLivesAdjusted(payload) {
+        if (!payload) return;
+        const player = this.players[payload.seatIndex];
+        if (!player) return;
+        if (typeof payload.totalLives === 'number') {
+            player.livesRemaining = payload.totalLives;
+        } else if (typeof payload.delta === 'number') {
+            player.livesRemaining = Math.max(0, (player.livesRemaining || 0) + payload.delta);
+        }
     }
 
     handleChatMessage(payload) {
@@ -352,10 +1153,12 @@ class Game {
                 lastRoundEntries: [],
                 eliminated: false,
                 hasFinished: false,
+                finishedPostmortem: false,
                 dnf: false,
                 finishTick: null,
                 reportedFinish: false,
-                reportedElimination: false
+                reportedElimination: false,
+                livesRemaining: this.settings ? this.settings.lives : 1
             });
         }
         return players;
@@ -932,10 +1735,13 @@ class Game {
         this.players.forEach(p => {
             p.eliminated = false;
             p.hasFinished = false;
+            p.finishedPostmortem = false;
             p.dnf = false;
             p.finishTick = null;
             p.reportedFinish = false;
             p.reportedElimination = false;
+            p.livesRemaining = this.settings.lives;
+            p.respawnPendingFrames = 0;
             if (p.physicsState) {
                 p.physicsState = this.physics.createDefaultGameState(sharedOBJ);
             }
@@ -943,6 +1749,12 @@ class Game {
 
         this.remotePositions.clear();
         this.remoteSfxState.clear();
+    }
+    // Respawns a player at the start of the level without ending their race (used when lives > 1).
+    respawnPlayer(player) {
+        if (!player || !player.physicsState || !this.physics) return;
+        const sharedOBJ = player.physicsState.OBJ;
+        player.physicsState = this.physics.createDefaultGameState(sharedOBJ);
     }
     advanceFromPlaceholder() {
         if (this.network) {
@@ -986,6 +1798,7 @@ class Game {
             p.physicsState = null;
             p.eliminated = false;
             p.hasFinished = false;
+            p.finishedPostmortem = false;
             p.dnf = false;
             p.finishTick = null;
             p.piece = null;
@@ -1231,6 +2044,7 @@ class Game {
         if (this.gameState !== GameState.RACE) return "";
         if (player.hasFinished || player.eliminated) return ""; 
         if (!player.controls) return ""; 
+        if (player.respawnPendingFrames > 0) return "";
 
         let keys = '';
         if (this.decodedReplayCode) {
@@ -1277,6 +2091,12 @@ class Game {
         const locallySimulatedStates = [];
 
         this.players.forEach((player) => {
+            if (player.respawnPendingFrames > 0) {
+                player.respawnPendingFrames -= 1;
+                if (player.respawnPendingFrames <= 0 && !player.hasFinished) {
+                    this.respawnPlayer(player);
+                }
+            }
             const isRemoteNetworked = this.network && !player.controls;
 
             if (isRemoteNetworked) {
@@ -1326,25 +2146,39 @@ class Game {
         if (this.network) {
             const localPlayer = this.players[this.localSeatIndex];
             if (localPlayer && localPlayer.physicsState) {
-                if (localPlayer.physicsState.PLAYER_DEATH && !localPlayer.hasFinished && !localPlayer.eliminated && !localPlayer.reportedElimination) {
-                    localPlayer.reportedElimination = true;
-                    this.network.sendEliminationObserved(this.localSeatIndex, this.tick, 'death');
+                if (localPlayer.physicsState.PLAYER_DEATH && !localPlayer.hasFinished && !localPlayer.eliminated && !localPlayer.reportedElimination && !(localPlayer.respawnPendingFrames > 0)) {
+                    if ((localPlayer.livesRemaining || 1) > 1) {
+                        localPlayer.livesRemaining -= 1;
+                        localPlayer.respawnPendingFrames = this.RESPAWN_DELAY_FRAMES;
+                        if (typeof playSfx === 'function') playSfx('boom');
+                    } else {
+                        localPlayer.reportedElimination = true;
+                        this.network.sendEliminationObserved(this.localSeatIndex, this.tick, 'death');
+                    }
                 }
             }
             for (const player of this.players) {
                 if (!player.hasFinished && !player.reportedFinish && player.physicsState &&
                     this.physics.isFlagAt(player.physicsState.PLAYER_X, player.physicsState.PLAYER_Y)) {
+                    const postmortem = player.respawnPendingFrames > 0;
                     player.reportedFinish = true;
-                    this.network.sendFinishObserved(player.seatIndex, this.tick);
+                    player.respawnPendingFrames = 0;
+                    this.network.sendFinishObserved(player.seatIndex, this.tick, postmortem);
                 }
             }
             return;
         }
         for (const player of this.players) {
-            if (player.physicsState.PLAYER_DEATH && !player.hasFinished && !player.eliminated) {
-                console.log(`${player.name} died!`);
-                if (typeof playSfx === 'function') playSfx('boom');
-                player.eliminated = true;
+            if (player.physicsState.PLAYER_DEATH && !player.hasFinished && !player.eliminated && !(player.respawnPendingFrames > 0)) {
+                if ((player.livesRemaining || 1) > 1) {
+                    player.livesRemaining -= 1;
+                    player.respawnPendingFrames = this.RESPAWN_DELAY_FRAMES;
+                    if (typeof playSfx === 'function') playSfx('boom');
+                } else {
+                    console.log(`${player.name} died!`);
+                    if (typeof playSfx === 'function') playSfx('boom');
+                    player.eliminated = true;
+                }
             }
         }
         if (this.raceTimeRemaining <= 0) {
@@ -1360,6 +2194,8 @@ class Game {
             if (!player.hasFinished &&
                 this.physics.isFlagAt(player.physicsState.PLAYER_X, player.physicsState.PLAYER_Y)) {
                 player.hasFinished = true;
+                player.finishedPostmortem = player.respawnPendingFrames > 0;
+                player.respawnPendingFrames = 0;
                 player.finishTick = this.tick;
                 playSfx('finish');
                 console.log(`${player.name} finished!`);
@@ -1518,8 +2354,8 @@ class Game {
         const allFinishers = this.players
             .filter(p => p.hasFinished)
             .sort((a, b) => a.finishTick - b.finishTick);
-        const finishers = allFinishers.filter(p => !p.eliminated);
-        const postmortemFinishers = allFinishers.filter(p => p.eliminated);
+        const finishers = allFinishers.filter(p => !p.eliminated && !p.finishedPostmortem);
+        const postmortemFinishers = allFinishers.filter(p => p.eliminated || p.finishedPostmortem);
         const POSTMORTEM_POINTS = 2;
 
         const totalPlayers = this.players.filter(p => p !== null).length;
@@ -1595,7 +2431,8 @@ class Game {
                 dir: player.physicsState.PLAYER_DIR
             };
 
-            const status = player.eliminated ? 'dead' : (player.hasFinished ? 'won' : null);
+            const isRespawning = player.respawnPendingFrames > 0;
+            const status = player.eliminated ? 'dead' : (player.hasFinished ? 'won' : (isRespawning ? 'respawning' : null));
             this.renderer.renderPlayer(playerPos, this.camera, player.hue, player.name, player.color, status);
         }
 
@@ -1662,16 +2499,19 @@ class Game {
         if (this.chatOpen && this.chatScrollOffset > 0) {
             ctx.fillStyle = THEME.accent;
             ctx.font = `12px ${THEME.font}`;
-            ctx.fillText(`▲ scrolled up ${this.chatScrollOffset} — scroll down to catch up`, padX, y - 4);
+            ctx.fillText(`▲ scrolled up ${this.chatScrollOffset} - scroll down to catch up`, padX, y - 4);
             ctx.font = `bold 15px ${THEME.font}`;
         }
 
         if (this.chatOpen) {
             const boxY = this.canvas.height - 20 - lineHeight + 5;
             const label = 'Chat: ';
-            const cursor = (Math.floor(now / 400) % 2 === 0) ? '|' : '';
-            const fullText = label + this.chatInputText + cursor;
-            const boxWidth = Math.max(160, ctx.measureText(fullText).width + padX);
+            const inputFont = `bold 15px ${THEME.font}`;
+            ctx.font = inputFont;
+            const labelWidth = ctx.measureText(label).width;
+            const textStartX = padX + labelWidth;
+            const fullText = label + this.chatInputText;
+            const boxWidth = Math.max(160, ctx.measureText(fullText).width + padX + 6);
 
             ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
             ctx.fillRect(padX - 8, boxY - lineHeight + 5, boxWidth, inputBoxHeight);
@@ -1679,11 +2519,67 @@ class Game {
             ctx.lineWidth = 1.5;
             ctx.strokeRect(padX - 8, boxY - lineHeight + 5, boxWidth, inputBoxHeight);
 
+            // Store geometry so mouse clicks can be translated into a character index.
+            this._chatInputBox = {
+                x: padX - 8,
+                width: boxWidth,
+                textStartX,
+                font: inputFont
+            };
+
+            // Selection highlight, drawn before the text so glyphs render on top.
+            const hasSelection = this.chatSelectionAnchor !== null && this.chatSelectionAnchor !== this.chatCursorPos;
+            if (hasSelection) {
+                const selStart = Math.min(this.chatSelectionAnchor, this.chatCursorPos);
+                const selEnd = Math.max(this.chatSelectionAnchor, this.chatCursorPos);
+                const startX = textStartX + ctx.measureText(this.chatInputText.slice(0, selStart)).width;
+                const endX = textStartX + ctx.measureText(this.chatInputText.slice(0, selEnd)).width;
+                ctx.fillStyle = 'rgba(90, 160, 255, 0.4)';
+                ctx.fillRect(startX, boxY - lineHeight + 6, Math.max(1, endX - startX), lineHeight - 2);
+            }
+
             ctx.textAlign = 'left';
             ctx.fillStyle = THEME.accent;
             ctx.fillText(label, padX, boxY);
             ctx.fillStyle = THEME.text;
-            ctx.fillText(this.chatInputText + cursor, padX + ctx.measureText(label).width, boxY);
+            ctx.fillText(this.chatInputText, textStartX, boxY);
+
+            // Ghost-text autocomplete preview for /kick, /forcestage, and /give's target name.
+            const typedWidth = ctx.measureText(this.chatInputText).width;
+            if (this.chatCursorPos === this.chatInputText.length) {
+                const info = this._chatAutocompleteMatch();
+                if (info && info.matches.length > 0) {
+                    const top = info.matches[0];
+                    const ghost = top.slice(info.query.length);
+                    if (ghost) {
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+                        ctx.fillText(ghost, textStartX + typedWidth, boxY);
+                    }
+                    ctx.font = `11px ${THEME.font}`;
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                    const hint = info.matches.length > 1
+                        ? `Tab to cycle (${info.matches.length} matches)`
+                        : 'Tab to complete';
+                    ctx.fillText(hint, padX, boxY + 15);
+                    ctx.font = inputFont;
+                }
+            }
+
+            // Caret stays solid while typing/moving and only blinks after a short pause,
+            // matching normal text-box behavior instead of blinking constantly.
+            const idleFor = now - this._chatCaretActivityAt;
+            const blinkOn = idleFor < 500 || (Math.floor((idleFor - 500) / 500) % 2 === 0);
+            if (blinkOn) {
+                const caretX = textStartX + ctx.measureText(this.chatInputText.slice(0, this.chatCursorPos)).width;
+                ctx.strokeStyle = THEME.text;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(caretX, boxY - lineHeight + 7);
+                ctx.lineTo(caretX, boxY + 3);
+                ctx.stroke();
+            }
+        } else {
+            this._chatInputBox = null;
         }
         ctx.restore();
     }
@@ -1812,6 +2708,10 @@ class Game {
 
 
     gameLoop() {
+        if (this.gameState !== GameState.STAGE_SELECT && (this.settingsMenuOpen || this.colorPickerOpen)) {
+            this.settingsMenuOpen = false;
+            this.colorPickerOpen = false;
+        }
         switch (this.gameState) {
             case GameState.RACE:
                 this.raceLoop();
@@ -1857,6 +2757,7 @@ class Game {
         this.drawOffscreenIndicators();
 
         this.drawRaceTimer();
+        this.drawLivesIndicator();
         this.drawGiveUpHint();
         this.drawGiveUpRing();
 
@@ -1893,6 +2794,7 @@ class Game {
     triggerGiveUp(player) {
         if (!player || player.hasFinished || player.eliminated) return;
         console.log(`${player.name} gave up!`);
+        player.livesRemaining = 0; 
         player.eliminated = true;
         if (this.network) {
             if (!player.reportedElimination) {
@@ -1965,6 +2867,33 @@ class Game {
 
     drawRaceTimer() {
         this.drawCountdownRing(this.raceTimeRemaining, this.RACE_TIME_LIMIT, "#000000");
+    }
+    drawLivesIndicator() {
+        if (this.gameState !== GameState.RACE) return;
+        if ((this.settings.lives || 1) <= 1) return;
+        const player = this.players.find(p => p && p.controls);
+        if (!player || !this.renderer) return;
+
+        const sprite = this.renderer.getHuedPlayerSprite(player.hue);
+        if (!sprite || !sprite.normal) return;
+
+        const extraLives = Math.max(0, (player.livesRemaining || 0) - 1);
+        if (extraLives <= 0) return;
+
+        const iconHeight = 24;
+        const aspect = (sprite.normal.width && sprite.normal.height)
+            ? sprite.normal.width / sprite.normal.height
+            : (24 / 32);
+        const iconWidth = iconHeight * aspect;
+        const spacing = iconWidth + 6;
+        const x = 24;
+        const y = 24;
+
+        this.ctx.save();
+        for (let i = 0; i < extraLives; i++) {
+            this.ctx.drawImage(sprite.normal, x + i * spacing, y, iconWidth, iconHeight);
+        }
+        this.ctx.restore();
     }
 
     buildLoop() {
@@ -2231,19 +3160,27 @@ class Game {
         this.drawEntities();
         this.drawStageSelectHud();
         this.drawStageVoteTimer();
+        this.drawHubMenuHints();
+        this.drawSettingsMenu();
+        this.drawColorPicker();
     }
     drawStageSelectHud() {
-        this.drawScreenTitle('Stand on the stage you want!');
+        this.ctx.textAlign = "center";
+        this.ctx.font = "bold 26px " + THEME.font;
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+        this.ctx.strokeText('Stand on the stage you want!', this.canvas.width / 2, 44);
+        this.ctx.fillStyle = THEME.text;
+        this.ctx.fillText('Stand on the stage you want!', this.canvas.width / 2, 44);
 
         this.ctx.font = "13px " + THEME.font;
-        this.ctx.fillStyle = THEME.textMuted;
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(
-            `Everyone must stand still on a stage — countdown starts once all players are ready`,
-            this.canvas.width / 2, 66
-        );
-
-        this.drawRoundBadge();
+        const subtitle = `Everyone must stand still on a stage. The countdown starts once all players are ready.`;
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+        this.ctx.strokeText(subtitle, this.canvas.width / 2, 66);
+        this.ctx.fillStyle = THEME.textMuted;
+        this.ctx.fillText(subtitle, this.canvas.width / 2, 66);
     }
     drawStageVoteZones() {
         const zones = this.stageVoteZones || [];
@@ -2308,7 +3245,7 @@ class Game {
 
         ctx.font = `18px ${THEME.font}`;
         ctx.fillStyle = 'rgb(0, 0, 0)';
-        const captionText = levelTitle ? `Voting for ${levelTitle}` : 'Everyone is ready — locking in a stage';
+        const captionText = levelTitle ? `Voting for ${levelTitle}` : 'Everyone is ready - locking in a stage';
         ctx.fillText(captionText, this.canvas.width / 2, this.canvas.height / 2 + 70);
         ctx.restore();
     }
@@ -2318,7 +3255,7 @@ class Game {
     }
     getRoundResultLabel(player) {
         if (!player) return { text: '-', color: THEME.textMuted };
-        if (player.hasFinished && player.eliminated) return { text: 'Postmortem', color: THEME.pointColors.postmortem };
+        if (player.hasFinished && (player.eliminated || player.finishedPostmortem)) return { text: 'Postmortem', color: THEME.pointColors.postmortem };
         if (player.hasFinished) return { text: 'Finished', color: THEME.success };
         if (player.dnf) return { text: 'DNF', color: THEME.warning };
         if (player.eliminated) return { text: 'Eliminated', color: THEME.danger };
@@ -2546,8 +3483,8 @@ class Game {
         if (progress >= 1.0 && activePlayers.length > 0 && !isLastRound) {
             let globalSplashText = "";
 
-            const totalCleared = activePlayers.filter(p => p.hasFinished && !p.eliminated).length;
-            const anyPostmortem = activePlayers.some(p => p.hasFinished && p.eliminated);
+            const totalCleared = activePlayers.filter(p => p.hasFinished && !p.eliminated && !p.finishedPostmortem).length;
+            const anyPostmortem = activePlayers.some(p => p.hasFinished && (p.eliminated || p.finishedPostmortem));
 
             if (totalCleared === 0 && !anyPostmortem) {
                 globalSplashText = "NO POINTS - TOO HARD!";
@@ -2592,15 +3529,36 @@ class Game {
 
         net.onSeatAssigned = (payload) => this.handleSeatAssigned(payload);
         net.onRoomState = (payload, type, phase) => this.handleRoomState(payload, phase);
+        net.onColorUpdated = (payload) => this.handleColorUpdated(payload);
+        net.onLoginResult = (payload) => this.handleLoginResult(payload);
+        net.onScoreAdjusted = (payload) => this.handleScoreAdjusted(payload);
+        net.onLivesAdjusted = (payload) => this.handleLivesAdjusted(payload);
         net.onJoinRejected = (payload) => {
             console.warn('[network] join rejected:', payload.reason);
             if (this.onJoinRejected) this.onJoinRejected(payload); 
         };
 
-        net.onMatchStarting = () => {
+        net.onMatchStarting = (payload) => {
             this.gameState = GameState.LOADING;
+            if (payload && payload.settings) {
+                this.settings = { ...this.settings, ...payload.settings };
+            }
+            this.totalRounds = this.settings.totalRounds;
+            this.POINTS_TO_WIN = this.settings.pointsToWin;
+            this.RACE_TIME_LIMIT = this.settings.raceTimeLimit;
+            this.MAX_POSSIBLE_SCORE = this.totalRounds * 3;
         };
         net.onAllClientsReady = () => {
+        };
+        net.onSettingsUpdated = (payload) => {
+            if (payload && payload.settings) {
+                this.settings = { ...this.settings, ...payload.settings };
+            }
+            this.totalRounds = this.settings.totalRounds;
+            this.POINTS_TO_WIN = this.settings.pointsToWin;
+            this.RACE_TIME_LIMIT = this.settings.raceTimeLimit;
+            this.MAX_POSSIBLE_SCORE = this.totalRounds * 3;
+            if (this.onSettingsUpdated) this.onSettingsUpdated(this.settings, this.isHost || this.isAdmin);
         };
 
         net.onStageState = (payload, type) => this.handleStageNetworkEvent(payload, type);
@@ -2654,12 +3612,18 @@ class Game {
             }
         };
         net.onChatMessage = (payload) => this.handleChatMessage(payload);
+        net.onKickRejected = (payload) => {
+            const name = payload && payload.name ? payload.name : 'that player';
+            this.pushSystemMessage(`Can't kick ${name} - admins are protected from being kicked.`);
+        };
+        net.onHostUpdated = (payload) => {
+            if (payload && typeof payload.hostSeatIndex === 'number') this.applyHostSeatIndex(payload.hostSeatIndex);
+        };
     }
 
     requestSetColor(hue) {
         if (this.network && this.network.isConnected) {
             this.network.sendSetColorRequest(hue);
-            return;
         }
         const player = this.players[this.localSeatIndex];
         if (!player) return;
@@ -2675,6 +3639,13 @@ class Game {
     handleRoomState(payload, phase) {
         this.roomCode = payload.roomCode;
         this.isHost = payload.hostSeatIndex === this.localSeatIndex;
+        if (payload.settings) {
+            this.settings = { ...this.settings, ...payload.settings };
+            this.totalRounds = this.settings.totalRounds;
+            this.POINTS_TO_WIN = this.settings.pointsToWin;
+            this.RACE_TIME_LIMIT = this.settings.raceTimeLimit;
+            this.MAX_POSSIBLE_SCORE = this.totalRounds * 3;
+        }
 
         const seats = payload.seats || [];
         const previousByIndex = new Map(this.players.map(p => [p.seatIndex, p]));
@@ -2705,11 +3676,14 @@ class Game {
                 player.buildPlaced = previous.buildPlaced;
                 player.physicsState = previous.physicsState;
                 player.hasFinished = previous.hasFinished;
+                player.finishedPostmortem = previous.finishedPostmortem;
                 player.eliminated = previous.eliminated;
                 player.dnf = previous.dnf;
                 player.finishTick = previous.finishTick;
                 player.reportedFinish = previous.reportedFinish;
                 player.reportedElimination = previous.reportedElimination;
+                player.livesRemaining = previous.livesRemaining;
+                player.respawnPendingFrames = previous.respawnPendingFrames;
                 player.scoreBeforeRound = previous.scoreBeforeRound;
                 player.lastRoundPoints = previous.lastRoundPoints;
                 player.lastRoundBreakdown = previous.lastRoundBreakdown;
@@ -2722,7 +3696,7 @@ class Game {
         }
 
         this.players = rebuilt;
-        if (this.onLobbyUpdate) this.onLobbyUpdate(payload, this.isHost);
+        if (this.onLobbyUpdate) this.onLobbyUpdate(payload, this.isHost || this.isAdmin);
         this.syncGameStateToPhase(phase);
     }
     syncGameStateToPhase(phase) {
@@ -2762,6 +3736,11 @@ class Game {
     requestStartMatch() {
         if (!this.network) return;
         this.network.requestStartMatch();
+    }
+
+    requestUpdateSettings(partialSettings) {
+        if (!this.network || !this.network.isConnected) return;
+        this.network.sendUpdateSettingsRequest(partialSettings);
     }
 
     handleStageNetworkEvent(payload, type) {
@@ -2909,6 +3888,8 @@ class Game {
         switch (type) {
             case 'RACE_START':
                 this.tick = payload.tick || 0;
+                if (typeof payload.timeLimit === 'number') this.RACE_TIME_LIMIT = payload.timeLimit;
+                if (typeof payload.lives === 'number') this.settings.lives = payload.lives;
                 this.remotePositions.clear();
                 this.gameState = GameState.RACE;
                 this.resetRoundState();
@@ -2925,6 +3906,7 @@ class Game {
         const player = this.players[payload.seatIndex];
         if (!player) return;
         player.hasFinished = true;
+        player.respawnPendingFrames = 0;
         player.finishTick = payload.finishTick;
         playSfx('finish');
     }
@@ -2948,6 +3930,7 @@ class Game {
             player.finishTick = result.finishTick;
             player.lastRoundPoints = result.roundPoints;
             player.lastRoundBreakdown = result.pointBreakdown || { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
+            player.finishedPostmortem = (player.lastRoundBreakdown.postmortem || 0) > 0;
             player.scoreBreakdown.goal += player.lastRoundBreakdown.goal || 0;
             player.scoreBreakdown.firstPlace += player.lastRoundBreakdown.firstPlace || 0;
             player.scoreBreakdown.comeback += player.lastRoundBreakdown.comeback || 0;
@@ -2988,6 +3971,7 @@ class Game {
             p.lastRoundEntries = [];
             p.eliminated = false;
             p.hasFinished = false;
+            p.finishedPostmortem = false;
             p.dnf = false;
             p.finishTick = null;
             p.piece = null;

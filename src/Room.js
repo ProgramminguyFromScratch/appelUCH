@@ -11,13 +11,17 @@ const {
     FINISH_TICK_TOLERANCE,
     LOADING_BARRIER_TIMEOUT_MS,
     ROUND_END_DELAY_MS,
-    CHAT_MESSAGE_MAX_LENGTH
+    CHAT_MESSAGE_MAX_LENGTH,
+    DEFAULT_SETTINGS,
+    SETTINGS_LIMITS,
+    ADMIN_PASSWORD,
+    LOGIN_MAX_ATTEMPTS,
+    LOGIN_ATTEMPT_WINDOW_MS
 } = require('./protocol');
 const { decodeLevelCode, encodeLevelCode } = require('./levelCode');
 const { PIECE_POOL, getPieceById, getPieceFootprintCells } = require('./pieces');
 const { LEVEL_POOL } = require('./levels');
 
-const POINTS_TO_WIN = 15;
 const HUE_MIN = 0;
 const HUE_MAX = 199;
 const DEFAULT_HUE_STEP = 34; 
@@ -35,8 +39,10 @@ class Room {
         this.nextSeatIndex = 0;
         this.phase = PHASE.LOBBY;
 
+        this.settings = { ...DEFAULT_SETTINGS };
+
         this.currentRound = 1;
-        this.totalRounds = TOTAL_ROUNDS;
+        this.totalRounds = this.settings.totalRounds;
 
         this.stageCandidates = [];
         this.stageVotes = new Map();
@@ -100,7 +106,9 @@ class Room {
             hasFinished: false,
             finishTick: null,
             eliminated: false,
-            dnf: false
+            dnf: false,
+            livesRemaining: this.settings.lives,
+            finishedPostmortem: false
         };
         this.seats.set(seatIndex, seat);
         ws.seatIndex = seatIndex;
@@ -134,6 +142,7 @@ class Room {
         return {
             roomCode: this.roomCode,
             hostSeatIndex: this.hostSeatIndex,
+            settings: this.settings,
             seats: [...this.seats.values()].map(s => ({
                 seatIndex: s.seatIndex,
                 playerId: s.playerId,
@@ -150,24 +159,67 @@ class Room {
     }
 
     handleSetColorRequest(seat, payload = {}) {
-        if (this.phase !== PHASE.LOBBY) return;
         const hue = Math.round(Number(payload.hue));
         if (!Number.isFinite(hue) || hue < HUE_MIN || hue > HUE_MAX) return;
 
         seat.hue = hue;
-        this.broadcastRoomState();
+        if (this.phase === PHASE.LOBBY) {
+            this.broadcastRoomState();
+        } else {
+            this.broadcast({
+                type: 'COLOR_UPDATED',
+                phase: this.phase,
+                payload: { seatIndex: seat.seatIndex, hue }
+            });
+        }
+    }
+
+    clampSetting(key, value) {
+        const limits = SETTINGS_LIMITS[key];
+        if (!limits) return null;
+        const n = Math.round(Number(value));
+        if (!Number.isFinite(n)) return null;
+        return Math.max(limits.min, Math.min(limits.max, n));
+    }
+
+    isPrivileged(seat) {
+        return !!seat && (seat.seatIndex === this.hostSeatIndex || !!seat.isAdmin);
+    }
+
+    handleUpdateSettingsRequest(seat, payload = {}) {
+        if (this.phase !== PHASE.LOBBY && this.phase !== PHASE.STAGE_SELECT) return;
+        if (!this.isPrivileged(seat)) return;
+
+        const updates = {};
+        for (const key of Object.keys(DEFAULT_SETTINGS)) {
+            if (!(key in payload)) continue;
+            const clamped = this.clampSetting(key, payload[key]);
+            if (clamped === null) continue;
+            updates[key] = clamped;
+        }
+        if (Object.keys(updates).length === 0) return;
+
+        Object.assign(this.settings, updates);
+        this.totalRounds = this.settings.totalRounds;
+
+        this.broadcast({
+            type: 'SETTINGS_UPDATED',
+            phase: this.phase,
+            payload: { settings: this.settings }
+        });
     }
 
     handleStartMatchRequest(seat) {
         if (this.phase !== PHASE.LOBBY) return;
-        if (seat.seatIndex !== this.hostSeatIndex) return;
+        if (!this.isPrivileged(seat)) return;
         if (this.connectedSeats.length < MIN_PLAYERS_TO_START) return;
 
+        this.totalRounds = this.settings.totalRounds;
         this.phase = PHASE.LOADING;
         this.broadcast({
             type: 'MATCH_STARTING',
             phase: PHASE.LOADING,
-            payload: { playerCount: this.seats.size, totalRounds: this.totalRounds }
+            payload: { playerCount: this.seats.size, totalRounds: this.totalRounds, settings: this.settings }
         });
 
         this.timers.loadingBarrier = setTimeout(() => this.forceAllClientsReady(), LOADING_BARRIER_TIMEOUT_MS);
@@ -309,6 +361,21 @@ class Room {
         const winningIndex = this.tallyStageVotes();
         const levelCode = this.stageCandidates[winningIndex];
         this.lockStage(null, levelCode);
+    }
+
+    // Immediately locks in a specific stage during STAGE_SELECT, bypassing the
+    // vote — useful when players are AFK or won't agree on a pick.
+    handleForceStageRequest(seat, payload = {}) {
+        if (this.phase !== PHASE.STAGE_SELECT || this.locks.stagePicked) return;
+        if (!this.isPrivileged(seat)) return;
+
+        const levelCode = payload && typeof payload.levelCode === 'string' ? payload.levelCode : '';
+        if (!LEVEL_POOL.includes(levelCode)) return;
+
+        clearTimeout(this.timers.stageCountdown);
+        this.timers.stageCountdown = null;
+        this.locks.stagePicked = true;
+        this.lockStage(seat.seatIndex, levelCode);
     }
 
     lockStage(winningSeatIndex, levelCode) {
@@ -623,11 +690,14 @@ class Room {
     }
 
     enterRace() {
+        const raceTimeLimit = this.settings.raceTimeLimit;
         for (const seat of this.seats.values()) {
             seat.hasFinished = false;
             seat.finishTick = null;
             seat.eliminated = false;
             seat.dnf = false;
+            seat.livesRemaining = this.settings.lives;
+            seat.finishedPostmortem = false;
         }
 
         this.race = {
@@ -643,14 +713,15 @@ class Room {
             phase: PHASE.RACE,
             payload: {
                 tick: 0,
-                timeLimit: RACE_TIME_LIMIT,
+                timeLimit: raceTimeLimit,
+                lives: this.settings.lives,
                 spawns: [...this.seats.values()].map(s => ({ seatIndex: s.seatIndex, x: null, y: null }))
             }
         });
 
         clearTimeout(this.timers.race);
-        this.timers.race = setTimeout(() => this.expireRace(), RACE_TIME_LIMIT * 1000);
-        this.startTimeSync(PHASE.RACE, RACE_TIME_LIMIT);
+        this.timers.race = setTimeout(() => this.expireRace(), raceTimeLimit * 1000);
+        this.startTimeSync(PHASE.RACE, raceTimeLimit);
         clearTimeout(this.timers.roundEndDelay);
         this.timers.roundEndDelay = null;
         clearInterval(this.timers.raceIdleHeartbeat);
@@ -715,17 +786,18 @@ class Room {
 
         const tick = payload.tick | 0;
         if (seat.seatIndex === finishedSeatIndex) {
-            this.confirmFinish(finishedSeatIndex, tick);
+            this.confirmFinish(finishedSeatIndex, tick, !!payload.postmortem);
             return;
         }
     }
 
-    confirmFinish(seatIndex, finishTick) {
+    confirmFinish(seatIndex, finishTick, postmortem = false) {
         this.race.finishConfirmed.set(seatIndex, finishTick);
         const seat = this.seats.get(seatIndex);
         if (seat) {
             seat.hasFinished = true;
             seat.finishTick = finishTick;
+            seat.finishedPostmortem = postmortem;
         }
         this.broadcast({ type: 'FINISH_CONFIRMED', phase: PHASE.RACE, payload: { seatIndex, finishTick } });
         this.checkRoundEnd();
@@ -820,16 +892,26 @@ class Room {
         clearInterval(this.timers.raceIdleHeartbeat);
         clearInterval(this.timers.timeSync);
         const allFinishers = [...this.race.finishConfirmed.entries()]
-            .map(([seatIndex, finishTick]) => ({ seatIndex, finishTick, eliminated: this.seats.get(seatIndex)?.eliminated === true }))
+            .map(([seatIndex, finishTick]) => {
+                const seat = this.seats.get(seatIndex);
+                return {
+                    seatIndex,
+                    finishTick,
+                    eliminated: seat?.eliminated === true,
+                    postmortem: seat?.eliminated === true || seat?.finishedPostmortem === true
+                };
+            })
             .sort((a, b) => a.finishTick - b.finishTick);
-        const finishers = allFinishers.filter(f => !f.eliminated);
-        const postmortemFinishers = allFinishers.filter(f => f.eliminated);
+        const finishers = allFinishers.filter(f => !f.postmortem);
+        const postmortemFinishers = allFinishers.filter(f => f.postmortem);
         const POSTMORTEM_POINTS = 2;
 
         const totalSeats = this.seats.size;
         const tooEasy = totalSeats > 0 && finishers.length === totalSeats;
         const tooHard = finishers.length === 0;
         const COMEBACK_SCORE_GAP = 10;
+        const firstPlacePoints = this.settings.firstPlacePoints;
+        const comebackPoints = this.settings.comebackPoints;
         const preRoundScores = new Map([...this.seats.values()].map(s => [s.seatIndex, s.score]));
         const leaderScore = Math.max(0, ...preRoundScores.values());
         const roundPoints = new Map();
@@ -843,12 +925,12 @@ class Room {
                     breakdown.goal = 3;
 
                     if (totalSeats > 2 && finishers.length === 1) breakdown.solo = 2;
-                    else if (i === 0 && finishers.length > 1) breakdown.firstPlace = 1;
+                    else if (i === 0 && finishers.length > 1) breakdown.firstPlace = firstPlacePoints;
 
                     const behindBy = leaderScore - (preRoundScores.get(seatIndex) || 0);
-                    if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = 2;
+                    if (behindBy >= COMEBACK_SCORE_GAP) breakdown.comeback = comebackPoints;
                 } else if (i === 0 && finishers.length > 1) {
-                    breakdown.firstPlace = 1;
+                    breakdown.firstPlace = firstPlacePoints;
                 }
 
                 const points = breakdown.goal + breakdown.firstPlace + breakdown.comeback + breakdown.solo;
@@ -923,7 +1005,7 @@ class Room {
         if (this.locks.continueAdvanced) return;
         this.locks.continueAdvanced = true;
 
-        const someoneWon = [...this.seats.values()].some(s => s.score >= POINTS_TO_WIN);
+        const someoneWon = [...this.seats.values()].some(s => s.score >= this.settings.pointsToWin);
         if (someoneWon || this.currentRound >= this.totalRounds) {
             let rank = 0, lastScore = null;
             const finalStandings = [...this.seats.values()]
@@ -1012,6 +1094,54 @@ class Room {
         }
     }
 
+    handleLoginRequest(seat, payload = {}) {
+        if (!seat) return;
+        const now = Date.now();
+        seat.loginAttempts = (seat.loginAttempts || []).filter(t => now - t < LOGIN_ATTEMPT_WINDOW_MS);
+        if (seat.loginAttempts.length >= LOGIN_MAX_ATTEMPTS) {
+            this.send(seat, { type: 'LOGIN_RESULT', phase: this.phase, payload: { success: false, reason: 'too_many_attempts' } });
+            return;
+        }
+        seat.loginAttempts.push(now);
+
+        const password = payload && typeof payload.password === 'string' ? payload.password : '';
+        const success = password.length > 0 && password === ADMIN_PASSWORD;
+        if (success) {
+            seat.isAdmin = true;
+            seat.loginAttempts = [];
+            console.log(`[room ${this.roomCode}] seat #${seat.seatIndex} "${seat.name}" logged in as admin`);
+        } else {
+            console.log(`[room ${this.roomCode}] seat #${seat.seatIndex} "${seat.name}" failed admin login`);
+        }
+        this.send(seat, { type: 'LOGIN_RESULT', phase: this.phase, payload: { success } });
+    }
+
+    handleGiveRequest(seat, payload = {}) {
+        if (!seat || !seat.isAdmin) return;
+
+        const kind = payload && typeof payload.kind === 'string' ? payload.kind.toLowerCase() : '';
+        const amount = Math.round(Number(payload && payload.amount));
+        if (!Number.isFinite(amount) || amount === 0) return;
+        const targetName = payload && typeof payload.targetName === 'string' ? payload.targetName : '';
+        const target = this.findSeatByName(targetName);
+        if (!target) return;
+
+        if (kind === 'points') {
+            this.adjustScore(target, amount);
+            return;
+        }
+
+        if (kind === 'lives') {
+            if (this.phase !== PHASE.RACE) return;
+            target.livesRemaining = Math.max(0, (target.livesRemaining || 0) + amount);
+            this.broadcast({
+                type: 'LIVES_ADJUSTED',
+                phase: this.phase,
+                payload: { seatIndex: target.seatIndex, delta: amount, totalLives: target.livesRemaining }
+            });
+        }
+    }
+
     adjustScore(seat, delta) {
         if (!seat) return false;
         seat.score = Math.max(0, seat.score + delta);
@@ -1040,6 +1170,99 @@ class Room {
             phase: this.phase,
             payload: { seatIndex: seat.seatIndex, name: seat.name, hue: seat.hue, text }
         });
+    }
+
+    findSeatByName(query) {
+        if (!query) return null;
+        const needle = query.trim().toLowerCase();
+        if (!needle) return null;
+
+        for (const seat of this.seats.values()) {
+            if (seat.name.toLowerCase() === needle) return seat;
+        }
+        for (const seat of this.seats.values()) {
+            if (seat.name.toLowerCase().startsWith(needle)) return seat;
+        }
+        for (const seat of this.seats.values()) {
+            if (seat.name.toLowerCase().includes(needle)) return seat;
+        }
+        return null;
+    }
+
+    handleKickRequest(seat, payload = {}) {
+        if (!this.isPrivileged(seat)) return;
+        const query = payload && typeof payload.name === 'string' ? payload.name : '';
+        const target = this.findSeatByName(query);
+        if (!target) return;
+
+        if (target.isAdmin) {
+            this.send(seat, { type: 'KICK_REJECTED', phase: this.phase, payload: { name: target.name, reason: 'target_is_admin' } });
+            return;
+        }
+
+        console.log(`[room ${this.roomCode}] host kicked "${target.name}" (seat ${target.seatIndex})`);
+        this.kickSeat(target, 'kicked_by_host');
+    }
+
+    handleHostRequest(seat, payload = {}) {
+        if (!seat || !seat.isAdmin) return;
+        const targetName = payload && typeof payload.name === 'string' ? payload.name.trim() : '';
+        const target = targetName ? this.findSeatByName(targetName) : seat;
+        if (!target) return;
+
+        this.hostSeatIndex = target.seatIndex;
+        console.log(`[room ${this.roomCode}] host set to "${target.name}" (seat ${target.seatIndex}) by admin "${seat.name}"`);
+
+        if (this.phase === PHASE.LOBBY) {
+            this.broadcastRoomState();
+        } else {
+            this.broadcast({
+                type: 'HOST_UPDATED',
+                phase: this.phase,
+                payload: { hostSeatIndex: this.hostSeatIndex }
+            });
+        }
+    }
+
+    handleSetRequest(seat, payload = {}) {
+        if (!seat || !seat.isAdmin) return;
+
+        const kind = payload && typeof payload.kind === 'string' ? payload.kind.toLowerCase() : '';
+        const value = Math.round(Number(payload && payload.amount));
+        if (!Number.isFinite(value) || value < 0) return;
+        const targetName = payload && typeof payload.targetName === 'string' ? payload.targetName : '';
+        const target = this.findSeatByName(targetName);
+        if (!target) return;
+
+        if (kind === 'points') {
+            this.adjustScore(target, value - target.score);
+            return;
+        }
+
+        if (kind === 'lives') {
+            if (this.phase !== PHASE.RACE) return;
+            const delta = value - (target.livesRemaining || 0);
+            target.livesRemaining = value;
+            this.broadcast({
+                type: 'LIVES_ADJUSTED',
+                phase: this.phase,
+                payload: { seatIndex: target.seatIndex, delta, totalLives: target.livesRemaining }
+            });
+        }
+    }
+
+    handleKillRequest(seat, payload = {}) {
+        if (!seat || !seat.isAdmin) return;
+        if (this.phase !== PHASE.RACE || !this.race) return;
+
+        const targetName = payload && typeof payload.name === 'string' ? payload.name : '';
+        const target = this.findSeatByName(targetName);
+        if (!target) return;
+        if (this.race.finishConfirmed.has(target.seatIndex)) return;
+        if (this.race.eliminationConfirmed.has(target.seatIndex)) return;
+
+        console.log(`[room ${this.roomCode}] admin "${seat.name}" killed "${target.name}" (seat ${target.seatIndex})`);
+        this.confirmElimination(target.seatIndex, 'death');
     }
 
     kickSeat(seat, reason = 'kicked') {

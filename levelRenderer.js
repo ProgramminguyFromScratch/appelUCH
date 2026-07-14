@@ -200,15 +200,15 @@ class LevelRenderer {
             dx = -12; dy = -16; dw = 24; dh = 32;
         }
 
-        if (status === 'dead' || status === 'won') {
+        if (status === 'dead' || status === 'won' || status === 'respawning') {
             this.ctx.globalAlpha = 0.45;
         }
 
         this.ctx.drawImage(image, dx, dy, dw, dh);
 
-        if (status === 'dead' || status === 'won') {
+        if (status === 'dead' || status === 'won' || status === 'respawning') {
             this.ctx.globalCompositeOperation = 'source-atop';
-            this.ctx.fillStyle = status === 'dead' ? '#ff3b30' : '#ffffff';
+            this.ctx.fillStyle = (status === 'dead' || status === 'respawning') ? '#ff3b30' : '#ffffff';
             this.ctx.fillRect(dx, dy, dw, dh);
             this.ctx.globalCompositeOperation = 'source-over';
         }

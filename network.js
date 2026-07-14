@@ -35,6 +35,12 @@ class NetworkClient {
         this.onPong = null;              
         this.onScoreAdjusted = null;     
         this.onChatMessage = null;       
+        this.onSettingsUpdated = null;   
+        this.onColorUpdated = null;      
+        this.onLoginResult = null;       
+        this.onLivesAdjusted = null;     
+        this.onKickRejected = null;      
+        this.onHostUpdated = null;       
         this._GROUPED_MAP = {
             STAGE_SELECT_START: 'onStageState',
             STAGE_CURSOR_MOVE: 'onStageState',
@@ -86,6 +92,12 @@ class NetworkClient {
         this._DIRECT_MAP.PONG = 'onPong';
         this._DIRECT_MAP.SCORE_ADJUSTED = 'onScoreAdjusted';
         this._DIRECT_MAP.CHAT_BROADCAST = 'onChatMessage';
+        this._DIRECT_MAP.SETTINGS_UPDATED = 'onSettingsUpdated';
+        this._DIRECT_MAP.COLOR_UPDATED = 'onColorUpdated';
+        this._DIRECT_MAP.LOGIN_RESULT = 'onLoginResult';
+        this._DIRECT_MAP.LIVES_ADJUSTED = 'onLivesAdjusted';
+        this._DIRECT_MAP.KICK_REJECTED = 'onKickRejected';
+        this._DIRECT_MAP.HOST_UPDATED = 'onHostUpdated';
     }
 
     connect() {
@@ -216,8 +228,8 @@ class NetworkClient {
         this._send('TILE_UPDATE', { idx, tile, rot });
     }
 
-    sendFinishObserved(finishedSeatIndex, tick) {
-        this._send('FINISH_OBSERVED', { finishedSeatIndex, tick });
+    sendFinishObserved(finishedSeatIndex, tick, postmortem = false) {
+        this._send('FINISH_OBSERVED', { finishedSeatIndex, tick, postmortem: !!postmortem });
     }
 
     sendEliminationObserved(eliminatedSeatIndex, tick, cause = 'death') {
@@ -230,6 +242,38 @@ class NetworkClient {
 
     sendChatMessage(text) {
         this._send('CHAT_MESSAGE', { text });
+    }
+
+    sendUpdateSettingsRequest(settings) {
+        this._send('UPDATE_SETTINGS_REQUEST', settings || {});
+    }
+
+    sendKickRequest(name) {
+        this._send('KICK_REQUEST', { name });
+    }
+
+    sendForceStageRequest(levelCode) {
+        this._send('FORCE_STAGE_REQUEST', { levelCode });
+    }
+
+    sendLoginRequest(password) {
+        this._send('LOGIN_REQUEST', { password });
+    }
+
+    sendGiveRequest(kind, amount, targetName) {
+        this._send('GIVE_REQUEST', { kind, amount, targetName });
+    }
+
+    sendSetRequest(kind, amount, targetName) {
+        this._send('SET_REQUEST', { kind, amount, targetName });
+    }
+
+    sendHostRequest(name = '') {
+        this._send('HOST_REQUEST', { name });
+    }
+
+    sendKillRequest(name) {
+        this._send('KILL_REQUEST', { name });
     }
 
     sendPing() {

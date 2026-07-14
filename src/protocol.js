@@ -10,7 +10,7 @@ const PHASE = {
 };
 const CLIENT_MESSAGE_PHASES = {
     JOIN_ROOM: [PHASE.LOBBY],
-    SET_COLOR_REQUEST: [PHASE.LOBBY],
+    SET_COLOR_REQUEST: Object.values(PHASE),
     START_MATCH_REQUEST: [PHASE.LOBBY],
     CLIENT_READY: [PHASE.LOADING],
     STAGE_CURSOR_MOVE: [PHASE.STAGE_SELECT],
@@ -25,10 +25,36 @@ const CLIENT_MESSAGE_PHASES = {
     FINISH_OBSERVED: [PHASE.RACE],
     ELIMINATION_OBSERVED: [PHASE.RACE],
     CONTINUE_REQUEST: [PHASE.ROUND_RESULTS],
-    CHAT_MESSAGE: Object.values(PHASE)
+    CHAT_MESSAGE: Object.values(PHASE),
+    UPDATE_SETTINGS_REQUEST: [PHASE.LOBBY, PHASE.STAGE_SELECT],
+    KICK_REQUEST: Object.values(PHASE),
+    FORCE_STAGE_REQUEST: [PHASE.STAGE_SELECT],
+    LOGIN_REQUEST: Object.values(PHASE),
+    GIVE_REQUEST: Object.values(PHASE),
+    SET_REQUEST: Object.values(PHASE),
+    HOST_REQUEST: Object.values(PHASE),
+    KILL_REQUEST: Object.values(PHASE)
 };
 
 const TOTAL_ROUNDS = 10;
+
+const DEFAULT_SETTINGS = {
+    lives: 1,
+    pointsToWin: 15,
+    comebackPoints: 2,
+    firstPlacePoints: 1,
+    totalRounds: TOTAL_ROUNDS,
+    raceTimeLimit: 60
+};
+
+const SETTINGS_LIMITS = {
+    lives: { min: 1, max: 10 },
+    pointsToWin: { min: 3, max: 100 },
+    comebackPoints: { min: 0, max: 10 },
+    firstPlacePoints: { min: 0, max: 10 },
+    totalRounds: { min: 1, max: 30 },
+    raceTimeLimit: { min: 15, max: 180 }
+};
 function getPartyBoxSlotCount(playerCount) {
     return Math.ceil(1.5 * playerCount);
 }
@@ -45,6 +71,10 @@ const LOADING_BARRIER_TIMEOUT_MS = 15000;
 const ROUND_END_DELAY_MS = 3000;
 const CHAT_MESSAGE_MAX_LENGTH = 140;
 
+const ADMIN_PASSWORD = process.env.APPEL_ADMIN_PASSWORD || 'appel-admin';
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_ATTEMPT_WINDOW_MS = 30000;
+
 module.exports = {
     PHASE,
     CLIENT_MESSAGE_PHASES,
@@ -60,5 +90,10 @@ module.exports = {
     FINISH_TICK_TOLERANCE,
     LOADING_BARRIER_TIMEOUT_MS,
     ROUND_END_DELAY_MS,
-    CHAT_MESSAGE_MAX_LENGTH
+    CHAT_MESSAGE_MAX_LENGTH,
+    DEFAULT_SETTINGS,
+    SETTINGS_LIMITS,
+    ADMIN_PASSWORD,
+    LOGIN_MAX_ATTEMPTS,
+    LOGIN_ATTEMPT_WINDOW_MS
 };

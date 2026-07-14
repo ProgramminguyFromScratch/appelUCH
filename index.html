@@ -170,6 +170,51 @@
             font-size: 14px;
         }
 
+        #settingsPanel {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 8px;
+            padding: 14px 16px;
+        }
+        #settingsPanel h2 {
+            font-size: 14px;
+            font-weight: normal;
+            letter-spacing: 1px;
+            color: #8891a3;
+            margin: 0 0 4px 0;
+            text-transform: uppercase;
+        }
+        .settingRow {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+        }
+        .settingRow label {
+            color: #f4f6fb;
+        }
+        .settingRow input {
+            width: 70px;
+            padding: 6px 8px;
+            font-size: 14px;
+            text-align: center;
+        }
+        .settingRow input:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+        #settingsSavedTag {
+            font-size: 12px;
+            color: #4ade80;
+            text-align: center;
+            min-height: 14px;
+        }
+
         #canvasWrap {
             position: relative;
             display: inline-block;
@@ -230,6 +275,36 @@
             </div>
         </div>
         <ul id="playerList"></ul>
+
+        <div id="settingsPanel">
+            <h2>Match Settings</h2>
+            <div class="settingRow">
+                <label for="settingLives">Lives per attempt</label>
+                <input id="settingLives" type="number" min="1" max="5" step="1" />
+            </div>
+            <div class="settingRow">
+                <label for="settingPointsToWin">Points to win</label>
+                <input id="settingPointsToWin" type="number" min="3" max="99" step="1" />
+            </div>
+            <div class="settingRow">
+                <label for="settingComebackPoints">Comeback points</label>
+                <input id="settingComebackPoints" type="number" min="0" max="10" step="1" />
+            </div>
+            <div class="settingRow">
+                <label for="settingFirstPlacePoints">First place points</label>
+                <input id="settingFirstPlacePoints" type="number" min="0" max="10" step="1" />
+            </div>
+            <div class="settingRow">
+                <label for="settingTotalRounds">Rounds</label>
+                <input id="settingTotalRounds" type="number" min="1" max="30" step="1" />
+            </div>
+            <div class="settingRow">
+                <label for="settingRaceTimeLimit">Race time limit (s)</label>
+                <input id="settingRaceTimeLimit" type="number" min="15" max="180" step="5" />
+            </div>
+            <div id="settingsSavedTag"></div>
+        </div>
+
         <button id="btnStartMatch" style="display:none;">Start</button>
         <div id="waitingForHost" style="display:none;">Waiting for the host to start...</div>
     </div>
@@ -272,8 +347,6 @@
         const btnStartMatch = document.getElementById('btnStartMatch');
         const waitingForHost = document.getElementById('waitingForHost');
 
-        const offline = params.get('offline') === '1';
-
         const copyLevelCodeBtn = document.getElementById('copyLevelCodeBtn');
         function wireCopyLevelCodeButton(game) {
             game.onFinalResults = (levelCode) => {
@@ -309,22 +382,13 @@
             }, 1500);
         });
 
-        if (offline) {
-            nameScreen.style.display = 'none';
-            let levelCode = params.get("level");
-            if (!levelCode) {
-                levelCode = "1234687196Z2Z589Z1Z1Z76Z1Z1Z1Z2Z1Z1Z4Z7Z1Z1Z186Z2Z1Z1Z1Z23Z1Z1Z1Z2Z1Z1Z5Z63Z1Z1Z388Z2Z1Z1Z37232ZZ1Z38416ZZB787Zs100a100ZZZ165Z0";
-            }
-            const game = new Game('gameCanvas', playerCount);
-            wireCopyLevelCodeButton(game);
-            game.startGame(levelCode);
-        } else {
+        // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
+        const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
+        const network = new NetworkClient(serverUrl);
+        const game = new Game('gameCanvas', playerCount, network);
+        wireCopyLevelCodeButton(game);
 
-            // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
-            const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
-            const network = new NetworkClient(serverUrl);
-            const game = new Game('gameCanvas', playerCount, network);
-            wireCopyLevelCodeButton(game);
+        {
 
             async function copyTextToClipboard(text) {
                 try {
@@ -367,7 +431,6 @@
             const codeFromUrl = getRoomCodeFromPath();
             if (codeFromUrl) {
                 roomCodeInput.value = codeFromUrl;
-                btnCreateOrJoin.textContent = `Join Room ${codeFromUrl}`;
                 displayNameInput.focus();
             }
 
@@ -433,6 +496,51 @@
             const colorPreviewCanvas = document.getElementById('colorPreviewCanvas');
             const previewCtx = colorPreviewCanvas.getContext('2d');
             previewCtx.imageSmoothingEnabled = false;
+
+            // --- Match settings panel (host/admin-editable, everyone sees current values) ---
+            const SETTINGS_FIELDS = {
+                lives: document.getElementById('settingLives'),
+                pointsToWin: document.getElementById('settingPointsToWin'),
+                comebackPoints: document.getElementById('settingComebackPoints'),
+                firstPlacePoints: document.getElementById('settingFirstPlacePoints'),
+                totalRounds: document.getElementById('settingTotalRounds'),
+                raceTimeLimit: document.getElementById('settingRaceTimeLimit')
+            };
+            const settingsSavedTag = document.getElementById('settingsSavedTag');
+            let settingsSavedTagTimeout = null;
+
+            function applySettingsToInputs(settings, isHost) {
+                if (!settings) return;
+                for (const key of Object.keys(SETTINGS_FIELDS)) {
+                    const input = SETTINGS_FIELDS[key];
+                    if (document.activeElement === input) continue; 
+                    if (typeof settings[key] === 'number') input.value = settings[key];
+                    input.disabled = !isHost;
+                }
+            }
+
+            function wireSettingInput(key, input) {
+                input.addEventListener('change', () => {
+                    if (!game.isHost && !game.isAdmin) return;
+                    const value = parseInt(input.value, 10);
+                    if (!Number.isFinite(value)) return;
+                    game.requestUpdateSettings({ [key]: value });
+                });
+            }
+            for (const key of Object.keys(SETTINGS_FIELDS)) {
+                wireSettingInput(key, SETTINGS_FIELDS[key]);
+            }
+
+            game.onAdminChanged = (isAdmin) => {
+                applySettingsToInputs(game.settings, game.isHost || isAdmin);
+            };
+
+            game.onSettingsUpdated = (settings, isHost) => {
+                applySettingsToInputs(settings, isHost);
+                settingsSavedTag.textContent = 'Settings updated';
+                clearTimeout(settingsSavedTagTimeout);
+                settingsSavedTagTimeout = setTimeout(() => { settingsSavedTag.textContent = ''; }, 1500);
+            };
 
             function rgbToHsv(r, g, b) {
                 r /= 255; g /= 255; b /= 255;
@@ -513,6 +621,7 @@
             game.onLobbyUpdate = (payload, isHost) => {
                 roomCodeValue.textContent = payload.roomCode;
                 updateUrlForRoom(payload.roomCode);
+                applySettingsToInputs(payload.settings || game.settings, isHost);
 
                 const mySeat = payload.seats.find(s => s.seatIndex === game.localSeatIndex);
                 if (mySeat && typeof mySeat.hue === 'number' && !draggingColorSlider) {
@@ -582,6 +691,7 @@
                 console.log(`[lobby] host is now seat ${hostSeatIndex}${isHost ? ' (you)' : ''}`);
                 btnStartMatch.style.display = isHost ? 'inline-block' : 'none';
                 waitingForHost.style.display = isHost ? 'none' : 'block';
+                applySettingsToInputs(game.settings, isHost);
             };
 
             network.onClose = () => {

@@ -66,7 +66,15 @@ const HANDLERS = {
     FINISH_OBSERVED: (room, seat, payload) => room.handleFinishObserved(seat, payload),
     ELIMINATION_OBSERVED: (room, seat, payload) => room.handleEliminationObserved(seat, payload),
     CONTINUE_REQUEST: (room, seat) => room.handleContinueRequest(seat),
-    CHAT_MESSAGE: (room, seat, payload) => room.handleChatMessage(seat, payload)
+    CHAT_MESSAGE: (room, seat, payload) => room.handleChatMessage(seat, payload),
+    UPDATE_SETTINGS_REQUEST: (room, seat, payload) => room.handleUpdateSettingsRequest(seat, payload),
+    KICK_REQUEST: (room, seat, payload) => room.handleKickRequest(seat, payload),
+    FORCE_STAGE_REQUEST: (room, seat, payload) => room.handleForceStageRequest(seat, payload),
+    LOGIN_REQUEST: (room, seat, payload) => room.handleLoginRequest(seat, payload),
+    GIVE_REQUEST: (room, seat, payload) => room.handleGiveRequest(seat, payload),
+    SET_REQUEST: (room, seat, payload) => room.handleSetRequest(seat, payload),
+    HOST_REQUEST: (room, seat, payload) => room.handleHostRequest(seat, payload),
+    KILL_REQUEST: (room, seat, payload) => room.handleKillRequest(seat, payload)
 };
 
 function handleMessage(ws, raw) {
@@ -122,9 +130,6 @@ wss.on('connection', ws => {
 });
 
 console.log(`Appel multiplayer server listening on ws://localhost:${PORT}`);
-
-// --- Console admin commands ---------------------------------------------
-// Type "help" in the server console for a list of commands.
 
 function printPlayerList() {
     const players = roomManager.listPlayers();
