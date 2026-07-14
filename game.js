@@ -2527,7 +2527,7 @@ class Game {
 
             for (let li = wrapped.length - 1; li >= 0; li--) {
                 const line = wrapped[li];
-                const lineX = padX + (line.isFirst ? 0 : nameWidth);
+                const lineX = padX + (line.isFirst ? nameWidth : 0);
                 const lineWidth = ctx.measureText(line.text).width;
                 const boxWidth = (line.isFirst ? nameWidth : 0) + lineWidth + padX;
                 const boxX = padX - 8;
@@ -2611,7 +2611,7 @@ class Game {
                     ctx.font = `11px ${THEME.font}`;
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
                     const hint = info.matches.length > 1
-                        ? `Tab to cycle (${info.matches.length} matches)`
+                        ? `Tab to complete (${info.matches.length} matches)`
                         : 'Tab to complete';
                     ctx.fillText(hint, padX, boxY + 15);
                     ctx.font = inputFont;

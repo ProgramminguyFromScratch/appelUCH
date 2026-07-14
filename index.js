@@ -54,8 +54,12 @@ function handleJoinRoom(ws, payload = {}) {
 
     send(ws, { type: 'SEAT_ASSIGNED', phase: PHASE.LOBBY, payload: { seatIndex: seat.seatIndex, playerId: seat.playerId } });
     room.broadcastRoomState();
-    room.sendJoinCatchUp(seat);
     room.announceJoin(seat);
+    try {
+        room.sendJoinCatchUp(seat);
+    } catch (err) {
+        console.error(`[room ${room.roomCode}] sendJoinCatchUp failed for seat ${seat.seatIndex}:`, err);
+    }
     console.log(`[room ${room.roomCode}] seat ${seat.seatIndex} joined as "${seat.name}" (phase=${room.phase})`);
 }
 

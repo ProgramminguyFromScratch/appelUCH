@@ -254,6 +254,15 @@ class Room {
         });
     }
 
+    announceLeave(seat, reason) {
+        const text = reason === 'kicked' ? `${seat.name} was kicked` : `${seat.name} left the game`;
+        this.broadcast({
+            type: 'CHAT_BROADCAST',
+            phase: this.phase,
+            payload: { seatIndex: -1, name: 'System', hue: 0, text }
+        });
+    }
+
     handleSetColorRequest(seat, payload = {}) {
         const hue = Math.round(Number(payload.hue));
         if (!Number.isFinite(hue) || hue < HUE_MIN || hue > HUE_MAX) return;
@@ -1182,6 +1191,7 @@ class Room {
             if (successor) this.hostSeatIndex = successor.seatIndex;
         }
         this.broadcast({ type: 'PLAYER_LEFT', phase: this.phase, payload: { seatIndex: seat.seatIndex, reason, hostSeatIndex: this.hostSeatIndex } });
+        this.announceLeave(seat, reason);
 
         switch (this.phase) {
             case PHASE.LOBBY:
@@ -1292,13 +1302,14 @@ class Room {
         const needle = query.trim().toLowerCase();
         if (!needle) return null;
 
-        for (const seat of this.seats.values()) {
+        const candidates = this.connectedSeats;
+        for (const seat of candidates) {
             if (seat.name.toLowerCase() === needle) return seat;
         }
-        for (const seat of this.seats.values()) {
+        for (const seat of candidates) {
             if (seat.name.toLowerCase().startsWith(needle)) return seat;
         }
-        for (const seat of this.seats.values()) {
+        for (const seat of candidates) {
             if (seat.name.toLowerCase().includes(needle)) return seat;
         }
         return null;
