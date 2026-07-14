@@ -69,7 +69,7 @@ function hueShiftToHex(hueShift) {
 
 const STAGE_SELECT_BOX_WIDTH = 255;
 const STAGE_PREVIEW_ASPECT = 10 / 15; 
-const STAGE_VOTE_ARENA_LEVEL_CODE = "1236930196Z86Z2Z2Z1Z86Z4Z10Z2Z86Z2Z10Z2Z68Z1Z86Z1Z10Z2Z68Z1Z10Z5Z2Z1Z10Z2Z86Z1Z10Z3Z20Z1Z18Z1Z17Z1Z79Z3Z2Z160Z10Z1Z86Z1Z10Z1Z1Z3Z13Z1Z10Z3Z2Z1Z10Z1Z2Z1Z86Z1Z2Z1Z86Z1Z2Z1Z10Z1Z86Z1Z10Z1Z86Z1Z2Z1Z68Z1Z86Z1Z10Z1Z2Z1Z68Z1Z20Z3Z18Z1Z17Z1Z79Z4Z2Z160Z10Z1Z68Z1Z5Z1Z1Z4Z4Z1Z68Z1Z10Z2Z86Z1Z10Z1Z20Z1Z86Z1Z20Z1Z10Z1Z86Z1Z2Z1Z86Z1Z68Z1Z10Z1Z86Z1Z10Z1Z20Z3Z18Z3Z17Z1Z79Z5Z2Z160Z4Z1Z1Z11Z76Z1Z1Z1Z86Z1Z1Z5Z20Z4Z18Z3Z17Z3Z79Z6Z1Z160Z4Z1Z1Z13Z86Z1Z5Z1Z1Z4Z20Z1Z18Z3Z17Z3Z79Z9Z1Z160Z4Z1Z1Z10Z5Z1Z1Z2Z86Z1Z8Z1Z1Z2Z5Z1Z1Z1Z20Z1Z18Z1Z17Z2Z79Z12Z1Z160Z10Z1Z1Z5Z5Z1Z20Z1Z18Z1Z20Z1Z5Z1Z1Z2Z8Z1Z86Z1Z5Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z1Z81Z1Z79Z2Z81Z9Z1Z160Z86Z1Z4Z1Z1Z11Z5Z1Z86Z1Z8Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z1Z81Z4Z79Z1Z81Z2Z82Z2Z81Z1Z79Z1Z81Z1Z1Z160Z10Z1Z86Z1Z10Z1Z1Z2Z5Z1Z1Z7Z8Z1Z68Z1Z8Z1Z13Z1Z68Z2Z5Z1Z20Z1Z18Z1Z17Z1Z79Z1Z81Z12Z1Z160Z86Z2Z10Z1Z13Z1Z1Z7Z4Z1Z21Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z169Z13Z1Z21Z2Z5Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z172Z8Z5Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z173Z8Z3Z1Z4Z20Z1Z18Z1Z17Z1Z79Z13Z1Z180Z20Z1Z18Z1Z17Z1Z79Z13Z1Z180Z20Z1Z18Z1Z17Z1Z79Z13Z1Z180Z20Z1Z18Z1Z17Z1Z79Z13Z1Z179Z20Z1Z18Z1Z17Z1Z79Z14Z1Z179Z20Z1Z18Z1Z17Z1Z79Z14Z1Z179Z20Z1Z18Z1Z17Z1Z79Z14Z1Z179Z20Z1Z18Z1Z17Z1Z79Z14Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z16Z1Z178Z20Z1Z18Z17Z1Z178Z20Z18Z1Z31324ZZ1Z7Z3Z1Z0Z1Z1Z2Z3Z1Z0Z1Z3Z1Z0Z1Z1Z1Z3Z1Z0Z2Z3Z1Z1Z1Z3Z1Z1Z2Z3Z1Z0Z1Z1Z1Z2Z1Z1Z1Z2Z1Z1Z166Z0Z1Z1Z1Z2Z1Z1Z5Z2Z1Z0Z1Z1Z1Z2Z1Z1Z1Z3Z1Z1Z1Z3Z1Z1Z1Z2Z2Z1Z3Z3Z1Z2Z1Z1Z2Z3Z1Z1Z170Z3Z1Z1Z7Z2Z1Z1Z2Z2Z1Z1Z1Z2Z1Z1Z5Z3Z1Z1Z2Z2Z1Z1Z172Z2Z1Z1Z13Z2Z1Z1Z181Z2Z1Z1Z13Z2Z2Z1Z180Z2Z1Z1Z13Z2Z1Z1Z3Z2Z1Z1Z177Z3Z1Z1Z5Z3Z1Z1Z3Z2Z1Z1Z3Z2Z2Z1Z8Z0Z1Z1Z2Z0Z1Z1Z1Z2Z1Z0Z1Z1Z1Z2Z1Z0Z1Z1Z1Z2Z1Z1Z160Z2Z2Z1Z11Z0Z1Z2Z1Z1Z9Z0Z1Z1Z1Z2Z1Z0Z1Z1Z1Z2Z1Z0Z2Z1Z1Z0Z1Z1Z1Z2Z1Z1Z162Z3Z1Z1Z11Z2Z1Z1Z1Z0Z1Z1Z1Z3Z1Z2Z1Z1Z4Z0Z1Z3Z1Z2Z1Z0Z1Z3Z1Z2Z1Z0Z1Z3Z1Z2Z1Z0Z1Z3Z1Z2Z1Z1Z162Z2Z1Z3Z1Z1Z7Z3Z1Z1Z193Z0Z1Z1Z36446ZZZ13Z0Z11Z3Z10Z1Z8Z2Z8Z1Z6Z1Z4Z2Z3Z1Z3Z2Z5Z2Z8Z2Z12Z3Z14Z2Z29Z0Z37Z1Z42Z0Z46Z0Z53Z1Z56Z3Z59Z2Z57Z1Z57Z2Z55Z1Z52Z3Z49Z2Z46Z2Z41Z3Z35Z0Z27Z1Z22Z2Z16Z0Z14Z3Z11Z0Z9Z0Z6Z1Z2Z0Z0Z0ZC1Z0ZC1Z3ZC1Z1ZZ180Z180";
+const STAGE_VOTE_ARENA_LEVEL_CODE = "1237111196Z86Z2Z2Z1Z86Z4Z10Z2Z86Z2Z10Z2Z68Z1Z86Z1Z10Z2Z68Z1Z10Z5Z2Z1Z10Z2Z86Z1Z10Z3Z20Z1Z18Z1Z17Z1Z79Z3Z2Z160Z10Z1Z86Z1Z10Z1Z1Z3Z13Z1Z10Z3Z2Z1Z10Z1Z2Z1Z86Z1Z2Z1Z86Z1Z2Z1Z10Z1Z86Z1Z10Z1Z86Z1Z2Z1Z68Z1Z86Z1Z10Z1Z2Z1Z68Z1Z20Z3Z18Z1Z17Z1Z79Z4Z2Z160Z10Z1Z68Z1Z5Z1Z1Z4Z4Z1Z68Z1Z10Z2Z86Z1Z10Z1Z20Z1Z86Z1Z20Z1Z10Z1Z86Z1Z2Z1Z86Z1Z68Z1Z10Z1Z86Z1Z10Z1Z20Z3Z18Z3Z17Z1Z79Z5Z2Z160Z4Z1Z1Z11Z76Z1Z1Z1Z86Z1Z1Z5Z20Z4Z18Z3Z17Z3Z79Z6Z1Z160Z4Z1Z1Z13Z86Z1Z5Z1Z1Z4Z20Z1Z18Z3Z17Z3Z79Z9Z1Z160Z4Z1Z1Z10Z5Z1Z1Z2Z86Z1Z8Z1Z1Z2Z5Z1Z1Z1Z20Z1Z18Z1Z17Z2Z79Z12Z1Z160Z10Z1Z1Z5Z5Z1Z20Z1Z18Z1Z20Z1Z5Z1Z1Z2Z8Z1Z86Z1Z5Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z1Z81Z1Z79Z2Z81Z9Z1Z160Z86Z1Z4Z1Z1Z11Z5Z1Z86Z1Z8Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z1Z81Z4Z79Z1Z81Z2Z82Z2Z81Z1Z79Z1Z81Z1Z1Z160Z10Z1Z86Z1Z10Z1Z1Z2Z5Z1Z1Z7Z8Z1Z68Z1Z8Z1Z13Z1Z68Z2Z5Z1Z20Z1Z18Z1Z17Z1Z79Z1Z81Z12Z1Z160Z86Z2Z10Z1Z13Z1Z1Z7Z4Z1Z21Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z169Z13Z1Z21Z2Z5Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z172Z8Z5Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z166Z5Z1Z1Z6Z8Z3Z1Z4Z20Z1Z18Z1Z17Z1Z79Z13Z1Z180Z20Z1Z18Z1Z17Z1Z79Z13Z1Z164Z5Z1Z1Z4Z4Z1Z1Z10Z20Z1Z18Z1Z17Z1Z79Z13Z1Z168Z10Z1Z86Z1Z10Z1Z1Z9Z20Z1Z18Z1Z17Z1Z79Z13Z1Z167Z10Z1Z86Z3Z10Z1Z1Z7Z4Z1Z20Z1Z18Z1Z17Z1Z79Z13Z1Z179Z4Z1Z20Z1Z18Z1Z17Z1Z79Z13Z1Z179Z20Z2Z18Z1Z17Z1Z79Z13Z1Z179Z20Z1Z18Z2Z17Z1Z79Z13Z1Z178Z4Z1Z20Z1Z18Z1Z17Z4Z79Z11Z1Z178Z4Z1Z20Z1Z18Z4Z17Z1Z79Z11Z1Z178Z20Z5Z18Z1Z17Z1Z79Z11Z1Z182Z20Z1Z18Z1Z17Z1Z79Z11Z1Z182Z20Z1Z18Z1Z17Z1Z79Z11Z1Z182Z20Z1Z18Z1Z17Z1Z79Z11Z1Z178Z20Z5Z18Z1Z17Z1Z79Z11Z1Z178Z20Z1Z18Z5Z17Z1Z79Z11Z1Z178Z20Z1Z18Z1Z17Z5Z79Z11Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z16Z1Z178Z20Z1Z18Z17Z1Z178Z20Z18Z1Z31324ZZ1Z7Z3Z1Z0Z1Z1Z2Z3Z1Z0Z1Z3Z1Z0Z1Z1Z1Z3Z1Z0Z2Z3Z1Z1Z1Z3Z1Z1Z2Z3Z1Z0Z1Z1Z1Z2Z1Z1Z1Z2Z1Z1Z166Z0Z1Z1Z1Z2Z1Z1Z5Z2Z1Z0Z1Z1Z1Z2Z1Z1Z1Z3Z1Z1Z1Z3Z1Z1Z1Z2Z2Z1Z3Z3Z1Z2Z1Z1Z2Z3Z1Z1Z170Z3Z1Z1Z7Z2Z1Z1Z2Z2Z1Z1Z1Z2Z1Z1Z5Z3Z1Z1Z2Z2Z1Z1Z172Z2Z1Z1Z13Z2Z1Z1Z181Z2Z1Z1Z13Z2Z2Z1Z180Z2Z1Z1Z13Z2Z1Z1Z3Z2Z1Z1Z177Z3Z1Z1Z5Z3Z1Z1Z3Z2Z1Z1Z3Z2Z2Z1Z8Z0Z1Z1Z2Z0Z1Z1Z1Z2Z1Z0Z1Z1Z1Z2Z1Z0Z1Z1Z1Z2Z1Z1Z160Z2Z2Z1Z11Z0Z1Z2Z1Z1Z9Z0Z1Z1Z1Z2Z1Z0Z1Z1Z1Z2Z1Z0Z2Z1Z1Z0Z1Z1Z1Z2Z1Z1Z162Z3Z1Z1Z11Z2Z1Z1Z1Z0Z1Z1Z1Z3Z1Z2Z1Z1Z4Z0Z1Z3Z1Z2Z1Z0Z1Z3Z1Z2Z1Z0Z1Z3Z1Z2Z1Z0Z1Z3Z1Z2Z1Z1Z162Z2Z1Z3Z1Z1Z7Z3Z1Z1Z193Z0Z1Z1Z388Z2Z1Z1Z389Z2Z1Z1Z4Z3Z1Z1Z194Z0Z1Z1Z1Z3Z1Z1Z192Z0Z1Z1Z3Z3Z1Z1Z7Z0Z1Z1Z195Z0Z1Z1Z586Z0Z1Z1Z195Z0Z1Z1Z34281ZZZ13Z0Z11Z3Z10Z1Z8Z2Z8Z1Z6Z1Z4Z2Z3Z1Z3Z2Z5Z2Z8Z2Z12Z3Z14Z2Z29Z0Z37Z1Z42Z0Z46Z0Z53Z1Z56Z3Z59Z2Z57Z1Z57Z2Z55Z1Z52Z3Z49Z2Z46Z2Z41Z3Z35Z0Z27Z1Z22Z2Z16Z0Z14Z3Z11Z0Z9Z0Z6Z1Z2Z0Z0Z0ZC1Z0ZC1Z3ZC1Z1ZZ180Z180";
 const STAGE_VOTE_STAND_SECONDS = 3;
 const STAGE_VOTE_ZONE_WIDTH = 200;
 const STAGE_VOTE_ZONE_DEPTH = 30;
@@ -133,6 +133,7 @@ class Game {
         this.raceTimeRemaining = this.RACE_TIME_LIMIT;
 
         this.assetsLoadedCount = 0;
+        this._deferredAssetCallbacks = [];
         this.totalAssets = 201; 
         this.totalRounds = 10;
         this.POINTS_TO_WIN = 15;
@@ -149,7 +150,7 @@ class Game {
         this.settingsMenuOpen = false;
         this.settingsMenuIndex = 0;
         this.colorPickerOpen = false;
-        this.RESPAWN_DELAY_FRAMES = 30; // 1 second at 30fps before a dead player respawns
+        this.RESPAWN_DELAY_FRAMES = 30; 
         this.SETTINGS_META = [
             { key: 'lives', label: 'Lives per attempt', min: 1, max: 10, step: 1 },
             { key: 'pointsToWin', label: 'Points to win', min: 3, max: 100, step: 1 },
@@ -174,7 +175,8 @@ class Game {
             { x: 510, y: 437 },
             { x: 1050, y: 197 },
             { x: 120, y: 617 },
-            { x: 1080, y: 557 }
+            { x: 1080, y: 557 },
+            { x: 570, y: 1037 }
         ];
         this.PARTY_BOX_SLOT_COUNT = Math.ceil(1.5 * this.playerCount);
         this.PARTY_TIME_LIMIT = 12; 
@@ -334,8 +336,6 @@ class Game {
         this._chatCaretActivityAt = performance.now();
         this.keys = {}; 
     }
-
-    // --- Hub (stage select) settings menu: fully keyboard-driven, no mouse required ---
     handleSettingsMenuKeydown(e) {
         const closeKeys = ['KeyM', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
         if (closeKeys.includes(e.code)) {
@@ -426,12 +426,10 @@ class Game {
         ctx.fillStyle = THEME.textMuted;
         const hint = (this.isHost || this.isAdmin)
             ? 'W/S select   A/D change   Enter/Shift/M close'
-            : 'Only the host (or a logged-in admin) can change settings   Enter/Shift/M close';
+            : 'Only the host (or an admin) can change settings   Enter/Shift/M close';
         ctx.fillText(hint, x + width / 2, y + height - 8);
         ctx.restore();
     }
-
-    // --- Hub (stage select) color picker: fully keyboard-driven, no mouse required ---
     handleColorPickerKeydown(e) {
         const closeKeys = ['KeyC', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
         if (closeKeys.includes(e.code)) {
@@ -517,14 +515,12 @@ class Game {
         this.chatSelectionAnchor = null;
         this._chatMouseSelecting = false;
     }
-
     _chatPrevWordBoundary(text, pos) {
         let i = pos;
         while (i > 0 && /\s/.test(text[i - 1])) i--;
         while (i > 0 && !/\s/.test(text[i - 1])) i--;
         return i;
     }
-
     _chatNextWordBoundary(text, pos) {
         let i = pos;
         const len = text.length;
@@ -532,7 +528,6 @@ class Game {
         while (i < len && !/\s/.test(text[i])) i++;
         return i;
     }
-
     _chatAutocompleteMatch() {
         const text = this.chatInputText;
         const canPrivileged = this.isHost || this.isAdmin;
@@ -622,8 +617,6 @@ class Game {
         const selEnd = hasSelection ? Math.max(this.chatSelectionAnchor, this.chatCursorPos) : this.chatCursorPos;
         const isMac = navigator.platform && navigator.platform.toUpperCase().includes('MAC');
         const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
-
-        // Keys allowed to auto-repeat while held down.
         const repeatable = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
         if (e.repeat && !repeatable.includes(e.code)) return;
 
@@ -639,16 +632,12 @@ class Game {
             if (trimmed) this.sendChatMessage(trimmed);
             return;
         }
-
-        // Select all
         if (ctrlKey && e.code === 'KeyA') {
             e.preventDefault();
             this.chatSelectionAnchor = 0;
             this.chatCursorPos = text.length;
             return;
         }
-
-        // Copy
         if (ctrlKey && e.code === 'KeyC') {
             e.preventDefault();
             if (hasSelection && navigator.clipboard && navigator.clipboard.writeText) {
@@ -656,8 +645,6 @@ class Game {
             }
             return;
         }
-
-        // Cut
         if (ctrlKey && e.code === 'KeyX') {
             e.preventDefault();
             if (hasSelection) {
@@ -670,8 +657,6 @@ class Game {
             }
             return;
         }
-
-        // Paste
         if (ctrlKey && e.code === 'KeyV') {
             e.preventDefault();
             if (navigator.clipboard && navigator.clipboard.readText) {
@@ -691,8 +676,6 @@ class Game {
             }
             return;
         }
-
-        // Backspace
         if (e.code === 'Backspace') {
             e.preventDefault();
             if (hasSelection) {
@@ -706,8 +689,6 @@ class Game {
             this.chatSelectionAnchor = null;
             return;
         }
-
-        // Delete (forward)
         if (e.code === 'Delete') {
             e.preventDefault();
             if (hasSelection) {
@@ -720,8 +701,6 @@ class Game {
             this.chatSelectionAnchor = null;
             return;
         }
-
-        // Arrow left / right - cursor movement, word-jump with ctrl, selection with shift
         if (e.code === 'ArrowLeft') {
             e.preventDefault();
             const newPos = ctrlKey ? this._chatPrevWordBoundary(text, this.chatCursorPos) : Math.max(0, this.chatCursorPos - 1);
@@ -755,8 +734,6 @@ class Game {
             }
             return;
         }
-
-        // Home / End
         if (e.code === 'Home') {
             e.preventDefault();
             if (e.shiftKey) {
@@ -777,15 +754,11 @@ class Game {
             this.chatCursorPos = text.length;
             return;
         }
-
-        // Tab - autocomplete usernames/stage names for /kick, /forcestage, /give (cycles matches)
         if (e.code === 'Tab') {
             e.preventDefault();
             this._chatApplyAutocomplete();
             return;
         }
-
-        // Sent-message history (only meaningful without an active selection drag)
         if (e.code === 'ArrowUp') {
             e.preventDefault();
             if (this.chatSentHistory.length === 0) return;
@@ -814,8 +787,6 @@ class Game {
             this.chatSelectionAnchor = null;
             return;
         }
-
-        // Regular printable character - inserted at the cursor, replacing any selection
         if (e.key && e.key.length === 1 && !ctrlKey && !e.altKey) {
             e.preventDefault();
             if (hasSelection) {
@@ -857,9 +828,6 @@ class Game {
             text: trimmed
         });
     }
-
-    // Slash commands. /kick is host-only and resolved server-side by name;
-    // /color is available to everyone and updates hue immediately.
     handleChatCommand(raw) {
         const spaceIdx = raw.indexOf(' ');
         const cmd = (spaceIdx === -1 ? raw : raw.slice(0, spaceIdx)).toLowerCase();
@@ -867,7 +835,7 @@ class Game {
 
         if (cmd === '/kick') {
             if (!this.isHost && !this.isAdmin) {
-                this.pushSystemMessage('Only the host (or a logged-in admin) can kick players.');
+                this.pushSystemMessage('Only the host (or an admin) can kick players.');
                 return;
             }
             if (!arg) {
@@ -902,7 +870,7 @@ class Game {
 
         if (cmd === '/forcestage') {
             if (!this.isHost && !this.isAdmin) {
-                this.pushSystemMessage('Only the host (or a logged-in admin) can force a stage.');
+                this.pushSystemMessage('Only the host (or an admin) can force a stage.');
                 return;
             }
             if (!arg) {
@@ -941,7 +909,7 @@ class Game {
 
         if (cmd === '/give') {
             if (!this.isAdmin) {
-                this.pushSystemMessage('Only a logged-in admin can use /give. Try /login <password> first.');
+                this.pushSystemMessage('Only an admin can use /give. Try /login <password> first.');
                 return;
             }
             const parts = arg.split(/\s+/).filter(Boolean);
@@ -963,7 +931,7 @@ class Game {
 
         if (cmd === '/set') {
             if (!this.isAdmin) {
-                this.pushSystemMessage('Only a logged-in admin can use /set. Try /login <password> first.');
+                this.pushSystemMessage('Only an admin can use /set. Try /login <password> first.');
                 return;
             }
             const parts = arg.split(/\s+/).filter(Boolean);
@@ -985,7 +953,7 @@ class Game {
 
         if (cmd === '/host') {
             if (!this.isAdmin) {
-                this.pushSystemMessage('Only a logged-in admin can use /host. Try /login <password> first.');
+                this.pushSystemMessage('Only an admin can use /host. Try /login <password> first.');
                 return;
             }
             if (this.network && this.network.isConnected) {
@@ -998,7 +966,7 @@ class Game {
 
         if (cmd === '/kill') {
             if (!this.isAdmin) {
-                this.pushSystemMessage('Only a logged-in admin can use /kill. Try /login <password> first.');
+                this.pushSystemMessage('Only an admin can use /kill. Try /login <password> first.');
                 return;
             }
             if (!arg) {
@@ -1007,6 +975,19 @@ class Game {
             }
             if (this.network && this.network.isConnected) {
                 this.network.sendKillRequest(arg);
+            } else {
+                this.pushSystemMessage('Not connected to a server.');
+            }
+            return;
+        }
+
+        if (cmd === '/next') {
+            if (!this.isAdmin) {
+                this.pushSystemMessage('Only an admin can use /next. Try /login <password> first.');
+                return;
+            }
+            if (this.network && this.network.isConnected) {
+                this.network.sendNextRequest();
             } else {
                 this.pushSystemMessage('Not connected to a server.');
             }
@@ -1027,6 +1008,7 @@ class Game {
                 lines.push('/set <lives|points> <value> <username> - set lives or points to a value');
                 lines.push('/host [username] - become host, or hand host to a player');
                 lines.push('/kill <username> - force-eliminate a player mid-race');
+                lines.push('/next - skip waiting for everyone on the round-results screen');
             }
 
             lines.push('/help - show this list');
@@ -1036,9 +1018,6 @@ class Game {
 
         this.pushSystemMessage(`Unknown command "${cmd}".`);
     }
-
-    // Resolves a typed/autocompleted stage name to its level code: exact match
-    // first, then prefix, then substring - same tiering as player-name lookups.
     _resolveStageNameToCode(query) {
         const needle = query.trim().toLowerCase();
         if (!needle) return null;
@@ -1375,8 +1354,6 @@ class Game {
                 if (this.network) this.network.sendStageCursorMove(zoneIndex);
             }
         });
-
-        // Without a server, this client is authoritative for the countdown itself.
         if (!this.network) this.updateOfflineStageCountdown();
     }
     updateOfflineStageCountdown() {
@@ -1750,10 +1727,28 @@ class Game {
         this.remotePositions.clear();
         this.remoteSfxState.clear();
     }
-    // Respawns a player at the start of the level without ending their race (used when lives > 1).
     respawnPlayer(player) {
         if (!player || !player.physicsState || !this.physics) return;
         const sharedOBJ = player.physicsState.OBJ;
+        const oldState = player.physicsState;
+        if (oldState.activeIdx && oldState.activeTyp) {
+            for (let i = 0; i < oldState.activeIdx.length; i++) {
+                if (oldState.activeTyp[i] !== 'spring') continue;
+                const idx = oldState.activeIdx[i];
+
+                const stillAnimatedElsewhere = this.players.some(p => {
+                    if (p === player || !p.physicsState || p.physicsState === oldState) return false;
+                    const ps = p.physicsState;
+                    return ps.activeIdx && ps.activeIdx.some((otherIdx, j) => otherIdx === idx && ps.activeTyp[j] === 'spring');
+                });
+
+                if (!stillAnimatedElsewhere) {
+                    this.physics.MAP[idx] = 42;
+                    this.physics.tileUpdates.push({ idx, tile: 42 });
+                }
+            }
+        }
+
         player.physicsState = this.physics.createDefaultGameState(sharedOBJ);
     }
     advanceFromPlaceholder() {
@@ -1889,8 +1884,22 @@ class Game {
             }, 2000);
         }
     }
+    _runWhenAssetsReady(fn) {
+        if (this.assetsLoadedCount >= this.totalAssets) {
+            fn();
+        } else {
+            this._deferredAssetCallbacks.push(fn);
+        }
+    }
+
     checkLoadStatus() {
         if (this.assetsLoadedCount < this.totalAssets) return;
+
+        if (this._deferredAssetCallbacks.length) {
+            const callbacks = this._deferredAssetCallbacks;
+            this._deferredAssetCallbacks = [];
+            callbacks.forEach(cb => cb());
+        }
 
         if (this.network) {
             if (!this._clientReadySent) {
@@ -2151,6 +2160,7 @@ class Game {
                         localPlayer.livesRemaining -= 1;
                         localPlayer.respawnPendingFrames = this.RESPAWN_DELAY_FRAMES;
                         if (typeof playSfx === 'function') playSfx('boom');
+                        this.network.sendRespawnObserved(this.tick);
                     } else {
                         localPlayer.reportedElimination = true;
                         this.network.sendEliminationObserved(this.localSeatIndex, this.tick, 'death');
@@ -2248,10 +2258,10 @@ class Game {
             return;
         }
 
-        let active = this.players.filter(p => !p.eliminated && !p.hasFinished);
+        let active = this.players.filter(p => p && p.connected !== false && !p.eliminated && !p.hasFinished);
         const roundWrappingUp = active.length === 0;
-        if (roundWrappingUp) active = this.players;
-        if (active.length === 0) return; 
+        if (roundWrappingUp) active = this.players.filter(p => p && p.connected !== false);
+        if (active.length === 0) return;
 
         const xs = active.map(p => p.physicsState.PLAYER_X);
         const ys = active.map(p => p.physicsState.PLAYER_Y);
@@ -2421,6 +2431,7 @@ class Game {
 
         for (const player of this.players) {
             if (!player.physicsState) continue;
+            if (player.connected === false) continue;
 
             const playerPos = {
                 x: player.physicsState.PLAYER_X,
@@ -2438,6 +2449,44 @@ class Game {
 
         this.renderer.renderDynamic(firstPlayer.physicsState.OBJ, this.camera);
     }
+    _wrapChatMessage(ctx, nameWidth, bodyText, maxWidth) {
+        const words = bodyText.split(' ');
+        const lines = [];
+        let current = '';
+        let isFirst = true;
+
+        const pushLine = () => {
+            lines.push({ text: current, isFirst });
+            current = '';
+            isFirst = false;
+        };
+
+        for (const word of words) {
+            let remainingWord = word;
+            while (remainingWord.length > 0) {
+                const limit = isFirst ? Math.max(20, maxWidth - nameWidth) : maxWidth;
+                const test = current ? `${current} ${remainingWord}` : remainingWord;
+                if (ctx.measureText(test).width <= limit) {
+                    current = test;
+                    remainingWord = '';
+                    break;
+                }
+                if (!current) {
+                    let cut = remainingWord.length;
+                    while (cut > 1 && ctx.measureText(remainingWord.slice(0, cut)).width > limit) {
+                        cut -= 1;
+                    }
+                    current = remainingWord.slice(0, cut);
+                    remainingWord = remainingWord.slice(cut);
+                    pushLine();
+                } else {
+                    pushLine();
+                }
+            }
+        }
+        lines.push({ text: current, isFirst });
+        return lines;
+    }
 
     drawChat() {
         const ctx = this.ctx;
@@ -2448,6 +2497,7 @@ class Game {
         const fadeWindow = 1000; 
         const inputBoxHeight = lineHeight + 6;
         const inputBoxGap = 13; 
+        const maxLineWidth = Math.max(120, this.canvas.width - padX * 2 - 16);
 
         ctx.save();
         ctx.font = `bold 15px ${THEME.font}`;
@@ -2473,18 +2523,27 @@ class Game {
             ctx.globalAlpha = alpha;
             const nameText = `${msg.name}: `;
             const nameWidth = ctx.measureText(nameText).width;
-            const bodyWidth = ctx.measureText(msg.text).width;
-            const boxWidth = nameWidth + bodyWidth + padX;
+            const wrapped = this._wrapChatMessage(ctx, nameWidth, msg.text, maxLineWidth);
 
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-            ctx.fillRect(padX - 8, y - lineHeight + 5, boxWidth, lineHeight);
+            for (let li = wrapped.length - 1; li >= 0; li--) {
+                const line = wrapped[li];
+                const lineX = padX + (line.isFirst ? 0 : nameWidth);
+                const lineWidth = ctx.measureText(line.text).width;
+                const boxWidth = (line.isFirst ? nameWidth : 0) + lineWidth + padX;
+                const boxX = padX - 8;
 
-            ctx.fillStyle = msg.color || THEME.text;
-            ctx.fillText(nameText, padX, y);
-            ctx.fillStyle = THEME.text;
-            ctx.fillText(msg.text, padX + nameWidth, y);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+                ctx.fillRect(boxX, y - lineHeight + 5, boxWidth, lineHeight);
 
-            y -= lineHeight;
+                if (line.isFirst) {
+                    ctx.fillStyle = msg.color || THEME.text;
+                    ctx.fillText(nameText, padX, y);
+                }
+                ctx.fillStyle = THEME.text;
+                ctx.fillText(line.text, lineX, y);
+
+                y -= lineHeight;
+            }
             if (y < 20) break; 
         }
         ctx.globalAlpha = 1;
@@ -2518,16 +2577,12 @@ class Game {
             ctx.strokeStyle = THEME.panelBorderActive;
             ctx.lineWidth = 1.5;
             ctx.strokeRect(padX - 8, boxY - lineHeight + 5, boxWidth, inputBoxHeight);
-
-            // Store geometry so mouse clicks can be translated into a character index.
             this._chatInputBox = {
                 x: padX - 8,
                 width: boxWidth,
                 textStartX,
                 font: inputFont
             };
-
-            // Selection highlight, drawn before the text so glyphs render on top.
             const hasSelection = this.chatSelectionAnchor !== null && this.chatSelectionAnchor !== this.chatCursorPos;
             if (hasSelection) {
                 const selStart = Math.min(this.chatSelectionAnchor, this.chatCursorPos);
@@ -2543,8 +2598,6 @@ class Game {
             ctx.fillText(label, padX, boxY);
             ctx.fillStyle = THEME.text;
             ctx.fillText(this.chatInputText, textStartX, boxY);
-
-            // Ghost-text autocomplete preview for /kick, /forcestage, and /give's target name.
             const typedWidth = ctx.measureText(this.chatInputText).width;
             if (this.chatCursorPos === this.chatInputText.length) {
                 const info = this._chatAutocompleteMatch();
@@ -2564,9 +2617,6 @@ class Game {
                     ctx.font = inputFont;
                 }
             }
-
-            // Caret stays solid while typing/moving and only blinks after a short pause,
-            // matching normal text-box behavior instead of blinking constantly.
             const idleFor = now - this._chatCaretActivityAt;
             const blinkOn = idleFor < 500 || (Math.floor((idleFor - 500) / 500) % 2 === 0);
             if (blinkOn) {
@@ -2642,6 +2692,7 @@ class Game {
                 ctx.font = 'bold 11px Arial, sans-serif';
                 ctx.textAlign = 'center';
                 ctx.lineWidth = 3;
+                ctx.lineJoin = 'round';
                 ctx.strokeStyle = '#000000';
                 ctx.strokeText(player.name, labelX, labelY);
                 ctx.fillStyle = player.color || '#ffffff';
@@ -3040,7 +3091,7 @@ class Game {
         });
     }
     drawCursorChips(cursorField, itemIndex, cx, boxY, lockedField = null) {
-        const here = this.players.filter(p => p[cursorField] === itemIndex);
+        const here = this.players.filter(p => p && p.connected !== false && p[cursorField] === itemIndex);
         if (here.length === 0) return;
 
         const chipHeight = 15;
@@ -3056,13 +3107,14 @@ class Game {
         });
     }
     drawPartyStatusList(baseY) {
-        const columns = this.players.length > 3 ? 2 : 1;
+        const activePlayers = this.players.filter(p => p && p.connected !== false);
+        const columns = activePlayers.length > 3 ? 2 : 1;
         const rowHeight = 20;
         const colWidth = 240;
         const startX = this.canvas.width / 2 - (columns * colWidth) / 2 + colWidth / 2;
 
         this.ctx.font = "14px " + THEME.font;
-        this.players.forEach((player, i) => {
+        activePlayers.forEach((player, i) => {
             const col = i % columns;
             const row = Math.floor(i / columns);
             const x = startX + col * colWidth;
@@ -3123,7 +3175,7 @@ class Game {
 
         slots.forEach((piece, i) => {
             const cx = spacing * (i + 1);
-            const playersHere = this.players.filter(p => p.partyCursor === i);
+            const playersHere = this.players.filter(p => p && p.connected !== false && p.partyCursor === i);
 
             this.roundRectPath(cx - boxWidth / 2, boxY, boxWidth, boxHeight, 10);
             this.ctx.fillStyle = piece ? THEME.panel : 'rgba(255,255,255,0.02)';
@@ -3168,6 +3220,7 @@ class Game {
         this.ctx.textAlign = "center";
         this.ctx.font = "bold 26px " + THEME.font;
         this.ctx.lineWidth = 4;
+        this.ctx.lineJoin = 'round';
         this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
         this.ctx.strokeText('Stand on the stage you want!', this.canvas.width / 2, 44);
         this.ctx.fillStyle = THEME.text;
@@ -3177,6 +3230,7 @@ class Game {
         this.ctx.textAlign = 'center';
         const subtitle = `Everyone must stand still on a stage. The countdown starts once all players are ready.`;
         this.ctx.lineWidth = 3;
+        this.ctx.lineJoin = 'round';
         this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
         this.ctx.strokeText(subtitle, this.canvas.width / 2, 66);
         this.ctx.fillStyle = THEME.textMuted;
@@ -3274,7 +3328,7 @@ class Game {
         ctx.fillStyle = '#1a1a2e';
         ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-        const allPlayersForCheck = this.players.filter(p => p !== null);
+        const allPlayersForCheck = this.players.filter(p => p !== null && p.connected !== false);
         const someoneWon = allPlayersForCheck.some(p => (p.score || 0) >= this.POINTS_TO_WIN);
         const isLastRound = someoneWon || this.currentRound >= this.totalRounds;
 
@@ -3336,7 +3390,7 @@ class Game {
         
         const chartTop = 160;
 
-        const activePlayers = this.players.filter(p => p !== null);
+        const activePlayers = this.players.filter(p => p !== null && p.connected !== false);
         const n = Math.max(activePlayers.length, 1);
         const CHART_HEIGHT_BUDGET = 330;
         const BASE_BAR_HEIGHT = 60;
@@ -3383,7 +3437,7 @@ class Game {
         let currentY = chartTop;
         
         this.players.forEach((player, index) => {
-            if (!player) return;
+            if (!player || player.connected === false) return;
 
             const roundPoints = player.lastRoundPoints || 0;
             const scoreBefore = player.scoreBeforeRound ?? player.score;
@@ -3574,6 +3628,7 @@ class Game {
         };
         net.onFinishConfirmed = (payload) => this.handleFinishConfirmed(payload);
         net.onEliminationConfirmed = (payload) => this.handleEliminationConfirmed(payload);
+        net.onRespawnSync = (payload) => this.handleRespawnSync(payload);
 
         net.onRoundResult = (payload) => this.handleRoundResult(payload);
         net.onNextRoundStart = () => {  };
@@ -3649,9 +3704,13 @@ class Game {
 
         const seats = payload.seats || [];
         const previousByIndex = new Map(this.players.map(p => [p.seatIndex, p]));
-
-        this.playerCount = Math.max(MIN_PLAYERS, Math.min(MAX_PLAYERS, seats.length || 1));
+        const maxSeatIndex = seats.reduce((max, s) => Math.max(max, s.seatIndex), -1);
+        this.playerCount = Math.max(MIN_PLAYERS, Math.min(MAX_PLAYERS, maxSeatIndex + 1));
         const rebuilt = this.createPlayers(this.playerCount, this.localSeatIndex);
+        const presentSeatIndexes = new Set(seats.map(s => s.seatIndex));
+        for (const player of rebuilt) {
+            if (!presentSeatIndexes.has(player.seatIndex)) player.connected = false;
+        }
 
         for (const seatInfo of seats) {
             const player = rebuilt[seatInfo.seatIndex];
@@ -3696,8 +3755,20 @@ class Game {
         }
 
         this.players = rebuilt;
+        this.ensurePlayerPhysicsStates();
         if (this.onLobbyUpdate) this.onLobbyUpdate(payload, this.isHost || this.isAdmin);
         this.syncGameStateToPhase(phase);
+    }
+    ensurePlayerPhysicsStates() {
+        if (!this.physics) return;
+        const anyExisting = this.players.find(p => p && p.physicsState);
+        if (!anyExisting) return;
+        const sharedOBJ = anyExisting.physicsState.OBJ;
+        for (const p of this.players) {
+            if (p && !p.physicsState) {
+                p.physicsState = this.physics.createDefaultGameState(sharedOBJ);
+            }
+        }
     }
     syncGameStateToPhase(phase) {
         if (!phase || phase === this.gameState) return;
@@ -3746,9 +3817,11 @@ class Game {
     handleStageNetworkEvent(payload, type) {
         switch (type) {
             case 'STAGE_SELECT_START':
-                this.stageCandidates = payload.candidates || [];
-                this.gameState = GameState.STAGE_SELECT;
-                this.setupStageSelectArena();
+                this._runWhenAssetsReady(() => {
+                    this.stageCandidates = payload.candidates || [];
+                    this.gameState = GameState.STAGE_SELECT;
+                    this.setupStageSelectArena();
+                });
                 break;
             case 'STAGE_CURSOR_MOVE': {
                 const player = this.players[payload.seatIndex];
@@ -3760,7 +3833,7 @@ class Game {
                 if (player) {
                     player.stageCursor = payload.candidateIndex;
                     player.stageVoteLocked = true;
-                    if (typeof playSfx === 'function') playSfx('select');
+                    if (!payload.auto && typeof playSfx === 'function') playSfx('select');
                 }
                 break;
             }
@@ -3776,6 +3849,7 @@ class Game {
                 break;
             }
             case 'STAGE_LOCKED': {
+                if (typeof playSfx === 'function') playSfx('select');
                 this.loadLevel(payload.levelCode);
                 break;
             }
@@ -3916,6 +3990,13 @@ class Game {
         if (!player) return;
         player.eliminated = true;
         player.dnf = payload.cause === 'dnf';
+        if (typeof playSfx === 'function') playSfx('boom');
+    }
+    handleRespawnSync(payload) {
+        const player = this.players[payload && payload.seatIndex];
+        if (!player || player.hasFinished || player.eliminated) return;
+        if (player.controls) return; 
+        player.respawnPendingFrames = this.RESPAWN_DELAY_FRAMES;
         if (typeof playSfx === 'function') playSfx('boom');
     }
 

@@ -1,6 +1,7 @@
 const readline = require('readline');
 const { WebSocketServer } = require('ws');
 const { RoomManager } = require('./src/RoomManager');
+const { Room } = require('./src/Room');
 const { PHASE, CLIENT_MESSAGE_PHASES } = require('./src/protocol');
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
@@ -23,31 +24,39 @@ function handleJoinRoom(ws, payload = {}) {
     if (payload.playerId) {
         const existing = [...room.seats.values()].find(s => s.playerId === payload.playerId && !s.connected);
         if (existing) {
-            room.handleReconnect(existing, ws);
             send(ws, { type: 'SEAT_ASSIGNED', phase: PHASE.LOBBY, payload: { seatIndex: existing.seatIndex, playerId: existing.playerId } });
+            room.handleReconnect(existing, ws, payload.displayName);
             return;
         }
     }
 
-    if (room.phase !== PHASE.LOBBY) {
-        send(ws, { type: 'JOIN_REJECTED', phase: PHASE.LOBBY, payload: { reason: 'match_in_progress' } });
+    if (room.phase !== PHASE.LOBBY && room.phase !== PHASE.STAGE_SELECT) {
+        send(ws, { type: 'JOIN_REJECTED', phase: room.phase, payload: { reason: 'match_in_progress' } });
         return;
     }
 
-    if (room.isNameTaken(payload.displayName)) {
-        send(ws, { type: 'JOIN_REJECTED', phase: PHASE.LOBBY, payload: { reason: 'name_taken' } });
+    const cleanName = Room.sanitizeDisplayName(payload.displayName, null);
+    if (!cleanName) {
+        send(ws, { type: 'JOIN_REJECTED', phase: room.phase, payload: { reason: 'invalid_name' } });
         return;
     }
 
-    const seat = room.addSeat(ws, payload.displayName);
+    if (room.isNameTaken(cleanName)) {
+        send(ws, { type: 'JOIN_REJECTED', phase: room.phase, payload: { reason: 'name_taken' } });
+        return;
+    }
+
+    const seat = room.addSeat(ws, cleanName);
     if (!seat) {
-        send(ws, { type: 'JOIN_REJECTED', phase: PHASE.LOBBY, payload: { reason: 'room_full' } });
+        send(ws, { type: 'JOIN_REJECTED', phase: room.phase, payload: { reason: 'room_full' } });
         return;
     }
 
     send(ws, { type: 'SEAT_ASSIGNED', phase: PHASE.LOBBY, payload: { seatIndex: seat.seatIndex, playerId: seat.playerId } });
     room.broadcastRoomState();
-    console.log(`[room ${room.roomCode}] seat ${seat.seatIndex} joined as "${seat.name}"`);
+    room.sendJoinCatchUp(seat);
+    room.announceJoin(seat);
+    console.log(`[room ${room.roomCode}] seat ${seat.seatIndex} joined as "${seat.name}" (phase=${room.phase})`);
 }
 
 const HANDLERS = {
@@ -65,6 +74,7 @@ const HANDLERS = {
     TILE_UPDATE: (room, seat, payload) => room.handleTileUpdate(seat, payload),
     FINISH_OBSERVED: (room, seat, payload) => room.handleFinishObserved(seat, payload),
     ELIMINATION_OBSERVED: (room, seat, payload) => room.handleEliminationObserved(seat, payload),
+    RESPAWN_OBSERVED: (room, seat, payload) => room.handleRespawnObserved(seat, payload),
     CONTINUE_REQUEST: (room, seat) => room.handleContinueRequest(seat),
     CHAT_MESSAGE: (room, seat, payload) => room.handleChatMessage(seat, payload),
     UPDATE_SETTINGS_REQUEST: (room, seat, payload) => room.handleUpdateSettingsRequest(seat, payload),
@@ -74,7 +84,8 @@ const HANDLERS = {
     GIVE_REQUEST: (room, seat, payload) => room.handleGiveRequest(seat, payload),
     SET_REQUEST: (room, seat, payload) => room.handleSetRequest(seat, payload),
     HOST_REQUEST: (room, seat, payload) => room.handleHostRequest(seat, payload),
-    KILL_REQUEST: (room, seat, payload) => room.handleKillRequest(seat, payload)
+    KILL_REQUEST: (room, seat, payload) => room.handleKillRequest(seat, payload),
+    NEXT_REQUEST: (room, seat) => room.handleNextRequest(seat)
 };
 
 function handleMessage(ws, raw) {

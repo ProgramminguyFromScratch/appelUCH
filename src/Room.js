@@ -25,6 +25,7 @@ const { LEVEL_POOL } = require('./levels');
 const HUE_MIN = 0;
 const HUE_MAX = 199;
 const DEFAULT_HUE_STEP = 34; 
+const SEAT_RECONNECT_GRACE_MS = 2 * 60 * 1000;
 
 let nextPlayerId = 1;
 function generatePlayerId() {
@@ -74,22 +75,33 @@ class Room {
             this.emptiedAt = null;
         }
     }
+    static sanitizeDisplayName(raw, fallback) {
+        const stripped = String(raw || '').replace(/[^\x20-\x7E]/g, '').trim();
+        return stripped.length > 0 ? stripped.slice(0, 20) : fallback;
+    }
+
     isNameTaken(displayName) {
         const normalized = (displayName || '').trim().toLowerCase();
         if (!normalized) return false;
         return this.connectedSeats.some(s => s.name.trim().toLowerCase() === normalized);
     }
 
+    allocateSeatIndex() {
+        for (let i = 0; i < MAX_PLAYERS; i++) {
+            if (!this.seats.has(i)) return i;
+        }
+        return this.nextSeatIndex++;
+    }
+
     addSeat(ws, displayName) {
         if (this.seats.size >= MAX_PLAYERS) return null;
-        if (this.phase !== PHASE.LOBBY) return null;
 
-        const seatIndex = this.nextSeatIndex++;
+        const seatIndex = this.allocateSeatIndex();
         const hue = (seatIndex * DEFAULT_HUE_STEP) % (HUE_MAX + 1);
         const seat = {
             seatIndex,
             playerId: generatePlayerId(),
-            name: (displayName || `P${seatIndex + 1}`).slice(0, 20),
+            name: Room.sanitizeDisplayName(displayName, `P${seatIndex + 1}`),
             ws,
             connected: true,
             isBot: false,
@@ -114,6 +126,7 @@ class Room {
         ws.seatIndex = seatIndex;
         ws.roomCode = this.roomCode;
         this.updateEmptiedAt();
+
         return seat;
     }
 
@@ -155,7 +168,90 @@ class Room {
     }
 
     broadcastRoomState() {
-        this.broadcast({ type: 'ROOM_STATE', phase: PHASE.LOBBY, payload: this.roomStatePayload() });
+        this.broadcast({ type: 'ROOM_STATE', phase: this.phase, payload: this.roomStatePayload() });
+    }
+    sendJoinCatchUp(seat) {
+        if (this.phase === PHASE.LOBBY) return;
+        this.send(seat, {
+            type: 'MATCH_STARTING',
+            phase: PHASE.LOADING,
+            payload: { playerCount: this.seats.size, totalRounds: this.totalRounds, settings: this.settings }
+        });
+
+        if (this.levelCode) {
+            this.send(seat, {
+                type: 'STAGE_LOCKED',
+                phase: this.phase,
+                payload: { winningSeatIndex: null, levelCode: this.levelCode }
+            });
+            if (this.map) {
+                const mapPatch = this.map.MAP
+                    .map((tile, idx) => ({ idx, tile, rot: this.map.MAP_R[idx] }))
+                    .filter(p => p.tile !== 0 && p.tile !== 1);
+                if (mapPatch.length > 0) {
+                    this.send(seat, {
+                        type: 'BUILD_COMPLETE',
+                        phase: this.phase,
+                        payload: { mapPatch, levelCode: this.levelCode }
+                    });
+                }
+            }
+        }
+
+        switch (this.phase) {
+            case PHASE.LOADING:
+                break;
+            case PHASE.STAGE_SELECT:
+                this.updateStageCountdown();
+                this.send(seat, {
+                    type: 'STAGE_SELECT_START',
+                    phase: PHASE.STAGE_SELECT,
+                    payload: { candidates: this.stageCandidates }
+                });
+                break;
+            case PHASE.PARTY_BOX:
+                this.send(seat, {
+                    type: 'PARTY_BOX_START',
+                    phase: PHASE.PARTY_BOX,
+                    payload: {
+                        slots: this.partySlots.map((s, slotIndex) => (s ? { slotIndex, pieceId: s.pieceId } : null)),
+                        timeLimit: PARTY_TIME_LIMIT
+                    }
+                });
+                break;
+            case PHASE.BUILD:
+                this.send(seat, {
+                    type: 'BUILD_START',
+                    phase: PHASE.BUILD,
+                    payload: {
+                        startCells: [{ seatIndex: seat.seatIndex, col: this.startCell.col, row: this.startCell.row }],
+                        timeLimit: BUILD_TIME_LIMIT
+                    }
+                });
+                break;
+            case PHASE.RACE:
+                this.send(seat, {
+                    type: 'RACE_START',
+                    phase: PHASE.RACE,
+                    payload: {
+                        tick: 0,
+                        timeLimit: this.settings.raceTimeLimit,
+                        lives: this.settings.lives,
+                        spawns: [{ seatIndex: seat.seatIndex, x: null, y: null }]
+                    }
+                });
+                break;
+            default:
+                break;
+        }
+    }
+
+    announceJoin(seat) {
+        this.broadcast({
+            type: 'CHAT_BROADCAST',
+            phase: this.phase,
+            payload: { seatIndex: -1, name: 'System', hue: 0, text: `${seat.name} joined the game` }
+        });
     }
 
     handleSetColorRequest(seat, payload = {}) {
@@ -181,7 +277,6 @@ class Room {
         if (!Number.isFinite(n)) return null;
         return Math.max(limits.min, Math.min(limits.max, n));
     }
-
     isPrivileged(seat) {
         return !!seat && (seat.seatIndex === this.hostSeatIndex || !!seat.isAdmin);
     }
@@ -313,7 +408,7 @@ class Room {
             this.broadcast({
                 type: 'STAGE_VOTE_CAST',
                 phase: PHASE.STAGE_SELECT,
-                payload: { seatIndex: seat.seatIndex, candidateIndex: seat.stageCursor }
+                payload: { seatIndex: seat.seatIndex, candidateIndex: seat.stageCursor, auto: true }
             });
         }
 
@@ -362,9 +457,6 @@ class Room {
         const levelCode = this.stageCandidates[winningIndex];
         this.lockStage(null, levelCode);
     }
-
-    // Immediately locks in a specific stage during STAGE_SELECT, bypassing the
-    // vote — useful when players are AFK or won't agree on a pick.
     handleForceStageRequest(seat, payload = {}) {
         if (this.phase !== PHASE.STAGE_SELECT || this.locks.stagePicked) return;
         if (!this.isPrivileged(seat)) return;
@@ -521,7 +613,7 @@ class Room {
 
     checkPartyBoxComplete() {
         if (this.phase !== PHASE.PARTY_BOX) return;
-        const allHavePieces = [...this.seats.values()].every(s => !!s.piece);
+        const allHavePieces = this.connectedSeats.every(s => !!s.piece);
         if (allHavePieces) this.completePartyBox();
     }
 
@@ -669,7 +761,7 @@ class Room {
 
     checkBuildComplete() {
         if (this.phase !== PHASE.BUILD) return;
-        const allDone = [...this.seats.values()].every(s => !s.piece || s.buildPlaced);
+        const allDone = this.connectedSeats.every(s => !s.piece || s.buildPlaced);
         if (allDone) this.completeBuild();
     }
 
@@ -761,6 +853,16 @@ class Room {
                 crouched: !!payload.crouched,
                 onWall: !!payload.onWall
             }
+        });
+    }
+    handleRespawnObserved(seat, payload = {}) {
+        if (this.phase !== PHASE.RACE) return;
+        if (this.race.finishConfirmed.has(seat.seatIndex)) return;
+        if (this.race.eliminationConfirmed.has(seat.seatIndex)) return;
+        this.broadcast({
+            type: 'RESPAWN_SYNC',
+            phase: PHASE.RACE,
+            payload: { seatIndex: seat.seatIndex, tick: payload.tick | 0 }
         });
     }
     handleTileUpdate(seat, payload) {
@@ -869,7 +971,7 @@ class Room {
     }
     checkRoundEnd() {
         if (this.phase !== PHASE.RACE) return;
-        const allResolved = [...this.seats.values()].every(
+        const allResolved = this.connectedSeats.every(
             s => this.race.finishConfirmed.has(s.seatIndex) || this.race.eliminationConfirmed.has(s.seatIndex)
         );
         if (allResolved) {
@@ -906,7 +1008,7 @@ class Room {
         const postmortemFinishers = allFinishers.filter(f => f.postmortem);
         const POSTMORTEM_POINTS = 2;
 
-        const totalSeats = this.seats.size;
+        const totalSeats = this.connectedSeats.length;
         const tooEasy = totalSeats > 0 && finishers.length === totalSeats;
         const tooHard = finishers.length === 0;
         const COMEBACK_SCORE_GAP = 10;
@@ -1000,6 +1102,13 @@ class Room {
             this.connectedSeats.every(s => this.continueConfirmations.has(s.seatIndex));
         if (allConfirmed) this.advanceRound();
     }
+    handleNextRequest(seat) {
+        if (!seat || !seat.isAdmin) return;
+        if (this.phase !== PHASE.ROUND_RESULTS) return;
+        if (this.locks.continueAdvanced) return;
+        console.log(`[room ${this.roomCode}] admin "${seat.name}" skipped round-results wait`);
+        this.advanceRound();
+    }
 
     advanceRound() {
         if (this.locks.continueAdvanced) return;
@@ -1065,12 +1174,12 @@ class Room {
             }
         }
 
-        this.seats.delete(seat.seatIndex);
+        seat.connected = false;
+        seat.ws = null;
         this.updateEmptiedAt();
-        if (wasHost && this.seats.size > 0) {
-            const remaining = [...this.seats.values()];
-            const successor = remaining.find(s => s.connected && !s.isBot) || remaining.find(s => s.connected) || remaining[0];
-            this.hostSeatIndex = successor.seatIndex;
+        if (wasHost) {
+            const successor = this.connectedSeats.find(s => !s.isBot) || this.connectedSeats[0];
+            if (successor) this.hostSeatIndex = successor.seatIndex;
         }
         this.broadcast({ type: 'PLAYER_LEFT', phase: this.phase, payload: { seatIndex: seat.seatIndex, reason, hostSeatIndex: this.hostSeatIndex } });
 
@@ -1092,6 +1201,14 @@ class Room {
                 this.checkContinueVotesComplete();
                 break;
         }
+        if (reason === 'kicked') {
+            this.seats.delete(seat.seatIndex);
+            return;
+        }
+        clearTimeout(seat.disconnectCleanupTimer);
+        seat.disconnectCleanupTimer = setTimeout(() => {
+            if (!seat.connected) this.seats.delete(seat.seatIndex);
+        }, SEAT_RECONNECT_GRACE_MS);
     }
 
     handleLoginRequest(seat, payload = {}) {
@@ -1115,7 +1232,6 @@ class Room {
         }
         this.send(seat, { type: 'LOGIN_RESULT', phase: this.phase, payload: { success } });
     }
-
     handleGiveRequest(seat, payload = {}) {
         if (!seat || !seat.isAdmin) return;
 
@@ -1171,7 +1287,6 @@ class Room {
             payload: { seatIndex: seat.seatIndex, name: seat.name, hue: seat.hue, text }
         });
     }
-
     findSeatByName(query) {
         if (!query) return null;
         const needle = query.trim().toLowerCase();
@@ -1194,7 +1309,6 @@ class Room {
         const query = payload && typeof payload.name === 'string' ? payload.name : '';
         const target = this.findSeatByName(query);
         if (!target) return;
-
         if (target.isAdmin) {
             this.send(seat, { type: 'KICK_REJECTED', phase: this.phase, payload: { name: target.name, reason: 'target_is_admin' } });
             return;
@@ -1203,7 +1317,6 @@ class Room {
         console.log(`[room ${this.roomCode}] host kicked "${target.name}" (seat ${target.seatIndex})`);
         this.kickSeat(target, 'kicked_by_host');
     }
-
     handleHostRequest(seat, payload = {}) {
         if (!seat || !seat.isAdmin) return;
         const targetName = payload && typeof payload.name === 'string' ? payload.name.trim() : '';
@@ -1223,7 +1336,6 @@ class Room {
             });
         }
     }
-
     handleSetRequest(seat, payload = {}) {
         if (!seat || !seat.isAdmin) return;
 
@@ -1250,7 +1362,6 @@ class Room {
             });
         }
     }
-
     handleKillRequest(seat, payload = {}) {
         if (!seat || !seat.isAdmin) return;
         if (this.phase !== PHASE.RACE || !this.race) return;
@@ -1275,7 +1386,8 @@ class Room {
         return true;
     }
 
-    handleReconnect(seat, ws) {
+    handleReconnect(seat, ws, displayName) {
+        clearTimeout(seat.disconnectCleanupTimer);
         seat.ws = ws;
         seat.connected = true;
         seat.isBot = false;
@@ -1283,13 +1395,19 @@ class Room {
         ws.roomCode = this.roomCode;
         this.updateEmptiedAt();
 
+        const cleanName = Room.sanitizeDisplayName(displayName, null);
+        if (cleanName && cleanName.toLowerCase() !== seat.name.toLowerCase() && !this.isNameTaken(cleanName)) {
+            seat.name = cleanName;
+        }
+
         this.broadcast({ type: 'PLAYER_RECONNECTED', phase: this.phase, payload: { seatIndex: seat.seatIndex } });
         if (this.phase === PHASE.STAGE_SELECT) this.updateStageCountdown();
         const mapPatch = this.map
             ? this.map.MAP.map((tile, idx) => ({ idx, tile, rot: this.map.MAP_R[idx] })).filter(p => p.tile !== 0 && p.tile !== 1)
             : [];
-        this.send(seat, { type: 'ROOM_STATE', phase: this.phase, payload: this.roomStatePayload() });
+        this.broadcastRoomState();
         this.send(seat, { type: 'PLAYER_RECONNECTED', phase: this.phase, payload: { seatIndex: seat.seatIndex, mapPatch } });
+        this.sendJoinCatchUp(seat);
     }
 
     isEmpty() {
@@ -1305,6 +1423,7 @@ class Room {
         clearTimeout(this.timers.roundEndDelay);
         clearInterval(this.timers.raceIdleHeartbeat);
         clearInterval(this.timers.timeSync);
+        for (const seat of this.seats.values()) clearTimeout(seat.disconnectCleanupTimer);
     }
 }
 

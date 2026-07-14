@@ -22,6 +22,7 @@ class NetworkClient {
         this.onTileUpdate = null;        
         this.onFinishConfirmed = null;   
         this.onEliminationConfirmed = null; 
+        this.onRespawnSync = null;       
         this.onRoundResult = null;       
         this.onNextRoundStart = null;    
         this.onMatchEnd = null;          
@@ -78,6 +79,7 @@ class NetworkClient {
             TILE_UPDATE: 'onTileUpdate',
             FINISH_CONFIRMED: 'onFinishConfirmed',
             ELIMINATION_CONFIRMED: 'onEliminationConfirmed',
+            RESPAWN_SYNC: 'onRespawnSync',
             ROUND_END: 'onRoundResult',
             NEXT_ROUND_START: 'onNextRoundStart',
             MATCH_END: 'onMatchEnd',
@@ -236,6 +238,10 @@ class NetworkClient {
         this._send('ELIMINATION_OBSERVED', { eliminatedSeatIndex, tick, cause });
     }
 
+    sendRespawnObserved(tick) {
+        this._send('RESPAWN_OBSERVED', { tick });
+    }
+
     sendContinueRequest() {
         this._send('CONTINUE_REQUEST', {});
     }
@@ -274,6 +280,10 @@ class NetworkClient {
 
     sendKillRequest(name) {
         this._send('KILL_REQUEST', { name });
+    }
+
+    sendNextRequest() {
+        this._send('NEXT_REQUEST', {});
     }
 
     sendPing() {

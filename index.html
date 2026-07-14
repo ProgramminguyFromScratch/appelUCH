@@ -382,8 +382,8 @@
             }, 1500);
         });
 
-        // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
-        const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
+        const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
+        // const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
         const network = new NetworkClient(serverUrl);
         const game = new Game('gameCanvas', playerCount, network);
         wireCopyLevelCodeButton(game);
@@ -446,12 +446,17 @@
                 errorText.textContent = message || '';
             }
 
+            function sanitizeDisplayName(raw) {
+                return String(raw || '').replace(/[^\x20-\x7E]/g, '').trim();
+            }
+
             btnCreateOrJoin.addEventListener('click', () => {
-                const name = displayNameInput.value.trim();
+                const name = sanitizeDisplayName(displayNameInput.value);
                 if (!name) {
-                    showError('Enter a name first.');
+                    showError('Enter a name using standard keyboard characters.');
                     return;
                 }
+                displayNameInput.value = name;
                 showError('');
                 btnCreateOrJoin.disabled = true;
 
@@ -488,6 +493,7 @@
                     payload.reason === 'room_full' ? 'That room is full.' :
                     payload.reason === 'match_in_progress' ? 'That room already started a match.' :
                     payload.reason === 'name_taken' ? 'That name is already taken in this room.' :
+                    payload.reason === 'invalid_name' ? 'Enter a name using standard keyboard characters.' :
                     'Could not join that room.'
                 );
             };
@@ -497,7 +503,6 @@
             const previewCtx = colorPreviewCanvas.getContext('2d');
             previewCtx.imageSmoothingEnabled = false;
 
-            // --- Match settings panel (host/admin-editable, everyone sees current values) ---
             const SETTINGS_FIELDS = {
                 lives: document.getElementById('settingLives'),
                 pointsToWin: document.getElementById('settingPointsToWin'),
