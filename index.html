@@ -351,8 +351,8 @@
             fullscreenBtn.style.display = document.fullscreenElement ? 'none' : 'block';
         });
 
-        const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
-        // const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
+        // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
+        const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
         const network = new NetworkClient(serverUrl);
         const game = new Game('gameCanvas', playerCount, network);
         wireCopyLevelCodeButton(game);
