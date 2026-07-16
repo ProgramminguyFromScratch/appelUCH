@@ -210,7 +210,7 @@
         }
 
         #fullscreenBtn {
-            position: absolute;
+            position: fixed;
             top: 16px;
             left: 16px;
             z-index: 20;
@@ -234,10 +234,10 @@
     </style>
 </head>
 <body>
+    <button id="fullscreenBtn" title="Toggle fullscreen (F)">⛶ Fullscreen</button>
     <div id="canvasWrap">
         <canvas id="gameCanvas"></canvas>
         <button id="copyLevelCodeBtn">Copy Level Code</button>
-        <button id="fullscreenBtn" title="Toggle fullscreen (F)">⛶ Fullscreen</button>
     </div>
 
     <div id="nameScreen" class="overlay">
@@ -293,7 +293,6 @@
         })();
 
         const params = new URLSearchParams(window.location.search);
-        const replayCode = null;
 
         const playersParam = parseInt(params.get("players"), 10);
         const playerCount = Number.isFinite(playersParam) ? playersParam : 2;
@@ -352,7 +351,8 @@
         });
 
         // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
-        const serverUrl = params.get('server') || `https://appeluch.onrender.com/`;
+        const serverUrl = params.get('server') || `https://appeluch.onrender.com`;
+
         const network = new NetworkClient(serverUrl);
         const game = new Game('gameCanvas', playerCount, network);
         wireCopyLevelCodeButton(game);

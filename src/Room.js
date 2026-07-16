@@ -1,11 +1,9 @@
 const {
     PHASE,
-    TOTAL_ROUNDS,
     getPartyBoxSlotCount,
     STAGE_VOTE_STAND_SECONDS,
     PARTY_TIME_LIMIT,
     BUILD_TIME_LIMIT,
-    RACE_TIME_LIMIT,
     MIN_PLAYERS_TO_START,
     MAX_PLAYERS,
     FINISH_TICK_TOLERANCE,
@@ -27,6 +25,7 @@ const HUE_MIN = 0;
 const HUE_MAX = 199;
 const DEFAULT_HUE_STEP = 34; 
 const SEAT_RECONNECT_GRACE_MS = 2 * 60 * 1000;
+const POSITION_SYNC_INTERVAL_MS = 15; 
 
 let nextPlayerId = 1;
 function generatePlayerId() {
@@ -61,6 +60,7 @@ class Room {
         this.timers = {};
 
         this.race = null;
+        this.lastPositionBroadcastAt = new Map();
 
         this.createdAt = Date.now();
         this.emptiedAt = this.isEmpty() ? this.createdAt : null;
@@ -146,9 +146,16 @@ class Room {
     }
 
     broadcast(message, exceptSeatIndex = null) {
+        let raw = null;
         for (const seat of this.seats.values()) {
             if (exceptSeatIndex !== null && seat.seatIndex === exceptSeatIndex) continue;
-            this.send(seat, message);
+            if (!seat.connected || !seat.ws || seat.ws.readyState !== 1) continue;
+            if (raw === null) raw = JSON.stringify(message);
+            try {
+                seat.ws.send(raw);
+            } catch (err) {
+                console.error(`[room ${this.roomCode}] send failed for seat ${seat.seatIndex}:`, err.message);
+            }
         }
     }
 
@@ -480,7 +487,9 @@ class Room {
     checkStageVotesComplete() {
         if (this.phase !== PHASE.STAGE_SELECT) return;
         if (this.locks.stagePicked) return;
-        const allVoted = this.connectedSeats.every(s => this.stageVotes.has(s.seatIndex));
+        const seats = this.connectedSeats;
+        if (seats.length === 0) return;
+        const allVoted = seats.every(s => this.stageVotes.has(s.seatIndex));
         if (allVoted) this.finalizeStageVote();
     }
     tallyStageVotes() {
@@ -875,11 +884,17 @@ class Room {
             type: 'INPUT_RELAY',
             phase: PHASE.RACE,
             payload: { seatIndex: seat.seatIndex, tick: payload.tick, keys: String(payload.keys || '') }
-        });
+        }, seat.seatIndex);
     }
 
     handlePositionSnapshot(seat, payload) {
         if (this.phase !== PHASE.RACE && this.phase !== PHASE.STAGE_SELECT) return;
+
+        const now = Date.now();
+        const lastSent = this.lastPositionBroadcastAt.get(seat.seatIndex) || 0;
+        if (now - lastSent < POSITION_SYNC_INTERVAL_MS) return;
+        this.lastPositionBroadcastAt.set(seat.seatIndex, now);
+
         this.broadcast({
             type: 'POSITION_SYNC',
             phase: this.phase,
@@ -895,7 +910,7 @@ class Room {
                 crouched: !!payload.crouched,
                 onWall: !!payload.onWall
             }
-        });
+        }, seat.seatIndex);
     }
     handleRespawnObserved(seat, payload = {}) {
         if (this.phase !== PHASE.RACE) return;
@@ -913,7 +928,7 @@ class Room {
             type: 'TILE_UPDATE',
             phase: PHASE.RACE,
             payload: { seatIndex: seat.seatIndex, idx: payload.idx | 0, tile: payload.tile, rot: payload.rot }
-        });
+        }, seat.seatIndex);
     }
 
     requiredQuorum(excludeSeatIndex) {
@@ -1220,6 +1235,7 @@ class Room {
 
         seat.connected = false;
         seat.ws = null;
+        this.lastPositionBroadcastAt.delete(seat.seatIndex);
         this.updateEmptiedAt();
         if (wasHost) {
             const successor = this.connectedSeats.find(s => !s.isBot) || this.connectedSeats[0];

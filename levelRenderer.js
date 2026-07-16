@@ -136,13 +136,6 @@ class LevelRenderer {
         this.assetsLoaded = true;
     }
 
-    initializeHuedAssets(levelData) {
-        const hue = this.fixHue(levelData.hue);
-        const hue2 = this.fixHue(levelData.hue2);
-
-        this.getHuedTileset(hue);
-        this.getHuedWalls(hue2);
-    }
     getHuedPlayerSprite(hue) {
         if (!hue) return { normal: this.playerNormal, crouch: this.playerCrouch };
         if (this.playerSpriteCache.has(hue)) return this.playerSpriteCache.get(hue);
@@ -243,50 +236,6 @@ class LevelRenderer {
         this.ctx.restore();
     }
     
-    parseCommands(txt) {
-        let cmds = [];
-        let dy = "";
-        const DIGITS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "." , "-"]
-        for (let dx = 0; dx < txt.length; dx++) {
-            const c = txt[dx];
-            if (DIGITS.includes(c)) {
-                dy += c;
-            } else {
-                if (dy != "") {
-                    cmds.push(parseFloat(dy));
-                    dy = "";
-                }
-                cmds.push(c.toLowerCase());
-            }
-        }
-        if (dy != "") {
-            cmds.push(parseFloat(dy));
-        }
-        return cmds;
-    }
-
-    getGroup(txt) {
-        let num = "";
-        const DIGITS = ["0","1","2","3","4","5","6","7","8","9",".","-"];
-
-        for (let i = 0; i < txt.length; i++) {
-            const c = txt[i];
-
-            if (c === "g" || c === "G") {
-                i++; 
-
-                while (i < txt.length && DIGITS.includes(txt[i])) {
-                    num += txt[i];
-                    i++;
-                }
-
-                return parseFloat(num);
-            }
-        }
-
-        return null; 
-    }
-
     getHuedTileset(hue) {
         if (hue === 0) return this.tiles;
         if (this.tilesetCache.has(hue)) return this.tilesetCache.get(hue);

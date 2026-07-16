@@ -198,10 +198,6 @@ class NetworkClient {
         this._send('STAGE_CURSOR_MOVE', { cursorIndex });
     }
 
-    sendStagePickRequest(candidateIndex) {
-        this._send('STAGE_PICK_REQUEST', { candidateIndex });
-    }
-
     sendPartyCursorMove(cursorIndex) {
         this._send('PARTY_CURSOR_MOVE', { cursorIndex });
     }
@@ -216,10 +212,6 @@ class NetworkClient {
 
     sendPlacePieceRequest(pieceId, col, row, rotation) {
         this._send('PLACE_PIECE_REQUEST', { pieceId, col, row, rotation });
-    }
-
-    sendInputFrame(tick, keys) {
-        this._send('INPUT_FRAME', { tick, keys });
     }
 
     sendPositionSnapshot(tick, x, y, sx, sy, direction, dir, crouched, onWall) {

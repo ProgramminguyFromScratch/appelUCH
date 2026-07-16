@@ -67,7 +67,6 @@ function hueShiftToHex(hueShift) {
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-const STAGE_SELECT_BOX_WIDTH = 255;
 const STAGE_PREVIEW_ASPECT = 10 / 15; 
 const STAGE_VOTE_ARENA_LEVEL_CODE = "1236887196Z86Z2Z2Z1Z86Z4Z10Z2Z86Z2Z10Z2Z68Z1Z86Z1Z10Z2Z68Z1Z10Z5Z2Z1Z10Z2Z86Z1Z10Z3Z20Z1Z18Z1Z17Z1Z79Z51Z2Z112Z10Z1Z86Z1Z10Z1Z1Z3Z13Z1Z10Z3Z2Z1Z10Z1Z2Z1Z86Z1Z2Z1Z86Z1Z2Z1Z10Z1Z86Z1Z10Z1Z86Z1Z2Z1Z68Z1Z86Z1Z10Z1Z2Z1Z68Z1Z20Z3Z18Z1Z17Z1Z79Z52Z2Z112Z10Z1Z68Z1Z5Z1Z1Z4Z4Z1Z68Z1Z10Z2Z86Z1Z10Z1Z20Z1Z86Z1Z20Z1Z10Z1Z86Z1Z2Z1Z86Z1Z68Z1Z10Z1Z86Z1Z10Z1Z20Z3Z18Z3Z17Z1Z79Z53Z2Z112Z4Z1Z1Z11Z76Z1Z1Z1Z86Z1Z1Z5Z20Z4Z18Z3Z17Z3Z79Z54Z1Z112Z4Z1Z1Z13Z86Z1Z5Z1Z1Z4Z20Z1Z18Z4Z17Z2Z79Z57Z1Z112Z4Z1Z1Z10Z5Z1Z1Z2Z86Z1Z8Z1Z1Z2Z5Z1Z1Z1Z20Z1Z18Z1Z17Z4Z79Z58Z1Z112Z10Z1Z1Z5Z5Z1Z20Z1Z18Z1Z20Z1Z5Z1Z1Z2Z8Z1Z86Z1Z5Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z61Z1Z112Z86Z1Z4Z1Z1Z11Z5Z1Z86Z1Z8Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z61Z1Z112Z10Z1Z86Z1Z10Z1Z1Z2Z5Z1Z1Z7Z8Z1Z68Z1Z8Z1Z13Z1Z68Z2Z5Z1Z20Z1Z18Z1Z17Z1Z79Z61Z1Z112Z86Z2Z10Z1Z13Z1Z1Z7Z4Z1Z21Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z61Z1Z121Z13Z1Z21Z2Z5Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z61Z1Z124Z8Z5Z1Z3Z20Z1Z18Z1Z17Z1Z79Z61Z1Z118Z5Z1Z1Z6Z8Z3Z1Z4Z20Z1Z18Z1Z17Z1Z79Z61Z1Z132Z20Z1Z18Z1Z17Z1Z79Z61Z1Z116Z5Z1Z1Z4Z4Z1Z1Z10Z20Z1Z18Z1Z17Z1Z79Z61Z1Z120Z10Z1Z86Z1Z10Z1Z1Z9Z20Z1Z18Z1Z17Z1Z79Z61Z1Z119Z10Z1Z86Z3Z10Z1Z1Z7Z4Z1Z20Z1Z18Z1Z17Z1Z79Z61Z1Z131Z4Z1Z20Z1Z18Z1Z17Z4Z79Z58Z1Z131Z20Z2Z18Z4Z17Z1Z79Z58Z1Z131Z20Z5Z18Z1Z17Z1Z79Z58Z1Z135Z20Z1Z18Z1Z17Z1Z79Z58Z1Z135Z20Z1Z18Z1Z17Z1Z79Z58Z1Z135Z20Z1Z18Z1Z17Z1Z79Z58Z1Z130Z20Z6Z18Z1Z17Z1Z79Z58Z1Z130Z20Z1Z18Z6Z17Z1Z79Z58Z1Z130Z20Z1Z18Z1Z17Z6Z79Z58Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z64Z1Z130Z20Z1Z18Z65Z1Z130Z20Z66Z1Z31276ZZ1Z7Z3Z1Z0Z1Z1Z2Z3Z1Z0Z1Z3Z1Z0Z1Z1Z1Z3Z1Z0Z2Z3Z1Z1Z1Z3Z1Z1Z2Z3Z1Z0Z1Z1Z1Z2Z1Z1Z1Z2Z1Z1Z166Z0Z1Z1Z1Z2Z1Z1Z5Z2Z1Z0Z1Z1Z1Z2Z1Z1Z1Z3Z1Z1Z1Z3Z1Z1Z1Z2Z2Z1Z3Z3Z1Z2Z1Z1Z2Z3Z1Z1Z170Z3Z1Z1Z7Z2Z1Z1Z2Z2Z1Z1Z1Z2Z1Z1Z5Z3Z1Z1Z2Z2Z1Z1Z172Z2Z1Z1Z13Z2Z1Z1Z181Z2Z1Z1Z13Z2Z2Z1Z180Z2Z1Z1Z13Z2Z1Z1Z3Z2Z1Z1Z177Z3Z1Z1Z5Z3Z1Z1Z3Z2Z1Z1Z3Z2Z2Z1Z180Z2Z2Z1Z11Z0Z1Z2Z1Z1Z183Z3Z1Z1Z11Z2Z1Z1Z1Z0Z1Z1Z1Z3Z1Z2Z1Z1Z178Z2Z1Z3Z1Z1Z7Z3Z1Z1Z193Z0Z1Z1Z388Z2Z1Z1Z389Z2Z1Z1Z4Z3Z1Z1Z194Z0Z1Z1Z1Z3Z1Z1Z192Z0Z1Z1Z3Z3Z1Z1Z7Z0Z1Z1Z195Z0Z1Z1Z35064ZZZ13Z0Z11Z3Z10Z1Z8Z2Z8Z1Z6Z1Z4Z2Z3Z1Z3Z2Z5Z2Z8Z2Z12Z3Z14Z2Z29Z0Z37Z1Z42Z0Z46Z0Z53Z1Z56Z3Z59Z2Z57Z1Z57Z2Z55Z1Z52Z3Z49Z2Z46Z2Z41Z3Z35Z0Z27Z1Z22Z2Z16Z0Z14Z3Z11Z0Z9Z0Z6Z1Z2Z0Z0Z0ZC1Z0ZC1Z3ZC1Z1ZZ180Z180";
 const STAGE_VOTE_STAND_SECONDS = 3;
@@ -113,6 +112,8 @@ class Game {
         this.cameraLookahead = { x: 0, y: 0 }; 
         this.cameraMode = 0; 
         this.showDebugMenu = false;
+        this.stageHintHidden = false;
+        this.showInputDisplay = false;
         this._fpsFrameTimes = [];
         this._fps = 0;
         this.ping = null;
@@ -153,7 +154,7 @@ class Game {
 
         this.settingsMenuOpen = false;
         this.settingsMenuIndex = 0;
-        this.settingsMenuTab = 'match'; // 'match' | 'pieces'
+        this.settingsMenuTab = 'match';
         this.colorPickerOpen = false;
         this.helpMenuOpen = false;
         this.RESPAWN_DELAY_FRAMES = 30; 
@@ -165,7 +166,6 @@ class Game {
             { key: 'totalRounds', label: 'Rounds', min: 1, max: 30, step: 1 },
             { key: 'raceTimeLimit', label: 'Race time limit (s)', min: 15, max: 180, step: 5 }
         ];
-        // Piece chance settings are built from pieces.js so it stays in sync with the actual piece pool.
         this.PIECE_CHANCE_META = (typeof PIECE_POOL !== 'undefined' ? PIECE_POOL : []).map(piece => ({
             pieceId: piece.id,
             label: piece.name,
@@ -222,11 +222,12 @@ class Game {
         this._chatCaretActivityAt = 0;   
         this._chatAutocompleteCycle = null;
 
-        if (typeof replayCode !== 'undefined' && replayCode) {
-            this.decodedReplayCode = decodeReplayCode(replayCode);
-        }
-
         window.addEventListener('keydown', e => {
+            const activeTag = document.activeElement && document.activeElement.tagName;
+            if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') {
+                return;
+            }
+
             if (this.chatOpen) {
                 this.handleChatKeydown(e);
                 return;
@@ -273,6 +274,11 @@ class Game {
                 return;
             }
 
+            if (e.code === 'KeyV' && !e.repeat && this.gameState === GameState.STAGE_SELECT) {
+                e.preventDefault();
+                this.stageHintHidden = !this.stageHintHidden;
+            }
+
             if (e.code === 'KeyF' && !e.repeat) {
                 e.preventDefault();
                 this.toggleFullscreen();
@@ -282,6 +288,10 @@ class Game {
                 this.showDebugMenu = !this.showDebugMenu;
                 if (this.showDebugMenu && this.network && this.network.isConnected) this.network.sendPing();
                 console.log(`[debug] menu ${this.showDebugMenu ? 'ON' : 'OFF'}`);
+            }
+
+            if (e.code === 'Digit3' && !e.repeat) {
+                this.showInputDisplay = !this.showInputDisplay;
             }
 
             if (this.gameState === GameState.PARTY_BOX) {
@@ -330,12 +340,6 @@ class Game {
             if (this.chatSelectionAnchor === this.chatCursorPos) this.chatSelectionAnchor = null;
         });
     }
-
-    // Decouples the canvas's *logical* width/height (960x540 — what all the game/render
-    // code reads and positions things against) from its actual backing-store pixel size.
-    // this.canvas.width / this.canvas.height keep reporting 960 / 540 forever, so none of
-    // the existing drawing code needs to change, but the real pixel buffer can be scaled
-    // up (e.g. to native screen resolution in fullscreen) for crisp, non-blurry rendering.
     _initHiDPICanvas() {
         const canvas = this.canvas;
         const widthDesc = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
@@ -348,9 +352,6 @@ class Game {
         const applyBackingSize = () => {
             widthDesc.set.call(canvas, Math.max(1, Math.round(logicalW * this._renderScale)));
             heightDesc.set.call(canvas, Math.max(1, Math.round(logicalH * this._renderScale)));
-            // Resizing the backing store resets the context state, so re-apply the scale
-            // transform: every draw call in the codebase is written in 960x540 logical
-            // coordinates, and this maps them onto the (possibly larger) real pixel buffer.
             this.ctx.setTransform(this._renderScale, 0, 0, this._renderScale, 0, 0);
         };
 
@@ -400,9 +401,6 @@ class Game {
             this.canvas.style.height = Math.round(dispH) + 'px';
 
             const dpr = window.devicePixelRatio || 1;
-            // Render at the real on-screen pixel density (capped so huge 8K/high-dpr
-            // displays don't blow the canvas resolution — and thus memory/GPU cost — out
-            // of proportion).
             this._renderScale = Math.min(4, Math.max(1, (dispW * dpr) / logicalW));
             this._applyBackingSize();
         };
@@ -554,7 +552,6 @@ class Game {
         const x = (this.canvas.width - width) / 2;
         const y = (this.canvas.height - height) / 2;
 
-        // Keep the selected row scrolled into view.
         let scrollOffset = 0;
         if (metaList.length > maxVisibleRows) {
             scrollOffset = Math.max(0, Math.min(this.settingsMenuIndex - maxVisibleRows + 1, metaList.length - maxVisibleRows));
@@ -573,7 +570,6 @@ class Game {
         ctx.font = 'bold 16px ' + THEME.font;
         ctx.fillText('Match Settings', x + width / 2, y + paddingY + 12);
 
-        // Tab row
         const tabY = y + paddingY + titleHeight;
         const tabs = [{ id: 'match', label: 'Match' }, { id: 'pieces', label: 'Piece Chances' }];
         const tabWidth = width / tabs.length;
@@ -688,25 +684,23 @@ class Game {
         ctx.font = '11px ' + THEME.font;
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.fillText('M: Settings   C: Color   H: Controls', this.canvas.width / 2, this.canvas.height - 10);
+        ctx.fillText('M: Settings   C: Color   H: Controls   V: ' + (this.stageHintHidden ? 'Show hint' : 'Hide hint') + '   3: Input display', this.canvas.width / 2, this.canvas.height - 10);
         ctx.restore();
     }
 
     drawGlobalHints() {
         if (this.gameState === GameState.MENU) return;
-        if (this.gameState === GameState.STAGE_SELECT) return; // drawHubMenuHints already covers this state
+        if (this.gameState === GameState.STAGE_SELECT) return;
         if (this.settingsMenuOpen || this.colorPickerOpen || this.chatOpen || this.helpMenuOpen) return;
         const ctx = this.ctx;
         ctx.save();
         ctx.font = '11px ' + THEME.font;
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.fillText('H: Controls', this.canvas.width / 2, this.canvas.height - 10);
+        ctx.fillText('H: Controls   3: Input display', this.canvas.width / 2, this.canvas.height - 10);
         ctx.restore();
     }
 
-    // All of the key bindings shown in the controls (H) overlay, grouped for display.
-    // Keeping this as data makes it easy to keep in sync if bindings ever change.
     get CONTROLS_HELP_SECTIONS() {
         return [
             {
@@ -721,7 +715,8 @@ class Game {
                 title: 'Race',
                 rows: [
                     ['Hold to give up', 'Shift or Enter (hold)'],
-                    ['Cycle camera mode', '1']
+                    ['Cycle camera mode', '1'],
+                    ['Toggle input display', '3']
                 ]
             },
             {
@@ -1459,21 +1454,6 @@ class Game {
         }
         return players;
     }
-    getStageBoxWidth(candidateCount) {
-        const margin = 40;
-        const gap = 24;
-        const n = Math.max(1, candidateCount);
-        const available = (this.canvas.width - margin * 2 - gap * (n - 1)) / n;
-        return Math.max(90, Math.min(STAGE_SELECT_BOX_WIDTH, available));
-    }
-    getStageBoxHeight(boxWidth) {
-        const thumbPad = 12;
-        const thumbW = boxWidth - thumbPad * 2;
-        const thumbH = thumbW * STAGE_PREVIEW_ASPECT;
-        const titleGap = 24; 
-        const bottomMargin = 20; 
-        return thumbPad + thumbH + titleGap + bottomMargin;
-    }
     enterStageSelect() {
         this.stageCandidates = this.pickStageCandidates();
         this.gameState = GameState.STAGE_SELECT;
@@ -1501,7 +1481,7 @@ class Game {
         this.stageCountdownStart = null;
         this.stageCountdownDuration = STAGE_VOTE_STAND_SECONDS * 1000;
 
-        const boxWidth = this.getStageBoxWidth(this.stageCandidates.length);
+        const boxWidth = 240
         const thumbW = boxWidth - 24;
         const thumbH = thumbW * STAGE_PREVIEW_ASPECT;
         this.stageCandidates.forEach(code => this.generateStageThumbnail(code, thumbW, thumbH));
@@ -1515,21 +1495,11 @@ class Game {
 
         const cols = levelData.size_x;
         const rows = Math.floor(levelData.map.length / cols);
-        const hue = this.renderer.fixHue(levelData.hue);
-        const activeTileset = this.renderer.getHuedTileset(hue);
         const renderScale = Math.min(3, Math.max(2, window.devicePixelRatio || 1));
         const canvasWidth = Math.round(width * renderScale);
         const canvasHeight = Math.round(height * renderScale);
+        const TILE_SIZE = this.renderer.tileSize;
 
-        const thumbCanvas = document.createElement('canvas');
-        thumbCanvas.width = canvasWidth;
-        thumbCanvas.height = canvasHeight;
-        const ctx = thumbCanvas.getContext('2d');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-
-        ctx.fillStyle = THEME.bg;
-        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
         const REGION_PAD = 2;
         const spawnIdx = levelData.map.indexOf(76);
         const finishIdx = levelData.map.indexOf(63);
@@ -1549,40 +1519,37 @@ class Game {
         boxRows = Math.max(1, boxRows);
 
         const MARGIN = 0.9;
-        const tile = Math.min(canvasWidth / boxCols, canvasHeight / boxRows) * MARGIN;
-        const visibleCols = canvasWidth / tile;
-        const visibleRows = canvasHeight / tile;
-        const leftCol = centerCol - visibleCols / 2;
-        const topRow = centerRow + visibleRows / 2;
+        const targetTileOnScreen = Math.min(canvasWidth / boxCols, canvasHeight / boxRows) * MARGIN;
+        const visibleCols = canvasWidth / targetTileOnScreen;
+        const visibleRows = canvasHeight / targetTileOnScreen;
 
-        const firstCol = Math.max(0, Math.floor(leftCol));
-        const lastCol = Math.min(cols - 1, Math.ceil(leftCol + visibleCols) - 1);
-        const lastRow = Math.min(rows - 1, Math.ceil(topRow) - 1);
-        const firstRow = Math.max(0, Math.floor(topRow - visibleRows));
+        const native = document.createElement('canvas');
+        native.width = Math.ceil(visibleCols * TILE_SIZE);
+        native.height = Math.ceil(visibleRows * TILE_SIZE);
 
-        for (let row = firstRow; row <= lastRow; row++) {
-            const rowBase = row * cols;
-            const tileY = (topRow - (row + 0.5)) * tile;
-            for (let col = firstCol; col <= lastCol; col++) {
-                const rawTileVal = levelData.map[rowBase + col];
-                if (!rawTileVal) continue;
+        const originalCanvas = this.renderer.canvas;
+        const originalCtx = this.renderer.ctx;
+        this.renderer.canvas = native;
+        this.renderer.ctx = native.getContext('2d');
+        this.renderer.ctx.imageSmoothingEnabled = false;
 
-                const rotation = levelData.rotations[rowBase + col] % 4;
-                const tileX = (col + 0.5 - leftCol) * tile;
-                for (let isForeground = 0; isForeground <= 1; isForeground++) {
-                    const offset = isForeground * 86;
-                    const tileImg = activeTileset[rawTileVal - 1 + offset];
-                    if (!tileImg) continue;
-                    ctx.save();
-                    ctx.translate(tileX, tileY);
-                    if (rotation !== 1) {
-                        ctx.rotate((rotation - 1) * Math.PI / 2);
-                    }
-                    ctx.drawImage(tileImg, -tile / 2, -tile / 2, tile, tile);
-                    ctx.restore();
-                }
-            }
-        }
+        const camera = {
+            x: centerCol * TILE_SIZE,
+            y: centerRow * TILE_SIZE,
+            zoom: 1
+        };
+        this.renderer.render(levelData, camera, this.tick);
+
+        this.renderer.canvas = originalCanvas;
+        this.renderer.ctx = originalCtx;
+
+        const thumbCanvas = document.createElement('canvas');
+        thumbCanvas.width = canvasWidth;
+        thumbCanvas.height = canvasHeight;
+        const ctx = thumbCanvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(native, 0, 0, canvasWidth, canvasHeight);
 
         this.stageThumbnails.set(levelCode, thumbCanvas);
         return thumbCanvas;
@@ -2124,10 +2091,6 @@ class Game {
             startScreen.style.display = 'flex';
         }
     }
-    startGame(levelCode) {
-        this.gameState = GameState.LOADING;
-        this.init(levelCode);
-    }
     startGameNetworked() {
         this.gameState = GameState.LOADING;
         this.init(null);
@@ -2335,10 +2298,6 @@ class Game {
         if (player.respawnPendingFrames > 0) return "";
 
         let keys = '';
-        if (this.decodedReplayCode) {
-            keys = this.decodedReplayCode[this.tick];
-        }
-
         if (player.controls.right.some(k => this.keys[k])) keys += 'D';
         if (player.controls.left.some(k => this.keys[k])) keys += 'A';
         if (player.controls.down.some(k => this.keys[k])) keys += 'S';
@@ -2352,18 +2311,23 @@ class Game {
         const sy = payload.sy;
         const onWall = !!payload.onWall;
         const prev = this.remoteSfxState.get(payload.seatIndex);
+        let chainedFromWallJump = prev ? !!prev.chainedFromWallJump : false;
 
         if (prev && typeof playSfx === 'function') {
             const jumpImpulse = prev.sy <= 4 && sy >= 14;
             if (jumpImpulse && prev.onWall) {
                 playSfx('wall_jump');
+                chainedFromWallJump = true;
+            } else if (jumpImpulse && chainedFromWallJump) {
+                playSfx('sidejump');
             } else if (jumpImpulse) {
                 playSfx('jump');
             } else if (prev.sy < -4 && sy >= -1 && sy <= 4 && !onWall) {
                 playSfx('land');
+                chainedFromWallJump = false;
             }
         }
-        this.remoteSfxState.set(payload.seatIndex, { sy, onWall });
+        this.remoteSfxState.set(payload.seatIndex, { sy, onWall, chainedFromWallJump });
 
         this.remotePositions.set(payload.seatIndex, {
             x: payload.x, y: payload.y, sx: payload.sx, sy: payload.sy, tick: payload.tick,
@@ -2697,11 +2661,6 @@ class Game {
         });
 
         this.players.forEach(p => { if (p) p.score += p.lastRoundPoints; });
-
-        const summary = this.players
-            .filter(p => p !== null)
-            .map(p => `${p.name}: +${p.lastRoundPoints} (total ${p.score})`)
-            .join(', ');
     }
 
     drawEntities() {
@@ -3092,6 +3051,7 @@ class Game {
         this.drawLivesIndicator();
         this.drawGiveUpHint();
         this.drawGiveUpRing();
+        this.drawInputDisplay();
 
         this.tick += 1;
     }
@@ -3137,9 +3097,49 @@ class Game {
             playSfx('boom');
         }
     }
+    drawInputDisplay() {
+        if (!this.showInputDisplay) return;
+        if (this.settingsMenuOpen || this.colorPickerOpen || this.chatOpen || this.helpMenuOpen) return;
+
+        const controls = LOCAL_PLAYER_CONTROLS;
+        const pressed = {
+            left: controls.left.some(k => this.keys[k]),
+            right: controls.right.some(k => this.keys[k]),
+            up: controls.up.some(k => this.keys[k]),
+            down: controls.down.some(k => this.keys[k])
+        };
+
+        const ctx = this.ctx;
+        const size = 34;
+        const gap = 4;
+        const originX = 16;
+        const originY = this.canvas.height - (size * 2 + gap) - 16;
+
+        const keyBox = (col, row, isPressed) => {
+            const x = originX + col * (size + gap);
+            const y = originY + row * (size + gap);
+
+            ctx.fillStyle = isPressed ? '#000000' : 'rgba(0, 0, 0, 0)';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.rect(x, y, size, size);
+            ctx.fill();
+            ctx.stroke();
+        };
+
+        ctx.save();
+        keyBox(1, 0, pressed.up);
+        keyBox(0, 1, pressed.left);
+        keyBox(1, 1, pressed.down);
+        keyBox(2, 1, pressed.right);
+        ctx.restore();
+        ctx.textBaseline = 'alphabetic';
+    }
+
+
     drawGiveUpHint() {
         if (this.gameState !== GameState.RACE) return;
-        if (this.giveUpHoldFrames > 0) return;
 
         const player = this.players.find(p => p && p.controls);
         if (!player || player.hasFinished || player.eliminated) return;
@@ -3496,8 +3496,11 @@ class Game {
         this.drawHubMenuHints();
         this.drawSettingsMenu();
         this.drawColorPicker();
+        this.drawInputDisplay();
     }
     drawStageSelectHud() {
+        if (this.stageHintHidden) return;
+
         this.ctx.textAlign = "center";
         this.ctx.font = "bold 26px " + THEME.font;
         this.ctx.lineWidth = 4;
@@ -3581,19 +3584,6 @@ class Game {
         ctx.fillText(captionText, this.canvas.width / 2, this.canvas.height / 2 + 70);
         ctx.restore();
     }
-    easeOutCubic(t) {
-        const clamped = Math.max(0, Math.min(1, t));
-        return 1 - Math.pow(1 - clamped, 3);
-    }
-    getRoundResultLabel(player) {
-        if (!player) return { text: '-', color: THEME.textMuted };
-        if (player.hasFinished && (player.eliminated || player.finishedPostmortem)) return { text: 'Postmortem', color: THEME.pointColors.postmortem };
-        if (player.hasFinished) return { text: 'Finished', color: THEME.success };
-        if (player.dnf) return { text: 'DNF', color: THEME.warning };
-        if (player.eliminated) return { text: 'Eliminated', color: THEME.danger };
-        return { text: '-', color: THEME.textMuted };
-    }
-
     drawRoundResultsScreen() {
         const ctx = this.ctx; 
         if (!this.resultsAnimationStart) {
