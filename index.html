@@ -231,6 +231,57 @@
         html:-webkit-full-screen body {
             height: 100vh;
         }
+
+        #creditsScreen {
+            overflow-y: auto;
+            padding: 40px 20px;
+            box-sizing: border-box;
+        }
+        #creditsScreen h1 {
+            margin-bottom: 0;
+        }
+        #creditsContent {
+            width: min(480px, 90vw);
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+        .creditsSection h2 {
+            font-size: 15px;
+            font-weight: normal;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #8891a3;
+            margin: 0 0 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.14);
+            padding-bottom: 4px;
+        }
+        .creditsSection ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .creditsSection li {
+            font-size: 15px;
+        }
+        .creditsSection li .creditRole {
+            color: #f4f6fb;
+        }
+        .creditsSection li .creditNames {
+            color: #3aa0ff;
+        }
+        .creditsSection li .creditNote {
+            display: block;
+            font-size: 13px;
+            color: #8891a3;
+            margin-top: 2px;
+        }
+        #btnCloseCredits {
+            align-self: center;
+        }
     </style>
 </head>
 <body>
@@ -250,6 +301,85 @@
             <button id="btnCreateOrJoin">Create / Join Room</button>
         </div>
         <div id="errorText"></div>
+        <button id="btnShowCredits" class="secondary">Credits</button>
+    </div>
+
+    <div id="creditsScreen" class="overlay" style="display:none;">
+        <h1>Credits</h1>
+        <div id="creditsContent">
+            <div class="creditsSection">
+                <h2>Original Scratch Game</h2>
+                <ul>
+                    <li><span class="creditRole">Griffpatch</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Rebuild &amp; Development</h2>
+                <ul>
+                    <li>
+                        <span class="creditRole">programminguy</span>
+                        <span class="creditNote">Rebuilt the entire game from the ground up in JavaScript, rewriting every line of code from the original Scratch project</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Inspiration</h2>
+                <ul>
+                    <li><span class="creditRole">Ultimate Chicken Horse</span> &mdash; <span class="creditNames">Clever Endeavour Games</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Appel (Character)</h2>
+                <ul>
+                    <li><span class="creditRole">legobouwer9</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Music</h2>
+                <ul>
+                    <li><span class="creditNote">None yet</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>SFX</h2>
+                <ul>
+                    <li><span class="creditRole">freesound.org</span></li>
+                    <li><span class="creditNote">Some sounds created using sfxr.me</span></li>
+                    <li><span class="creditNote">Most from the original Scratch game</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Playtesters</h2>
+                <ul>
+                    <li><span class="creditRole">CheeseBagel</span></li>
+                    <li><span class="creditRole">KarJ5</span></li>
+                    <li><span class="creditRole">pi314</span></li>
+                    <li><span class="creditRole">TheGrassyGuys</span></li>
+                    <li><span class="creditRole">tyclev</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Hub</h2>
+                <ul>
+                    <li><span class="creditRole">Created by</span> <span class="creditNames">programminguy &amp; tyclev</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Levels</h2>
+                <ul>
+                    <li><span class="creditRole">Building Blocks</span> &mdash; <span class="creditNames">pi314</span></li>
+                    <li><span class="creditRole">Construction</span> &mdash; <span class="creditNames">CheeseBagel</span></li>
+                    <li><span class="creditRole">Jungle Jumble</span> &mdash; <span class="creditNames">tyclev</span></li>
+                    <li><span class="creditRole">Meteorite Impact</span> &mdash; <span class="creditNames">CheeseBagel</span></li>
+                    <li><span class="creditRole">Monolith</span> &mdash; <span class="creditNames">tyclev</span></li>
+                    <li><span class="creditRole">Pinball</span> &mdash; <span class="creditNames">programminguy</span></li>
+                    <li><span class="creditRole">The Mountain</span> &mdash; <span class="creditNames">programminguy, pi314, and CheeseBagel</span></li>
+                    <li><span class="creditRole">World's Eye</span> &mdash; <span class="creditNames">pi314</span></li>
+                    <li><span class="creditRole">Pillared Heights</span> &mdash; <span class="creditNames">TheGrassyGuys</span></li>
+                </ul>
+            </div>
+        </div>
+        <button id="btnCloseCredits" class="secondary">Back</button>
     </div>
 
     <div id="lobbyScreen" class="overlay" style="display:none;">
@@ -344,14 +474,26 @@
             }, 1500);
         });
 
+        const creditsScreen = document.getElementById('creditsScreen');
+        const btnShowCredits = document.getElementById('btnShowCredits');
+        const btnCloseCredits = document.getElementById('btnCloseCredits');
+        btnShowCredits.addEventListener('click', () => {
+            nameScreen.style.display = 'none';
+            creditsScreen.style.display = 'flex';
+        });
+        btnCloseCredits.addEventListener('click', () => {
+            creditsScreen.style.display = 'none';
+            nameScreen.style.display = 'flex';
+        });
+
         const fullscreenBtn = document.getElementById('fullscreenBtn');
         fullscreenBtn.addEventListener('click', () => game.toggleFullscreen());
         document.addEventListener('fullscreenchange', () => {
             fullscreenBtn.style.display = document.fullscreenElement ? 'none' : 'block';
         });
 
-        // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
-        const serverUrl = params.get('server') || `https://appeluch.onrender.com`;
+        const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
+        // const serverUrl = params.get('server') || `https://appeluch.onrender.com`;
 
         const network = new NetworkClient(serverUrl);
         const game = new Game('gameCanvas', playerCount, network);

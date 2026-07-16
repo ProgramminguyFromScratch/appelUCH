@@ -754,6 +754,10 @@ class AppelPhysics {
     }
 
     check_dangers(playerState) {
+        if (playerState.PLAYER_Y < -30) {
+            playerState.PLAYER_DEATH = true;
+            return;
+        }
         if (!this.touching){console.error("spikes not loaded")}
 
         const isInSpikeTile = 
