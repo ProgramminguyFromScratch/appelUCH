@@ -14,6 +14,7 @@ const {
     CHAT_MESSAGE_MAX_LENGTH,
     DEFAULT_SETTINGS,
     SETTINGS_LIMITS,
+    PIECE_CHANCE_LIMITS,
     ADMIN_PASSWORD,
     LOGIN_MAX_ATTEMPTS,
     LOGIN_ATTEMPT_WINDOW_MS
@@ -40,7 +41,7 @@ class Room {
         this.nextSeatIndex = 0;
         this.phase = PHASE.LOBBY;
 
-        this.settings = { ...DEFAULT_SETTINGS };
+        this.settings = { ...DEFAULT_SETTINGS, pieceChances: { ...DEFAULT_SETTINGS.pieceChances } };
 
         this.currentRound = 1;
         this.totalRounds = this.settings.totalRounds;
@@ -241,6 +242,20 @@ class Room {
                     }
                 });
                 break;
+            case PHASE.ROUND_RESULTS:
+                if (this.lastRoundEndPayload) {
+                    this.send(seat, { type: 'ROUND_END', phase: PHASE.RACE, payload: this.lastRoundEndPayload });
+                }
+                this.send(seat, {
+                    type: 'CONTINUE_PROGRESS',
+                    phase: PHASE.ROUND_RESULTS,
+                    payload: {
+                        seatIndex: null,
+                        confirmedSeats: [...this.continueConfirmations],
+                        totalConnected: this.connectedSeats.length
+                    }
+                });
+                break;
             default:
                 break;
         }
@@ -286,6 +301,11 @@ class Room {
         if (!Number.isFinite(n)) return null;
         return Math.max(limits.min, Math.min(limits.max, n));
     }
+    clampPieceChance(value) {
+        const n = Math.round(Number(value));
+        if (!Number.isFinite(n)) return null;
+        return Math.max(PIECE_CHANCE_LIMITS.min, Math.min(PIECE_CHANCE_LIMITS.max, n));
+    }
     isPrivileged(seat) {
         return !!seat && (seat.seatIndex === this.hostSeatIndex || !!seat.isAdmin);
     }
@@ -296,14 +316,31 @@ class Room {
 
         const updates = {};
         for (const key of Object.keys(DEFAULT_SETTINGS)) {
+            if (key === 'pieceChances') continue;
             if (!(key in payload)) continue;
             const clamped = this.clampSetting(key, payload[key]);
             if (clamped === null) continue;
             updates[key] = clamped;
         }
-        if (Object.keys(updates).length === 0) return;
+
+        let pieceChanceUpdates = null;
+        if (payload.pieceChances && typeof payload.pieceChances === 'object') {
+            pieceChanceUpdates = {};
+            for (const pieceId of Object.keys(payload.pieceChances)) {
+                if (!getPieceById(pieceId)) continue;
+                const clamped = this.clampPieceChance(payload.pieceChances[pieceId]);
+                if (clamped === null) continue;
+                pieceChanceUpdates[pieceId] = clamped;
+            }
+            if (Object.keys(pieceChanceUpdates).length === 0) pieceChanceUpdates = null;
+        }
+
+        if (Object.keys(updates).length === 0 && !pieceChanceUpdates) return;
 
         Object.assign(this.settings, updates);
+        if (pieceChanceUpdates) {
+            this.settings.pieceChances = { ...this.settings.pieceChances, ...pieceChanceUpdates };
+        }
         this.totalRounds = this.settings.totalRounds;
 
         this.broadcast({
@@ -507,7 +544,11 @@ class Room {
         return { col: idx % cols, row: Math.floor(idx / cols) };
     }
     pickPartySlots(count, allowBomb, guaranteeBomb) {
-        const pool = allowBomb ? PIECE_POOL : PIECE_POOL.filter(p => p.id !== 'bomb');
+        const basePool = allowBomb ? PIECE_POOL : PIECE_POOL.filter(p => p.id !== 'bomb');
+        const overrides = this.settings.pieceChances || {};
+        const pool = basePool.map(piece => (
+            (piece.id in overrides) ? { ...piece, chance: overrides[piece.id] } : piece
+        ));
 
         const slots = pickWeightedPieces(pool, count).map(piece => ({ pieceId: piece.id }));
 
@@ -1068,7 +1109,8 @@ class Room {
         this.phase = PHASE.ROUND_RESULTS;
         this.locks.continueAdvanced = false;
         this.continueConfirmations = new Set();
-        this.broadcast({ type: 'ROUND_END', phase: PHASE.RACE, payload: { round: this.currentRound, results } });
+        this.lastRoundEndPayload = { round: this.currentRound, results };
+        this.broadcast({ type: 'ROUND_END', phase: PHASE.RACE, payload: this.lastRoundEndPayload });
         const seatList = [...this.seats.values()];
         this.lastRoundDeaths = {
             anyEliminated: seatList.some(s => s.eliminated),
@@ -1114,6 +1156,7 @@ class Room {
     advanceRound() {
         if (this.locks.continueAdvanced) return;
         this.locks.continueAdvanced = true;
+        for (const seat of this.connectedSeats) this.continueConfirmations.add(seat.seatIndex);
 
         const someoneWon = [...this.seats.values()].some(s => s.score >= this.settings.pointsToWin);
         if (someoneWon || this.currentRound >= this.totalRounds) {

@@ -94,14 +94,14 @@ const PIECE_POOL = [
     },
     {
         id: 'conveyor1',
-        name: 'Conveyor',
+        name: 'Right Conveyor',
         tiles: [50],
         footprint: { width: 1, height: 1 },
         chance: 4
     },
     {
         id: 'conveyor2',
-        name: 'Conveyor',
+        name: 'Left Conveyor',
         tiles: [51],
         footprint: { width: 1, height: 1 },
         chance: 4
@@ -142,30 +142,37 @@ function getPieceFootprintCells(piece, rotation) {
     return cells;
 }
 
-// NEW: Helper function to grab weighted random pieces based on their `chance` variable
 function pickWeightedPieces(pool, count) {
     const slots = [];
-    // Sum up the total chance of all items in the current pool
-    const totalChance = pool.reduce((sum, piece) => sum + (piece.chance || 1), 0);
+    const available = [...pool];
 
-    for (let i = 0; i < count; i++) {
-        let randomVal = Math.random() * totalChance;
-        let currentSum = 0;
-        let selectedPiece = pool[0]; // Fallback
+    const weight = piece => (typeof piece.chance === 'number' ? piece.chance : 1);
 
-        for (const piece of pool) {
-            currentSum += (piece.chance || 1);
-            if (randomVal <= currentSum) {
-                selectedPiece = piece;
-                break;
+    for (let i = 0; i < count && available.length > 0; i++) {
+        const totalChance = available.reduce((sum, piece) => sum + weight(piece), 0);
+
+        let selectedIndex = 0;
+
+        if (totalChance <= 0) {
+            selectedIndex = Math.floor(Math.random() * available.length);
+        } else {
+            let randomVal = Math.random() * totalChance;
+            let currentSum = 0;
+            for (let j = 0; j < available.length; j++) {
+                currentSum += weight(available[j]);
+                if (randomVal < currentSum) {
+                    selectedIndex = j;
+                    break;
+                }
             }
         }
-        slots.push(selectedPiece);
+
+        slots.push(available[selectedIndex]);
+        available.splice(selectedIndex, 1);
     }
     return slots;
 }
 
-// Works on the Node.js server without breaking the browser script
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { 
         PIECE_POOL, 

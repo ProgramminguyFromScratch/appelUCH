@@ -677,7 +677,9 @@ class AppelPhysics {
                         this.isSolidAt(px + playerState.PSZ[2], check_y, -99, playerState);
 
                         if (this.overlap === 0 && playerState.PLAYER_SY < 16) {
-                            if (typeof playSfx === 'function') playSfx('jump');
+                            if (typeof playSfx === 'function') {
+                                playSfx(is_jumping > 100 ? 'sidejump' : 'jump');
+                            }
                             playerState.KEY_UP = 2;
                             playerState.is_jumping = is_jumping + 1;
                             playerState.PLAYER_SY = 16;

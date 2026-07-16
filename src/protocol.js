@@ -46,7 +46,8 @@ const DEFAULT_SETTINGS = {
     comebackPoints: 2,
     firstPlacePoints: 1,
     totalRounds: TOTAL_ROUNDS,
-    raceTimeLimit: 60
+    raceTimeLimit: 60,
+    pieceChances: {}
 };
 
 const SETTINGS_LIMITS = {
@@ -57,6 +58,8 @@ const SETTINGS_LIMITS = {
     totalRounds: { min: 1, max: 30 },
     raceTimeLimit: { min: 15, max: 180 }
 };
+
+const PIECE_CHANCE_LIMITS = { min: 0, max: 20 };
 function getPartyBoxSlotCount(playerCount) {
     return Math.ceil(1.5 * playerCount);
 }
@@ -73,7 +76,7 @@ const LOADING_BARRIER_TIMEOUT_MS = 15000;
 const ROUND_END_DELAY_MS = 3000;
 const CHAT_MESSAGE_MAX_LENGTH = 140;
 
-const ADMIN_PASSWORD = process.env.APPEL_ADMIN_PASSWORD;
+const ADMIN_PASSWORD = process.env.APPEL_ADMIN_PASSWORD || "e";
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_ATTEMPT_WINDOW_MS = 30000;
 
@@ -95,6 +98,7 @@ module.exports = {
     CHAT_MESSAGE_MAX_LENGTH,
     DEFAULT_SETTINGS,
     SETTINGS_LIMITS,
+    PIECE_CHANCE_LIMITS,
     ADMIN_PASSWORD,
     LOGIN_MAX_ATTEMPTS,
     LOGIN_ATTEMPT_WINDOW_MS

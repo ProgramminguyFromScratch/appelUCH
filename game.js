@@ -69,7 +69,7 @@ function hueShiftToHex(hueShift) {
 
 const STAGE_SELECT_BOX_WIDTH = 255;
 const STAGE_PREVIEW_ASPECT = 10 / 15; 
-const STAGE_VOTE_ARENA_LEVEL_CODE = "1236882196Z86Z2Z2Z1Z86Z4Z10Z2Z86Z2Z10Z2Z68Z1Z86Z1Z10Z2Z68Z1Z10Z5Z2Z1Z10Z2Z86Z1Z10Z3Z20Z1Z18Z1Z17Z1Z79Z3Z2Z160Z10Z1Z86Z1Z10Z1Z1Z3Z13Z1Z10Z3Z2Z1Z10Z1Z2Z1Z86Z1Z2Z1Z86Z1Z2Z1Z10Z1Z86Z1Z10Z1Z86Z1Z2Z1Z68Z1Z86Z1Z10Z1Z2Z1Z68Z1Z20Z3Z18Z1Z17Z1Z79Z4Z2Z160Z10Z1Z68Z1Z5Z1Z1Z4Z4Z1Z68Z1Z10Z2Z86Z1Z10Z1Z20Z1Z86Z1Z20Z1Z10Z1Z86Z1Z2Z1Z86Z1Z68Z1Z10Z1Z86Z1Z10Z1Z20Z3Z18Z3Z17Z1Z79Z5Z2Z160Z4Z1Z1Z11Z76Z1Z1Z1Z86Z1Z1Z5Z20Z4Z18Z3Z17Z3Z79Z6Z1Z160Z4Z1Z1Z13Z86Z1Z5Z1Z1Z4Z20Z1Z18Z4Z17Z2Z79Z9Z1Z160Z4Z1Z1Z10Z5Z1Z1Z2Z86Z1Z8Z1Z1Z2Z5Z1Z1Z1Z20Z1Z18Z1Z17Z4Z79Z10Z1Z160Z10Z1Z1Z5Z5Z1Z20Z1Z18Z1Z20Z1Z5Z1Z1Z2Z8Z1Z86Z1Z5Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z13Z1Z160Z86Z1Z4Z1Z1Z11Z5Z1Z86Z1Z8Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z13Z1Z160Z10Z1Z86Z1Z10Z1Z1Z2Z5Z1Z1Z7Z8Z1Z68Z1Z8Z1Z13Z1Z68Z2Z5Z1Z20Z1Z18Z1Z17Z1Z79Z13Z1Z160Z86Z2Z10Z1Z13Z1Z1Z7Z4Z1Z21Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z169Z13Z1Z21Z2Z5Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z172Z8Z5Z1Z3Z20Z1Z18Z1Z17Z1Z79Z13Z1Z166Z5Z1Z1Z6Z8Z3Z1Z4Z20Z1Z18Z1Z17Z1Z79Z13Z1Z180Z20Z1Z18Z1Z17Z1Z79Z13Z1Z164Z5Z1Z1Z4Z4Z1Z1Z10Z20Z1Z18Z1Z17Z1Z79Z13Z1Z168Z10Z1Z86Z1Z10Z1Z1Z9Z20Z1Z18Z1Z17Z1Z79Z13Z1Z167Z10Z1Z86Z3Z10Z1Z1Z7Z4Z1Z20Z1Z18Z1Z17Z1Z79Z13Z1Z179Z4Z1Z20Z1Z18Z1Z17Z4Z79Z10Z1Z179Z20Z2Z18Z4Z17Z1Z79Z10Z1Z179Z20Z5Z18Z1Z17Z1Z79Z10Z1Z183Z20Z1Z18Z1Z17Z1Z79Z10Z1Z183Z20Z1Z18Z1Z17Z1Z79Z10Z1Z183Z20Z1Z18Z1Z17Z1Z79Z10Z1Z178Z20Z6Z18Z1Z17Z1Z79Z10Z1Z178Z20Z1Z18Z6Z17Z1Z79Z10Z1Z178Z20Z1Z18Z1Z17Z6Z79Z10Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z1Z79Z15Z1Z178Z20Z1Z18Z1Z17Z16Z1Z178Z20Z1Z18Z17Z1Z178Z20Z18Z1Z31324ZZ1Z7Z3Z1Z0Z1Z1Z2Z3Z1Z0Z1Z3Z1Z0Z1Z1Z1Z3Z1Z0Z2Z3Z1Z1Z1Z3Z1Z1Z2Z3Z1Z0Z1Z1Z1Z2Z1Z1Z1Z2Z1Z1Z166Z0Z1Z1Z1Z2Z1Z1Z5Z2Z1Z0Z1Z1Z1Z2Z1Z1Z1Z3Z1Z1Z1Z3Z1Z1Z1Z2Z2Z1Z3Z3Z1Z2Z1Z1Z2Z3Z1Z1Z170Z3Z1Z1Z7Z2Z1Z1Z2Z2Z1Z1Z1Z2Z1Z1Z5Z3Z1Z1Z2Z2Z1Z1Z172Z2Z1Z1Z13Z2Z1Z1Z181Z2Z1Z1Z13Z2Z2Z1Z180Z2Z1Z1Z13Z2Z1Z1Z3Z2Z1Z1Z177Z3Z1Z1Z5Z3Z1Z1Z3Z2Z1Z1Z3Z2Z2Z1Z180Z2Z2Z1Z11Z0Z1Z2Z1Z1Z183Z3Z1Z1Z11Z2Z1Z1Z1Z0Z1Z1Z1Z3Z1Z2Z1Z1Z178Z2Z1Z3Z1Z1Z7Z3Z1Z1Z193Z0Z1Z1Z388Z2Z1Z1Z389Z2Z1Z1Z4Z3Z1Z1Z194Z0Z1Z1Z1Z3Z1Z1Z192Z0Z1Z1Z3Z3Z1Z1Z7Z0Z1Z1Z195Z0Z1Z1Z35064ZZZ13Z0Z11Z3Z10Z1Z8Z2Z8Z1Z6Z1Z4Z2Z3Z1Z3Z2Z5Z2Z8Z2Z12Z3Z14Z2Z29Z0Z37Z1Z42Z0Z46Z0Z53Z1Z56Z3Z59Z2Z57Z1Z57Z2Z55Z1Z52Z3Z49Z2Z46Z2Z41Z3Z35Z0Z27Z1Z22Z2Z16Z0Z14Z3Z11Z0Z9Z0Z6Z1Z2Z0Z0Z0ZC1Z0ZC1Z3ZC1Z1ZZ180Z180";
+const STAGE_VOTE_ARENA_LEVEL_CODE = "1236887196Z86Z2Z2Z1Z86Z4Z10Z2Z86Z2Z10Z2Z68Z1Z86Z1Z10Z2Z68Z1Z10Z5Z2Z1Z10Z2Z86Z1Z10Z3Z20Z1Z18Z1Z17Z1Z79Z51Z2Z112Z10Z1Z86Z1Z10Z1Z1Z3Z13Z1Z10Z3Z2Z1Z10Z1Z2Z1Z86Z1Z2Z1Z86Z1Z2Z1Z10Z1Z86Z1Z10Z1Z86Z1Z2Z1Z68Z1Z86Z1Z10Z1Z2Z1Z68Z1Z20Z3Z18Z1Z17Z1Z79Z52Z2Z112Z10Z1Z68Z1Z5Z1Z1Z4Z4Z1Z68Z1Z10Z2Z86Z1Z10Z1Z20Z1Z86Z1Z20Z1Z10Z1Z86Z1Z2Z1Z86Z1Z68Z1Z10Z1Z86Z1Z10Z1Z20Z3Z18Z3Z17Z1Z79Z53Z2Z112Z4Z1Z1Z11Z76Z1Z1Z1Z86Z1Z1Z5Z20Z4Z18Z3Z17Z3Z79Z54Z1Z112Z4Z1Z1Z13Z86Z1Z5Z1Z1Z4Z20Z1Z18Z4Z17Z2Z79Z57Z1Z112Z4Z1Z1Z10Z5Z1Z1Z2Z86Z1Z8Z1Z1Z2Z5Z1Z1Z1Z20Z1Z18Z1Z17Z4Z79Z58Z1Z112Z10Z1Z1Z5Z5Z1Z20Z1Z18Z1Z20Z1Z5Z1Z1Z2Z8Z1Z86Z1Z5Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z61Z1Z112Z86Z1Z4Z1Z1Z11Z5Z1Z86Z1Z8Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z61Z1Z112Z10Z1Z86Z1Z10Z1Z1Z2Z5Z1Z1Z7Z8Z1Z68Z1Z8Z1Z13Z1Z68Z2Z5Z1Z20Z1Z18Z1Z17Z1Z79Z61Z1Z112Z86Z2Z10Z1Z13Z1Z1Z7Z4Z1Z21Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z61Z1Z121Z13Z1Z21Z2Z5Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z61Z1Z124Z8Z5Z1Z3Z20Z1Z18Z1Z17Z1Z79Z61Z1Z118Z5Z1Z1Z6Z8Z3Z1Z4Z20Z1Z18Z1Z17Z1Z79Z61Z1Z132Z20Z1Z18Z1Z17Z1Z79Z61Z1Z116Z5Z1Z1Z4Z4Z1Z1Z10Z20Z1Z18Z1Z17Z1Z79Z61Z1Z120Z10Z1Z86Z1Z10Z1Z1Z9Z20Z1Z18Z1Z17Z1Z79Z61Z1Z119Z10Z1Z86Z3Z10Z1Z1Z7Z4Z1Z20Z1Z18Z1Z17Z1Z79Z61Z1Z131Z4Z1Z20Z1Z18Z1Z17Z4Z79Z58Z1Z131Z20Z2Z18Z4Z17Z1Z79Z58Z1Z131Z20Z5Z18Z1Z17Z1Z79Z58Z1Z135Z20Z1Z18Z1Z17Z1Z79Z58Z1Z135Z20Z1Z18Z1Z17Z1Z79Z58Z1Z135Z20Z1Z18Z1Z17Z1Z79Z58Z1Z130Z20Z6Z18Z1Z17Z1Z79Z58Z1Z130Z20Z1Z18Z6Z17Z1Z79Z58Z1Z130Z20Z1Z18Z1Z17Z6Z79Z58Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z1Z79Z63Z1Z130Z20Z1Z18Z1Z17Z64Z1Z130Z20Z1Z18Z65Z1Z130Z20Z66Z1Z31276ZZ1Z7Z3Z1Z0Z1Z1Z2Z3Z1Z0Z1Z3Z1Z0Z1Z1Z1Z3Z1Z0Z2Z3Z1Z1Z1Z3Z1Z1Z2Z3Z1Z0Z1Z1Z1Z2Z1Z1Z1Z2Z1Z1Z166Z0Z1Z1Z1Z2Z1Z1Z5Z2Z1Z0Z1Z1Z1Z2Z1Z1Z1Z3Z1Z1Z1Z3Z1Z1Z1Z2Z2Z1Z3Z3Z1Z2Z1Z1Z2Z3Z1Z1Z170Z3Z1Z1Z7Z2Z1Z1Z2Z2Z1Z1Z1Z2Z1Z1Z5Z3Z1Z1Z2Z2Z1Z1Z172Z2Z1Z1Z13Z2Z1Z1Z181Z2Z1Z1Z13Z2Z2Z1Z180Z2Z1Z1Z13Z2Z1Z1Z3Z2Z1Z1Z177Z3Z1Z1Z5Z3Z1Z1Z3Z2Z1Z1Z3Z2Z2Z1Z180Z2Z2Z1Z11Z0Z1Z2Z1Z1Z183Z3Z1Z1Z11Z2Z1Z1Z1Z0Z1Z1Z1Z3Z1Z2Z1Z1Z178Z2Z1Z3Z1Z1Z7Z3Z1Z1Z193Z0Z1Z1Z388Z2Z1Z1Z389Z2Z1Z1Z4Z3Z1Z1Z194Z0Z1Z1Z1Z3Z1Z1Z192Z0Z1Z1Z3Z3Z1Z1Z7Z0Z1Z1Z195Z0Z1Z1Z35064ZZZ13Z0Z11Z3Z10Z1Z8Z2Z8Z1Z6Z1Z4Z2Z3Z1Z3Z2Z5Z2Z8Z2Z12Z3Z14Z2Z29Z0Z37Z1Z42Z0Z46Z0Z53Z1Z56Z3Z59Z2Z57Z1Z57Z2Z55Z1Z52Z3Z49Z2Z46Z2Z41Z3Z35Z0Z27Z1Z22Z2Z16Z0Z14Z3Z11Z0Z9Z0Z6Z1Z2Z0Z0Z0ZC1Z0ZC1Z3ZC1Z1ZZ180Z180";
 const STAGE_VOTE_STAND_SECONDS = 3;
 const STAGE_VOTE_ZONE_WIDTH = 200;
 const STAGE_VOTE_ZONE_DEPTH = 30;
@@ -91,6 +91,9 @@ class Game {
         
         this.canvas.width = 960;
         this.canvas.height = 540;
+
+        this._initHiDPICanvas();
+        this._setupFullscreen();
 
         this.renderer = new LevelRenderer(this.canvas);
         this.levelData = null;
@@ -143,13 +146,16 @@ class Game {
             comebackPoints: 2,
             firstPlacePoints: 1,
             totalRounds: 10,
-            raceTimeLimit: 60
+            raceTimeLimit: 60,
+            pieceChances: {}
         };
         this.onSettingsUpdated = null; 
 
         this.settingsMenuOpen = false;
         this.settingsMenuIndex = 0;
+        this.settingsMenuTab = 'match'; // 'match' | 'pieces'
         this.colorPickerOpen = false;
+        this.helpMenuOpen = false;
         this.RESPAWN_DELAY_FRAMES = 30; 
         this.SETTINGS_META = [
             { key: 'lives', label: 'Lives per attempt', min: 1, max: 10, step: 1 },
@@ -159,6 +165,15 @@ class Game {
             { key: 'totalRounds', label: 'Rounds', min: 1, max: 30, step: 1 },
             { key: 'raceTimeLimit', label: 'Race time limit (s)', min: 15, max: 180, step: 5 }
         ];
+        // Piece chance settings are built from pieces.js so it stays in sync with the actual piece pool.
+        this.PIECE_CHANCE_META = (typeof PIECE_POOL !== 'undefined' ? PIECE_POOL : []).map(piece => ({
+            pieceId: piece.id,
+            label: piece.name,
+            min: 0,
+            max: 20,
+            step: 1,
+            defaultChance: piece.chance || 1
+        }));
         this.currentRound = 1;
         this.MAX_POSSIBLE_SCORE = this.totalRounds * 3;
         this.roundResultsAnimFrames = 0;
@@ -224,12 +239,23 @@ class Game {
                 this.handleColorPickerKeydown(e);
                 return;
             }
+            if (this.helpMenuOpen) {
+                this.handleHelpMenuKeydown(e);
+                return;
+            }
 
             this.keys[e.code] = true;
 
             if (e.code === 'KeyT' && !e.repeat && this.gameState !== GameState.MENU) {
                 e.preventDefault();
                 this.openChat();
+                return;
+            }
+
+            if (e.code === 'KeyH' && !e.repeat && this.gameState !== GameState.MENU) {
+                e.preventDefault();
+                this.helpMenuOpen = true;
+                this.keys = {};
                 return;
             }
 
@@ -245,6 +271,11 @@ class Game {
                 this.colorPickerOpen = true;
                 this.keys = {};
                 return;
+            }
+
+            if (e.code === 'KeyF' && !e.repeat) {
+                e.preventDefault();
+                this.toggleFullscreen();
             }
 
             if (e.code === 'Digit2' && !e.repeat) {
@@ -300,6 +331,100 @@ class Game {
         });
     }
 
+    // Decouples the canvas's *logical* width/height (960x540 — what all the game/render
+    // code reads and positions things against) from its actual backing-store pixel size.
+    // this.canvas.width / this.canvas.height keep reporting 960 / 540 forever, so none of
+    // the existing drawing code needs to change, but the real pixel buffer can be scaled
+    // up (e.g. to native screen resolution in fullscreen) for crisp, non-blurry rendering.
+    _initHiDPICanvas() {
+        const canvas = this.canvas;
+        const widthDesc = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width');
+        const heightDesc = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'height');
+
+        let logicalW = widthDesc.get.call(canvas);
+        let logicalH = heightDesc.get.call(canvas);
+        this._renderScale = 1;
+
+        const applyBackingSize = () => {
+            widthDesc.set.call(canvas, Math.max(1, Math.round(logicalW * this._renderScale)));
+            heightDesc.set.call(canvas, Math.max(1, Math.round(logicalH * this._renderScale)));
+            // Resizing the backing store resets the context state, so re-apply the scale
+            // transform: every draw call in the codebase is written in 960x540 logical
+            // coordinates, and this maps them onto the (possibly larger) real pixel buffer.
+            this.ctx.setTransform(this._renderScale, 0, 0, this._renderScale, 0, 0);
+        };
+
+        Object.defineProperty(canvas, 'width', {
+            configurable: true,
+            get: () => logicalW,
+            set: (v) => { logicalW = v; applyBackingSize(); }
+        });
+        Object.defineProperty(canvas, 'height', {
+            configurable: true,
+            get: () => logicalH,
+            set: (v) => { logicalH = v; applyBackingSize(); }
+        });
+
+        this._applyBackingSize = applyBackingSize;
+        this._logicalCanvasSize = () => ({ w: logicalW, h: logicalH });
+        applyBackingSize();
+    }
+
+    _setupFullscreen() {
+        const target = document.documentElement;
+        this._fullscreenTarget = target;
+
+        const fitCanvasToViewport = () => {
+            const isFs = document.fullscreenElement === target;
+            if (!isFs) {
+                this.canvas.style.width = '';
+                this.canvas.style.height = '';
+                this._renderScale = 1;
+                this._applyBackingSize();
+                return;
+            }
+
+            const { w: logicalW, h: logicalH } = this._logicalCanvasSize();
+            const aspect = logicalW / logicalH;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            let dispW = vw;
+            let dispH = vw / aspect;
+            if (dispH > vh) {
+                dispH = vh;
+                dispW = vh * aspect;
+            }
+
+            this.canvas.style.width = Math.round(dispW) + 'px';
+            this.canvas.style.height = Math.round(dispH) + 'px';
+
+            const dpr = window.devicePixelRatio || 1;
+            // Render at the real on-screen pixel density (capped so huge 8K/high-dpr
+            // displays don't blow the canvas resolution — and thus memory/GPU cost — out
+            // of proportion).
+            this._renderScale = Math.min(4, Math.max(1, (dispW * dpr) / logicalW));
+            this._applyBackingSize();
+        };
+
+        this._fitCanvasToViewport = fitCanvasToViewport;
+        document.addEventListener('fullscreenchange', fitCanvasToViewport);
+        window.addEventListener('resize', () => {
+            if (document.fullscreenElement === target) fitCanvasToViewport();
+        });
+    }
+
+    toggleFullscreen() {
+        const target = this._fullscreenTarget || document.documentElement;
+        if (!document.fullscreenElement) {
+            const req = target.requestFullscreen || target.webkitRequestFullscreen;
+            if (req) req.call(target).catch(err => console.error('[fullscreen] request failed:', err));
+        } else {
+            const exit = document.exitFullscreen || document.webkitExitFullscreen;
+            if (exit) exit.call(document);
+        }
+    }
+
     _chatCharIndexFromClientX(clientX, clamp = false) {
         const box = this._chatInputBox;
         if (!box) return null;
@@ -337,6 +462,29 @@ class Game {
         this._chatCaretActivityAt = performance.now();
         this.keys = {}; 
     }
+    getActiveSettingsMeta() {
+        return this.settingsMenuTab === 'pieces' ? this.PIECE_CHANCE_META : this.SETTINGS_META;
+    }
+
+    getSettingsMenuValue(meta) {
+        if (meta.pieceId) {
+            const overrides = (this.settings && this.settings.pieceChances) || {};
+            return (typeof overrides[meta.pieceId] === 'number') ? overrides[meta.pieceId] : meta.defaultChance;
+        }
+        return (this.settings && typeof this.settings[meta.key] === 'number') ? this.settings[meta.key] : meta.min;
+    }
+
+    setSettingsMenuValue(meta, value) {
+        if (meta.pieceId) {
+            if (!this.settings.pieceChances) this.settings.pieceChances = {};
+            this.settings.pieceChances = { ...this.settings.pieceChances, [meta.pieceId]: value };
+            this.requestUpdateSettings({ pieceChances: { [meta.pieceId]: value } });
+        } else {
+            this.settings[meta.key] = value;
+            this.requestUpdateSettings({ [meta.key]: value });
+        }
+    }
+
     handleSettingsMenuKeydown(e) {
         const closeKeys = ['KeyM', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
         if (closeKeys.includes(e.code)) {
@@ -348,15 +496,26 @@ class Game {
         }
         if (e.repeat) return;
 
+        if (LOCAL_PLAYER_CONTROLS.rotateCCW.includes(e.code) || LOCAL_PLAYER_CONTROLS.rotateCW.includes(e.code)) {
+            e.preventDefault();
+            this.settingsMenuTab = this.settingsMenuTab === 'match' ? 'pieces' : 'match';
+            this.settingsMenuIndex = 0;
+            if (typeof playSfx === 'function') playSfx('select');
+            return;
+        }
+
+        const meta_list = this.getActiveSettingsMeta();
+        if (meta_list.length === 0) return;
+
         if (LOCAL_PLAYER_CONTROLS.up.includes(e.code)) {
             e.preventDefault();
-            this.settingsMenuIndex = (this.settingsMenuIndex - 1 + this.SETTINGS_META.length) % this.SETTINGS_META.length;
+            this.settingsMenuIndex = (this.settingsMenuIndex - 1 + meta_list.length) % meta_list.length;
             if (typeof playSfx === 'function') playSfx('select');
             return;
         }
         if (LOCAL_PLAYER_CONTROLS.down.includes(e.code)) {
             e.preventDefault();
-            this.settingsMenuIndex = (this.settingsMenuIndex + 1) % this.SETTINGS_META.length;
+            this.settingsMenuIndex = (this.settingsMenuIndex + 1) % meta_list.length;
             if (typeof playSfx === 'function') playSfx('select');
             return;
         }
@@ -368,15 +527,14 @@ class Game {
         if (!goingRight && !goingLeft) return;
         e.preventDefault();
 
-        const meta = this.SETTINGS_META[this.settingsMenuIndex];
-        const current = (this.settings && typeof this.settings[meta.key] === 'number') ? this.settings[meta.key] : meta.min;
+        const meta = meta_list[this.settingsMenuIndex];
+        const current = this.getSettingsMenuValue(meta);
         const dir = goingRight ? 1 : -1;
         const next = Math.max(meta.min, Math.min(meta.max, current + dir * meta.step));
         if (next === current) return;
 
-        this.settings[meta.key] = next; 
         if (typeof playSfx === 'function') playSfx('select');
-        this.requestUpdateSettings({ [meta.key]: next });
+        this.setSettingsMenuValue(meta, next);
     }
 
     drawSettingsMenu() {
@@ -386,11 +544,22 @@ class Game {
         const paddingX = 20;
         const paddingY = 16;
         const titleHeight = 26;
+        const tabHeight = 24;
         const footerHeight = 22;
         const width = 320;
-        const height = paddingY * 2 + titleHeight + rowHeight * this.SETTINGS_META.length + footerHeight;
+        const metaList = this.getActiveSettingsMeta();
+        const maxVisibleRows = 15;
+        const visibleCount = Math.min(metaList.length, maxVisibleRows);
+        const height = paddingY * 2 + titleHeight + tabHeight + rowHeight * visibleCount + footerHeight;
         const x = (this.canvas.width - width) / 2;
         const y = (this.canvas.height - height) / 2;
+
+        // Keep the selected row scrolled into view.
+        let scrollOffset = 0;
+        if (metaList.length > maxVisibleRows) {
+            scrollOffset = Math.max(0, Math.min(this.settingsMenuIndex - maxVisibleRows + 1, metaList.length - maxVisibleRows));
+            if (this.settingsMenuIndex < scrollOffset) scrollOffset = this.settingsMenuIndex;
+        }
 
         ctx.save();
         ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
@@ -404,9 +573,26 @@ class Game {
         ctx.font = 'bold 16px ' + THEME.font;
         ctx.fillText('Match Settings', x + width / 2, y + paddingY + 12);
 
+        // Tab row
+        const tabY = y + paddingY + titleHeight;
+        const tabs = [{ id: 'match', label: 'Match' }, { id: 'pieces', label: 'Piece Chances' }];
+        const tabWidth = width / tabs.length;
+        ctx.font = '12px ' + THEME.font;
+        tabs.forEach((tab, i) => {
+            const active = this.settingsMenuTab === tab.id;
+            const tabX = x + i * tabWidth;
+            if (active) {
+                ctx.fillStyle = 'rgba(58, 160, 255, 0.18)';
+                ctx.fillRect(tabX + 4, tabY, tabWidth - 8, tabHeight - 4);
+            }
+            ctx.fillStyle = active ? THEME.accent : THEME.textMuted;
+            ctx.fillText(tab.label, tabX + tabWidth / 2, tabY + tabHeight / 2 + 3);
+        });
+
         ctx.font = '13px ' + THEME.font;
-        this.SETTINGS_META.forEach((meta, i) => {
-            const rowY = y + paddingY + titleHeight + i * rowHeight;
+        metaList.slice(scrollOffset, scrollOffset + visibleCount).forEach((meta, visibleI) => {
+            const i = scrollOffset + visibleI;
+            const rowY = y + paddingY + titleHeight + tabHeight + visibleI * rowHeight;
             const selected = i === this.settingsMenuIndex;
             if (selected) {
                 ctx.fillStyle = 'rgba(58, 160, 255, 0.18)';
@@ -417,7 +603,7 @@ class Game {
             ctx.fillText(meta.label, x + paddingX, rowY + rowHeight / 2 - 3);
 
             ctx.textAlign = 'right';
-            const value = (this.settings && typeof this.settings[meta.key] === 'number') ? this.settings[meta.key] : meta.min;
+            const value = this.getSettingsMenuValue(meta);
             ctx.fillStyle = selected ? THEME.accent : THEME.textMuted;
             ctx.fillText(String(value), x + width - paddingX, rowY + rowHeight / 2 - 3);
         });
@@ -426,7 +612,7 @@ class Game {
         ctx.font = '11px ' + THEME.font;
         ctx.fillStyle = THEME.textMuted;
         const hint = (this.isHost || this.isAdmin)
-            ? 'W/S select   A/D change   Enter/Shift/M close'
+            ? 'W/S select   A/D change   Q/E switch tab   Enter/Shift/M close'
             : 'Only the host (or an admin) can change settings   Enter/Shift/M close';
         ctx.fillText(hint, x + width / 2, y + height - 8);
         ctx.restore();
@@ -496,13 +682,143 @@ class Game {
 
     drawHubMenuHints() {
         if (this.gameState !== GameState.STAGE_SELECT) return;
-        if (this.settingsMenuOpen || this.colorPickerOpen || this.chatOpen) return;
+        if (this.settingsMenuOpen || this.colorPickerOpen || this.chatOpen || this.helpMenuOpen) return;
         const ctx = this.ctx;
         ctx.save();
         ctx.font = '11px ' + THEME.font;
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.fillText('M: Settings   C: Color', this.canvas.width / 2, this.canvas.height - 10);
+        ctx.fillText('M: Settings   C: Color   H: Controls', this.canvas.width / 2, this.canvas.height - 10);
+        ctx.restore();
+    }
+
+    drawGlobalHints() {
+        if (this.gameState === GameState.MENU) return;
+        if (this.gameState === GameState.STAGE_SELECT) return; // drawHubMenuHints already covers this state
+        if (this.settingsMenuOpen || this.colorPickerOpen || this.chatOpen || this.helpMenuOpen) return;
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.font = '11px ' + THEME.font;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillText('H: Controls', this.canvas.width / 2, this.canvas.height - 10);
+        ctx.restore();
+    }
+
+    // All of the key bindings shown in the controls (H) overlay, grouped for display.
+    // Keeping this as data makes it easy to keep in sync if bindings ever change.
+    get CONTROLS_HELP_SECTIONS() {
+        return [
+            {
+                title: 'Movement (Race / Build)',
+                rows: [
+                    ['Move left / right', 'A/D, arrows, or J/L'],
+                    ['Jump', 'W, Up, Space, or Z'],
+                    ['Crouch', 'S, Down, or X']
+                ]
+            },
+            {
+                title: 'Race',
+                rows: [
+                    ['Hold to give up', 'Shift or Enter (hold)'],
+                    ['Cycle camera mode', '1']
+                ]
+            },
+            {
+                title: 'Build phase',
+                rows: [
+                    ['Rotate piece', 'Q / E'],
+                    ['Place piece', 'Shift or Enter']
+                ]
+            },
+            {
+                title: 'Party box',
+                rows: [
+                    ['Move cursor', 'A/D, arrows, or J/L'],
+                    ['Grab piece', 'Shift or Enter']
+                ]
+            },
+            {
+                title: 'Menus',
+                rows: [
+                    ['Match settings (stage select)', 'M'],
+                    ['Change color (stage select)', 'C'],
+                    ['Open chat', 'T'],
+                    ['This controls list', 'H'],
+                    ['Close a menu', 'Enter or Shift']
+                ]
+            }
+        ];
+    }
+
+    handleHelpMenuKeydown(e) {
+        const closeKeys = ['KeyH', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
+        if (closeKeys.includes(e.code) && !e.repeat) {
+            e.preventDefault();
+            this.helpMenuOpen = false;
+        }
+    }
+
+    drawHelpMenu() {
+        if (!this.helpMenuOpen) return;
+        const ctx = this.ctx;
+        const sections = this.CONTROLS_HELP_SECTIONS;
+
+        const paddingX = 24;
+        const paddingY = 18;
+        const titleHeight = 26;
+        const sectionGap = 10;
+        const sectionTitleHeight = 18;
+        const rowHeight = 20;
+        const footerHeight = 22;
+        const width = 420;
+
+        let height = paddingY * 2 + titleHeight + footerHeight;
+        sections.forEach(section => {
+            height += sectionTitleHeight + section.rows.length * rowHeight + sectionGap;
+        });
+
+        const x = (this.canvas.width - width) / 2;
+        const y = Math.max(10, (this.canvas.height - height) / 2);
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.86)';
+        ctx.fillRect(x, y, width, height);
+        ctx.strokeStyle = THEME.panelBorderActive;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x, y, width, height);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = THEME.text;
+        ctx.font = 'bold 16px ' + THEME.font;
+        ctx.fillText('Controls', x + width / 2, y + paddingY + 12);
+
+        let rowY = y + paddingY + titleHeight;
+        sections.forEach(section => {
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 12px ' + THEME.font;
+            ctx.fillStyle = THEME.accent;
+            ctx.fillText(section.title.toUpperCase(), x + paddingX, rowY + sectionTitleHeight - 5);
+            rowY += sectionTitleHeight;
+
+            ctx.font = '13px ' + THEME.font;
+            section.rows.forEach(([label, keys]) => {
+                ctx.textAlign = 'left';
+                ctx.fillStyle = THEME.text;
+                ctx.fillText(label, x + paddingX, rowY + rowHeight / 2 + 4);
+
+                ctx.textAlign = 'right';
+                ctx.fillStyle = THEME.textMuted;
+                ctx.fillText(keys, x + width - paddingX, rowY + rowHeight / 2 + 4);
+                rowY += rowHeight;
+            });
+            rowY += sectionGap;
+        });
+
+        ctx.textAlign = 'center';
+        ctx.font = '11px ' + THEME.font;
+        ctx.fillStyle = THEME.textMuted;
+        ctx.fillText('Esc/Enter/Shift/H to close', x + width / 2, y + height - 8);
         ctx.restore();
     }
 
@@ -2012,42 +2328,6 @@ class Game {
         this.ctx.fillStyle = textColor || (urgent ? THEME.danger : THEME.text);
         this.ctx.fillText(`${Math.ceil(remaining)}`, cx, cy + 5);
     }
-    drawLevelIcon(cx, cy, size, index) {
-        this.ctx.save();
-        this.ctx.translate(cx, cy);
-
-        this.ctx.beginPath();
-        this.ctx.moveTo(-size / 2, size / 3);
-        this.ctx.lineTo(0, -size / 3);
-        this.ctx.lineTo(size / 2, size / 3);
-        this.ctx.closePath();
-        this.ctx.fillStyle = THEME.panel;
-        this.ctx.fill();
-        this.ctx.strokeStyle = THEME.accent;
-        this.ctx.lineWidth = 2;
-        this.ctx.stroke();
-
-        this.ctx.strokeStyle = THEME.text;
-        this.ctx.lineWidth = 1.5;
-        this.ctx.beginPath();
-        this.ctx.moveTo(0, -size / 3);
-        this.ctx.lineTo(0, -size * 0.68);
-        this.ctx.stroke();
-
-        this.ctx.beginPath();
-        this.ctx.moveTo(0, -size * 0.68);
-        this.ctx.lineTo(size * 0.26, -size * 0.58);
-        this.ctx.lineTo(0, -size * 0.48);
-        this.ctx.closePath();
-        this.ctx.fillStyle = THEME.accent;
-        this.ctx.fill();
-
-        this.ctx.restore();
-
-        this.ctx.fillStyle = THEME.textMuted;
-        this.ctx.font = "12px " + THEME.font;
-        this.ctx.fillText(`Stage ${index + 1}`, cx, cy + size / 3 + 20);
-    }
     getInputKeysFor(player) {
         if (this.gameState !== GameState.RACE) return "";
         if (player.hasFinished || player.eliminated) return ""; 
@@ -2257,9 +2537,9 @@ class Game {
             return;
         }
 
-        let active = this.players.filter(p => p && p.connected !== false && !p.eliminated && !p.hasFinished);
+        let active = this.players.filter(p => p && p.connected !== false && !p.eliminated && !p.hasFinished && p.physicsState);
         const roundWrappingUp = active.length === 0;
-        if (roundWrappingUp) active = this.players.filter(p => p && p.connected !== false);
+        if (roundWrappingUp) active = this.players.filter(p => p && p.connected !== false && p.physicsState);
         if (active.length === 0) return;
 
         const xs = active.map(p => p.physicsState.PLAYER_X);
@@ -2288,7 +2568,7 @@ class Game {
         const zoomToFitY = Math.max(0, this.canvas.height - PADDING_Y * 2) / boxH;
         const fitZoom = Math.min(zoomToFitX, zoomToFitY);
 
-        const MAX_ZOOM = 1.25;
+        const MAX_ZOOM = 1;
         const ZOOM_EPSILON = 0.05;
         const targetZoom = Math.max(ZOOM_EPSILON, Math.min(MAX_ZOOM, fitZoom));
         this.camera.x += (targetCameraX - this.camera.x) * 0.15;
@@ -2789,6 +3069,8 @@ class Game {
         }
 
         this.drawChat();
+        this.drawGlobalHints();
+        this.drawHelpMenu();
     }
 
     raceLoop() {
@@ -3031,7 +3313,7 @@ class Game {
         );
 
         this.drawRoundBadge();
-        this.drawCountdownRing(this.buildTimeRemaining, this.BUILD_TIME_LIMIT);
+        this.drawCountdownRing(this.buildTimeRemaining, this.BUILD_TIME_LIMIT, "#000000");
 
         for (const player of this.players) {
             if (player.connected !== false && player.piece) {
@@ -3259,16 +3541,13 @@ class Game {
             ctx.fillText(levelTitle, screen.x, thumbY - 8 * this.camera.zoom);
 
             const thumb = this.generateStageThumbnail(code, boxWidth, thumbH);
-            if (thumb) {
-                ctx.save();
-                ctx.imageSmoothingEnabled = true;
-                this.roundRectPath(thumbX, thumbY, boxWidth, thumbH, 8);
-                ctx.clip();
-                ctx.drawImage(thumb, thumbX, thumbY, boxWidth, thumbH);
-                ctx.restore();
-            } else {
-                this.drawLevelIcon(screen.x, thumbY + thumbH / 2, 48 * this.camera.zoom, i);
-            }
+            ctx.save();
+            ctx.imageSmoothingEnabled = true;
+            this.roundRectPath(thumbX, thumbY, boxWidth, thumbH, Math.min(8 * this.camera.zoom, boxWidth / 2, thumbH / 2));
+            ctx.clip();
+            ctx.drawImage(thumb, thumbX, thumbY, boxWidth, thumbH);
+            ctx.restore();
+
         });
         ctx.restore();
     }

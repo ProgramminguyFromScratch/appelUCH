@@ -1,6 +1,7 @@
 const SFX_FILES = {
     jump: '/assets/sfx/jump.wav',
     wall_jump: '/assets/sfx/wall_jump.wav',
+    sidejump: '/assets/sfx/sidejump.wav',
     land: '/assets/sfx/land.wav',
     boom: '/assets/sfx/boom.wav',
     spring: '/assets/sfx/spring.wav',
