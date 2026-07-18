@@ -68,7 +68,7 @@ function hueShiftToHex(hueShift) {
 }
 
 const STAGE_PREVIEW_ASPECT = 10 / 15; 
-const STAGE_VOTE_ARENA_LEVEL_CODE = "1237609196Z86Z2Z2Z1Z86Z4Z10Z2Z86Z2Z10Z2Z68Z1Z86Z1Z10Z2Z68Z1Z10Z5Z2Z1Z10Z2Z86Z1Z10Z1Z20Z5Z18Z1Z17Z1Z79Z49Z2Z112Z10Z1Z86Z1Z10Z1Z1Z3Z13Z1Z10Z3Z2Z1Z10Z1Z2Z1Z86Z1Z2Z1Z86Z1Z2Z1Z10Z1Z86Z1Z10Z1Z86Z1Z2Z1Z68Z1Z86Z1Z10Z1Z2Z1Z86Z1Z10Z1Z20Z1Z18Z5Z17Z1Z79Z49Z2Z112Z10Z1Z68Z1Z5Z1Z1Z4Z4Z1Z68Z1Z10Z2Z86Z1Z10Z1Z20Z1Z86Z1Z20Z1Z10Z1Z86Z1Z2Z1Z86Z1Z68Z1Z10Z1Z86Z1Z10Z2Z86Z1Z2Z1Z10Z1Z20Z1Z18Z1Z17Z5Z79Z49Z2Z112Z4Z1Z1Z11Z76Z1Z1Z1Z86Z1Z1Z5Z4Z1Z1Z4Z20Z4Z18Z1Z17Z1Z79Z53Z1Z112Z4Z1Z1Z13Z86Z1Z5Z1Z1Z4Z86Z1Z1Z4Z20Z1Z18Z4Z17Z1Z79Z53Z1Z112Z4Z1Z1Z10Z5Z1Z1Z2Z86Z1Z8Z1Z1Z2Z5Z1Z1Z1Z86Z1Z1Z4Z20Z1Z18Z1Z17Z4Z79Z53Z1Z112Z10Z1Z1Z5Z5Z1Z20Z1Z18Z1Z20Z1Z5Z1Z1Z2Z8Z1Z86Z1Z5Z1Z1Z4Z10Z1Z20Z5Z18Z1Z17Z1Z79Z56Z1Z112Z86Z1Z4Z1Z1Z11Z5Z1Z86Z1Z8Z1Z1Z4Z20Z1Z18Z6Z17Z1Z79Z56Z1Z112Z10Z1Z86Z1Z10Z1Z1Z2Z5Z1Z1Z7Z8Z1Z68Z1Z8Z1Z13Z1Z68Z2Z5Z1Z20Z1Z18Z1Z17Z6Z79Z56Z1Z112Z86Z2Z10Z1Z13Z1Z1Z7Z4Z1Z21Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z61Z1Z121Z13Z1Z21Z2Z5Z1Z8Z4Z1Z3Z20Z1Z18Z1Z17Z1Z79Z61Z1Z124Z8Z5Z1Z3Z20Z1Z18Z1Z17Z1Z79Z61Z1Z118Z5Z1Z1Z6Z8Z3Z1Z4Z20Z1Z18Z1Z17Z1Z79Z61Z1Z112Z5Z1Z1Z19Z20Z1Z18Z1Z17Z1Z79Z61Z1Z112Z68Z2Z5Z1Z1Z1Z5Z1Z1Z4Z4Z1Z1Z10Z20Z1Z18Z1Z17Z1Z79Z61Z1Z112Z10Z1Z68Z1Z10Z1Z1Z5Z10Z1Z86Z1Z10Z1Z1Z8Z4Z1Z20Z1Z18Z1Z17Z1Z79Z61Z1Z119Z10Z1Z86Z3Z10Z1Z1Z7Z4Z1Z20Z1Z18Z1Z17Z1Z79Z61Z1Z131Z20Z2Z18Z1Z17Z1Z79Z61Z1Z131Z20Z1Z18Z2Z17Z1Z79Z61Z1Z131Z20Z1Z18Z1Z17Z2Z79Z61Z1Z131Z20Z1Z18Z1Z17Z1Z79Z62Z1Z131Z20Z1Z18Z1Z17Z1Z79Z62Z1Z131Z20Z1Z18Z1Z17Z1Z79Z1Z17Z13Z79Z48Z1Z131Z20Z1Z18Z1Z17Z3Z18Z11Z17Z1Z79Z48Z1Z131Z20Z1Z18Z5Z20Z9Z18Z1Z17Z1Z79Z48Z1Z130Z5Z1Z20Z7Z4Z1Z1Z6Z20Z1Z18Z1Z17Z1Z79Z48Z1Z138Z4Z1Z1Z6Z20Z1Z18Z1Z17Z1Z79Z48Z1Z138Z20Z2Z1Z5Z20Z1Z18Z1Z17Z1Z79Z48Z1Z133Z5Z1Z68Z3Z5Z1Z20Z2Z1Z5Z20Z1Z18Z1Z17Z1Z79Z48Z1Z138Z20Z8Z18Z1Z17Z1Z79Z48Z1Z138Z20Z1Z18Z8Z17Z1Z79Z48Z1Z138Z20Z1Z18Z1Z17Z8Z79Z48Z1Z138Z20Z1Z18Z1Z17Z1Z79Z55Z1Z138Z20Z1Z18Z1Z17Z1Z79Z55Z1Z137Z20Z2Z18Z1Z17Z1Z79Z55Z1Z137Z20Z1Z18Z2Z17Z1Z79Z55Z1Z137Z20Z1Z18Z1Z17Z2Z79Z55Z1Z137Z20Z1Z18Z1Z17Z1Z79Z56Z1Z137Z20Z1Z18Z1Z17Z1Z79Z56Z1Z137Z20Z1Z18Z1Z17Z1Z79Z56Z1Z137Z20Z1Z18Z1Z17Z1Z79Z56Z1Z137Z20Z1Z18Z1Z17Z1Z79Z56Z1Z137Z20Z1Z18Z1Z17Z1Z79Z56Z1Z137Z20Z1Z18Z1Z17Z1Z79Z56Z1Z137Z20Z1Z18Z1Z17Z1Z79Z56Z1Z134Z13Z1Z4Z1Z13Z1Z20Z1Z18Z1Z17Z1Z79Z56Z1Z137Z20Z1Z18Z1Z17Z1Z79Z56Z1Z134Z5Z1Z1Z1Z5Z1Z20Z1Z18Z1Z17Z1Z79Z56Z1Z137Z20Z1Z18Z1Z17Z1Z79Z56Z1Z137Z20Z1Z18Z1Z17Z1Z79Z56Z1Z28728ZZ1Z7Z3Z1Z0Z1Z1Z2Z3Z1Z0Z1Z3Z1Z0Z1Z1Z1Z3Z1Z0Z2Z3Z1Z1Z1Z3Z1Z1Z2Z3Z1Z0Z1Z1Z1Z2Z1Z1Z168Z0Z1Z1Z1Z2Z1Z1Z5Z2Z1Z0Z1Z1Z1Z2Z1Z1Z1Z3Z1Z1Z1Z3Z1Z1Z1Z2Z2Z1Z3Z3Z1Z2Z1Z1Z3Z3Z1Z1Z169Z3Z1Z1Z7Z2Z1Z1Z2Z2Z1Z1Z1Z2Z1Z1Z5Z3Z1Z1Z2Z2Z1Z1Z3Z2Z1Z1Z168Z2Z1Z1Z13Z2Z1Z1Z5Z3Z1Z1Z175Z2Z1Z1Z13Z2Z2Z1Z4Z2Z1Z1Z175Z2Z1Z1Z13Z2Z1Z1Z3Z2Z1Z1Z1Z2Z1Z1Z175Z3Z1Z1Z5Z3Z1Z1Z3Z2Z1Z1Z3Z2Z2Z1Z180Z2Z2Z1Z11Z0Z1Z2Z1Z1Z183Z3Z1Z1Z11Z2Z1Z1Z1Z0Z1Z1Z1Z3Z1Z2Z1Z1Z178Z2Z1Z3Z1Z1Z7Z3Z1Z1Z193Z0Z1Z1Z388Z2Z1Z1Z189Z2Z1Z1Z196Z0Z1Z2Z1Z1Z1Z3Z1Z1Z4Z3Z1Z1Z186Z0Z1Z2Z1Z3Z1Z1Z5Z0Z1Z1Z1Z3Z1Z1Z8Z0Z1Z1Z183Z0Z1Z1Z3Z3Z1Z1Z7Z0Z1Z1Z1762Z3Z1Z1Z7Z2Z1Z1Z195Z2Z1Z1Z386Z3Z1Z1Z1Z0Z1Z3Z1Z2Z1Z1Z3328Z2Z1Z1Z391Z0Z1Z1Z29181ZZZ13Z0Z11Z3Z10Z1Z8Z2Z8Z1Z6Z1Z4Z2Z3Z1Z3Z2Z5Z2Z8Z2Z12Z3Z14Z2Z29Z0Z37Z1Z42Z0Z46Z0Z53Z1Z56Z3Z59Z2Z57Z1Z56Z3Z56Z2Z56Z0Z55Z2Z56Z2Z55Z0Z55Z0Z55Z2Z55Z3Z16Z0Z14Z3Z11Z0Z9Z0Z6Z1Z2Z0Z0Z0ZC1Z0ZC1Z3ZC1Z1ZZ180Z180";
+const STAGE_VOTE_ARENA_LEVEL_CODE = "1245554226Z79Z26Z17Z1Z18Z1Z20Z1Z10Z1Z86Z2Z2Z1Z86Z4Z10Z2Z86Z2Z10Z2Z68Z1Z86Z1Z10Z2Z68Z1Z10Z5Z2Z1Z10Z2Z86Z1Z10Z1Z20Z1Z18Z1Z17Z1Z79Z69Z17Z1Z18Z2Z17Z1Z79Z5Z17Z2Z79Z2Z17Z9Z2Z74Z79Z26Z17Z1Z18Z1Z20Z1Z86Z1Z10Z1Z86Z1Z10Z1Z1Z3Z13Z1Z10Z3Z2Z1Z10Z1Z2Z1Z86Z1Z2Z1Z86Z1Z2Z1Z10Z1Z86Z1Z10Z1Z86Z1Z2Z1Z68Z1Z86Z1Z10Z1Z2Z1Z86Z1Z10Z1Z20Z1Z18Z1Z17Z1Z79Z68Z17Z1Z18Z1Z20Z2Z18Z1Z17Z1Z79Z3Z17Z1Z18Z2Z17Z2Z18Z9Z2Z74Z79Z26Z17Z1Z18Z1Z20Z1Z86Z1Z10Z1Z68Z1Z5Z1Z1Z4Z4Z1Z68Z1Z10Z2Z86Z1Z10Z1Z20Z1Z86Z1Z20Z1Z10Z1Z86Z1Z2Z1Z86Z1Z68Z1Z10Z1Z86Z1Z10Z2Z86Z1Z2Z1Z10Z1Z20Z1Z18Z1Z17Z1Z79Z67Z17Z1Z18Z1Z20Z1Z1Z2Z20Z1Z18Z1Z17Z1Z79Z1Z17Z1Z18Z1Z20Z2Z18Z2Z20Z9Z2Z74Z79Z26Z17Z1Z18Z1Z20Z1Z86Z1Z4Z1Z1Z11Z76Z1Z1Z1Z86Z1Z1Z4Z4Z1Z20Z8Z18Z1Z17Z1Z79Z67Z17Z1Z18Z1Z20Z1Z1Z4Z20Z1Z18Z1Z17Z1Z18Z1Z20Z1Z1Z2Z20Z2Z1Z83Z79Z26Z17Z1Z18Z1Z20Z1Z86Z1Z4Z1Z1Z13Z86Z1Z5Z1Z1Z3Z4Z1Z20Z1Z18Z7Z17Z1Z79Z68Z17Z1Z18Z1Z20Z1Z1Z4Z20Z1Z18Z2Z20Z1Z1Z88Z79Z26Z17Z1Z18Z1Z20Z1Z86Z1Z4Z1Z1Z10Z5Z1Z1Z2Z86Z1Z8Z1Z1Z2Z5Z1Z4Z1Z20Z1Z18Z1Z17Z9Z79Z66Z17Z1Z18Z1Z20Z1Z1Z5Z20Z2Z1Z89Z79Z26Z17Z1Z18Z1Z20Z1Z2Z1Z10Z1Z1Z5Z5Z1Z20Z3Z5Z1Z1Z2Z8Z1Z86Z1Z5Z1Z1Z4Z20Z1Z18Z1Z17Z1Z18Z8Z17Z1Z79Z65Z17Z1Z18Z1Z20Z1Z1Z96Z79Z26Z17Z1Z18Z1Z20Z1Z86Z2Z4Z1Z1Z11Z5Z1Z86Z1Z8Z1Z1Z4Z20Z1Z18Z2Z20Z8Z18Z1Z17Z1Z79Z64Z17Z1Z18Z1Z20Z1Z1Z96Z79Z26Z17Z1Z18Z1Z20Z1Z86Z1Z10Z1Z86Z1Z10Z1Z1Z2Z5Z1Z1Z7Z8Z1Z68Z1Z8Z1Z13Z1Z20Z2Z1Z1Z20Z1Z18Z1Z20Z1Z13Z1Z1Z6Z13Z1Z20Z1Z18Z1Z17Z1Z79Z63Z17Z1Z18Z1Z20Z1Z1Z96Z79Z26Z17Z1Z18Z1Z20Z1Z86Z1Z68Z1Z86Z1Z10Z1Z13Z1Z1Z7Z4Z1Z20Z1Z8Z4Z1Z1Z5Z1Z1Z1Z20Z2Z13Z1Z1Z5Z5Z3Z20Z1Z18Z1Z17Z1Z79Z62Z17Z1Z18Z1Z20Z1Z1Z97Z79Z25Z17Z1Z18Z1Z20Z1Z10Z2Z5Z1Z1Z8Z13Z1Z20Z2Z5Z1Z8Z4Z1Z3Z4Z1Z1Z8Z4Z2Z13Z1Z20Z1Z18Z1Z17Z1Z79Z61Z17Z1Z18Z1Z20Z1Z1Z97Z79Z25Z17Z1Z18Z1Z20Z1Z86Z1Z4Z1Z1Z12Z8Z5Z1Z3Z4Z1Z1Z11Z20Z1Z18Z1Z17Z1Z79Z60Z17Z1Z18Z1Z20Z1Z1Z98Z79Z25Z17Z1Z18Z1Z20Z1Z86Z1Z4Z1Z1Z6Z5Z1Z1Z6Z8Z3Z1Z4Z20Z2Z1Z2Z13Z1Z4Z2Z1Z4Z4Z1Z20Z1Z18Z1Z17Z1Z79Z59Z17Z1Z18Z1Z20Z1Z1Z99Z79Z25Z17Z1Z18Z1Z20Z1Z10Z2Z5Z1Z1Z18Z5Z1Z20Z2Z13Z2Z5Z1Z1Z5Z13Z1Z20Z1Z18Z1Z17Z1Z79Z59Z17Z1Z18Z1Z20Z1Z1Z100Z79Z26Z17Z1Z18Z1Z20Z1Z10Z1Z86Z1Z10Z1Z5Z1Z1Z1Z5Z1Z1Z4Z4Z1Z1Z7Z5Z1Z13Z1Z20Z1Z18Z2Z20Z2Z4Z1Z1Z4Z4Z1Z20Z1Z18Z1Z17Z2Z79Z58Z17Z1Z18Z1Z20Z1Z1Z101Z79Z27Z17Z1Z18Z1Z20Z1Z68Z1Z2Z1Z68Z1Z1Z5Z20Z3Z1Z4Z5Z1Z13Z1Z4Z1Z1Z1Z5Z1Z20Z1Z18Z3Z20Z1Z5Z1Z1Z3Z4Z1Z20Z1Z18Z3Z17Z1Z79Z57Z17Z1Z18Z1Z20Z1Z1Z101Z79Z27Z17Z1Z18Z1Z20Z1Z1Z7Z20Z5Z1Z7Z5Z1Z20Z1Z18Z1Z17Z2Z18Z1Z20Z1Z1Z3Z5Z1Z20Z4Z18Z1Z17Z1Z79Z50Z17Z6Z18Z1Z20Z1Z1Z102Z79Z26Z17Z1Z18Z1Z20Z1Z8Z1Z1Z16Z13Z2Z1Z1Z20Z1Z18Z1Z17Z3Z18Z1Z20Z1Z5Z1Z1Z7Z20Z1Z18Z1Z17Z1Z79Z48Z17Z1Z18Z6Z20Z1Z1Z103Z79Z25Z17Z1Z18Z1Z20Z1Z1Z1Z8Z1Z1Z15Z4Z1Z5Z1Z1Z2Z20Z1Z18Z6Z20Z2Z4Z1Z1Z5Z20Z1Z18Z1Z17Z1Z79Z47Z17Z1Z18Z1Z20Z6Z1Z104Z79Z25Z17Z1Z18Z1Z20Z1Z1Z1Z8Z1Z1Z5Z5Z1Z1Z9Z4Z1Z5Z1Z1Z1Z4Z1Z20Z6Z18Z3Z20Z2Z5Z1Z1Z3Z20Z1Z18Z1Z17Z1Z79Z46Z17Z1Z18Z1Z20Z1Z1Z110Z79Z24Z17Z1Z18Z1Z20Z1Z1Z2Z8Z1Z1Z8Z4Z1Z1Z6Z5Z1Z21Z1Z13Z2Z81Z1Z79Z1Z1Z4Z20Z1Z18Z1Z17Z1Z18Z2Z20Z4Z18Z1Z17Z1Z79Z46Z17Z1Z18Z1Z20Z1Z1Z111Z79Z24Z17Z1Z18Z1Z20Z1Z1Z2Z8Z1Z1Z3Z5Z1Z1Z4Z79Z1Z1Z6Z13Z1Z5Z1Z1Z2Z81Z1Z79Z1Z1Z4Z20Z1Z18Z1Z17Z3Z18Z4Z17Z1Z79Z47Z17Z1Z18Z1Z20Z1Z1Z111Z79Z24Z17Z1Z18Z1Z20Z1Z1Z2Z8Z1Z1Z8Z81Z1Z4Z2Z1Z3Z5Z1Z4Z1Z1Z3Z20Z2Z5Z1Z1Z3Z20Z1Z18Z1Z17Z1Z79Z2Z17Z4Z79Z47Z17Z1Z18Z1Z20Z1Z1Z112Z79Z25Z17Z1Z18Z1Z20Z1Z1Z1Z8Z1Z1Z6Z5Z1Z20Z5Z5Z1Z1Z1Z13Z1Z20Z1Z5Z1Z1Z2Z20Z1Z18Z1Z20Z4Z18Z1Z17Z1Z79Z53Z17Z1Z18Z1Z20Z1Z1Z113Z79Z25Z17Z1Z18Z1Z20Z1Z1Z1Z8Z1Z1Z7Z4Z2Z79Z2Z4Z1Z1Z1Z8Z1Z20Z1Z18Z1Z20Z1Z5Z2Z20Z1Z18Z6Z17Z1Z79Z52Z17Z1Z18Z1Z20Z1Z1Z114Z79Z26Z17Z1Z18Z1Z20Z1Z8Z1Z1Z9Z79Z1Z81Z1Z1Z2Z8Z1Z20Z1Z18Z2Z20Z2Z18Z1Z17Z6Z79Z52Z17Z1Z18Z1Z20Z1Z1Z115Z79Z27Z17Z1Z18Z1Z20Z1Z1Z4Z4Z1Z1Z4Z81Z1Z1Z2Z8Z1Z4Z1Z18Z2Z20Z1Z18Z2Z17Z1Z79Z58Z17Z1Z18Z1Z20Z1Z1Z115Z79Z28Z17Z1Z18Z1Z20Z3Z5Z1Z4Z2Z13Z1Z1Z5Z5Z1Z20Z1Z18Z1Z17Z1Z18Z1Z20Z1Z18Z1Z17Z1Z79Z58Z17Z1Z18Z1Z20Z1Z1Z115Z79Z29Z17Z1Z18Z3Z20Z1Z4Z2Z1Z6Z13Z1Z20Z1Z18Z1Z17Z2Z18Z1Z20Z1Z18Z1Z17Z1Z79Z56Z17Z1Z18Z1Z20Z1Z1Z116Z79Z30Z17Z2Z18Z1Z20Z1Z4Z1Z1Z6Z5Z1Z20Z1Z18Z1Z17Z1Z79Z1Z17Z1Z18Z1Z20Z1Z18Z2Z17Z1Z79Z55Z17Z1Z18Z1Z20Z1Z1Z116Z79Z21Z17Z1Z79Z6Z17Z2Z18Z3Z20Z1Z4Z1Z1Z6Z13Z1Z20Z1Z18Z1Z17Z4Z18Z1Z20Z1Z18Z1Z17Z1Z79Z54Z17Z1Z18Z1Z20Z1Z1Z117Z79Z20Z17Z1Z18Z1Z17Z1Z79Z4Z17Z1Z18Z2Z20Z4Z4Z1Z1Z7Z20Z1Z18Z1Z17Z1Z18Z4Z20Z1Z18Z1Z17Z1Z79Z54Z17Z1Z18Z1Z20Z1Z1Z117Z79Z19Z17Z1Z18Z1Z20Z1Z18Z1Z17Z1Z79Z2Z17Z1Z18Z1Z20Z2Z1Z13Z20Z1Z18Z1Z20Z5Z18Z1Z17Z3Z79Z52Z17Z1Z18Z1Z20Z1Z1Z117Z79Z18Z17Z1Z18Z1Z20Z1Z1Z1Z20Z1Z18Z1Z17Z2Z18Z1Z20Z1Z1Z16Z20Z1Z81Z1Z82Z2Z81Z1Z82Z1Z20Z1Z18Z3Z17Z3Z79Z49Z17Z1Z18Z1Z20Z1Z1Z117Z79Z17Z17Z1Z18Z1Z20Z1Z1Z3Z20Z1Z18Z1Z17Z1Z18Z1Z20Z1Z1Z16Z20Z1Z79Z5Z82Z1Z20Z3Z18Z3Z17Z2Z79Z46Z17Z1Z18Z1Z20Z1Z1Z118Z79Z4Z17Z2Z79Z11Z17Z1Z18Z1Z20Z1Z1Z3Z20Z1Z18Z2Z20Z1Z1Z17Z20Z1Z79Z1Z1Z2Z79Z6Z20Z3Z18Z2Z17Z3Z79Z4Z17Z1Z79Z38Z17Z1Z18Z1Z20Z1Z1Z118Z17Z1Z79Z2Z17Z1Z18Z2Z17Z1Z79Z9Z17Z2Z18Z1Z20Z1Z1Z4Z20Z1Z18Z1Z20Z1Z1Z22Z79Z7Z20Z3Z18Z3Z17Z3Z18Z2Z17Z1Z79Z37Z17Z1Z18Z1Z20Z1Z1Z118Z18Z1Z17Z2Z18Z1Z20Z2Z18Z1Z17Z1Z79Z7Z17Z1Z18Z2Z20Z1Z1Z6Z20Z1Z1Z23Z4Z1Z20Z3Z79Z6Z20Z3Z18Z3Z20Z2Z18Z1Z17Z1Z79Z35Z17Z1Z18Z1Z20Z1Z1Z119Z20Z1Z18Z2Z20Z1Z1Z2Z20Z1Z18Z1Z17Z1Z79Z5Z17Z1Z18Z1Z20Z3Z1Z6Z20Z1Z1Z23Z5Z1Z20Z1Z18Z2Z20Z1Z79Z6Z1Z1Z4Z1Z20Z3Z4Z1Z1Z1Z20Z1Z18Z1Z17Z1Z79Z34Z17Z1Z18Z1Z20Z1Z1Z120Z20Z2Z4Z1Z1Z3Z20Z1Z18Z1Z17Z1Z79Z3Z17Z1Z18Z1Z20Z1Z1Z1Z5Z1Z20Z1Z1Z6Z20Z1Z1Z25Z20Z1Z18Z2Z20Z4Z79Z2Z1Z7Z20Z1Z18Z1Z17Z1Z79Z34Z17Z1Z18Z1Z20Z1Z1Z121Z13Z1Z1Z4Z4Z1Z20Z1Z18Z1Z17Z1Z79Z1Z17Z1Z18Z1Z20Z1Z1Z10Z20Z1Z1Z26Z20Z1Z18Z5Z20Z1Z79Z1Z1Z7Z20Z1Z18Z1Z17Z1Z79Z6Z17Z1Z79Z27Z17Z1Z18Z1Z20Z1Z1Z126Z5Z1Z20Z1Z18Z1Z17Z1Z79Z1Z17Z1Z18Z1Z20Z1Z1Z37Z20Z1Z18Z1Z17Z4Z18Z1Z20Z1Z1Z6Z20Z1Z18Z1Z17Z1Z79Z6Z17Z1Z18Z1Z17Z1Z79Z25Z17Z1Z18Z1Z20Z1Z1Z128Z5Z1Z20Z1Z18Z1Z17Z2Z18Z1Z20Z1Z1Z38Z20Z1Z18Z1Z17Z2Z18Z1Z20Z1Z1Z7Z20Z1Z18Z2Z17Z1Z79Z4Z17Z1Z18Z1Z20Z1Z18Z1Z17Z1Z79Z24Z17Z1Z18Z1Z20Z1Z1Z129Z20Z1Z18Z1Z17Z1Z18Z1Z20Z1Z1Z40Z20Z1Z18Z2Z20Z1Z1Z9Z20Z2Z18Z1Z17Z1Z79Z2Z17Z1Z18Z1Z20Z1Z1Z1Z20Z1Z18Z1Z17Z1Z79Z23Z17Z1Z18Z1Z20Z1Z1Z129Z20Z1Z18Z1Z17Z1Z18Z1Z20Z1Z1Z41Z20Z2Z1Z12Z20Z1Z18Z1Z17Z2Z18Z1Z20Z1Z1Z2Z20Z1Z18Z1Z17Z1Z79Z22Z17Z1Z18Z1Z20Z1Z1Z130Z4Z1Z20Z1Z18Z1Z20Z1Z4Z1Z1Z42Z20Z1Z1Z13Z20Z1Z18Z1Z17Z1Z18Z1Z20Z1Z1Z3Z20Z1Z18Z1Z17Z1Z79Z21Z17Z1Z18Z1Z20Z1Z1Z131Z20Z1Z18Z1Z20Z1Z1Z57Z20Z1Z18Z1Z17Z1Z18Z1Z20Z1Z1Z3Z20Z1Z18Z1Z17Z1Z79Z21Z17Z1Z18Z1Z20Z1Z1Z131Z4Z1Z20Z1Z4Z1Z1Z58Z20Z1Z18Z1Z20Z1Z1Z4Z20Z1Z18Z1Z17Z1Z79Z20Z17Z1Z18Z1Z20Z1Z1Z133Z13Z1Z1Z59Z20Z1Z18Z1Z20Z1Z1Z5Z20Z1Z18Z1Z17Z1Z79Z19Z17Z1Z18Z1Z20Z1Z1Z194Z20Z1Z1Z6Z20Z1Z18Z1Z17Z1Z79Z18Z17Z1Z18Z1Z20Z1Z1Z202Z20Z1Z18Z1Z17Z1Z79Z18Z17Z1Z18Z1Z20Z1Z1Z203Z20Z1Z18Z1Z17Z1Z79Z17Z17Z1Z18Z1Z20Z1Z1Z203Z20Z1Z18Z1Z17Z1Z79Z17Z17Z1Z18Z1Z20Z1Z1Z204Z20Z1Z18Z1Z17Z1Z79Z15Z17Z1Z18Z1Z20Z1Z1Z205Z20Z1Z18Z1Z17Z1Z79Z15Z17Z1Z18Z1Z20Z1Z1Z206Z20Z1Z18Z1Z17Z1Z79Z14Z17Z1Z18Z1Z20Z1Z1Z206Z20Z1Z18Z1Z17Z1Z79Z14Z17Z1Z18Z1Z20Z1Z1Z207Z20Z1Z18Z1Z17Z1Z79Z12Z17Z1Z18Z1Z20Z1Z1Z209Z20Z1Z18Z1Z17Z1Z79Z11Z17Z1Z18Z1Z20Z1Z1Z210Z20Z1Z18Z1Z17Z1Z79Z10Z17Z1Z18Z1Z20Z1Z1Z210Z20Z1Z18Z1Z17Z1Z79Z10Z17Z1Z18Z1Z20Z1Z1Z211Z20Z1Z18Z1Z17Z1Z79Z9Z17Z1Z18Z1Z20Z1Z1Z212Z20Z1Z18Z1Z17Z1Z79Z8Z17Z1Z18Z1Z20Z1Z1Z213Z20Z1Z18Z1Z17Z1Z79Z6Z17Z1Z18Z1Z20Z1Z1Z215Z20Z1Z18Z1Z17Z1Z79Z5Z17Z1Z18Z1Z20Z1Z1Z216Z20Z1Z18Z1Z17Z1Z79Z4Z17Z1Z18Z1Z20Z1Z1Z216Z20Z1Z18Z1Z17Z1Z79Z4Z17Z1Z18Z1Z20Z1Z1Z216Z20Z1Z18Z1Z17Z1Z79Z3Z17Z1Z18Z1Z20Z1Z1Z217Z20Z1Z18Z1Z17Z1Z79Z3Z17Z1Z18Z1Z20Z1Z1Z217Z20Z1Z18Z1Z17Z1Z79Z3Z17Z1Z18Z1Z20Z1Z1Z217Z20Z1Z18Z1Z17Z1Z79Z3Z17Z1Z18Z1Z20Z1Z1Z217Z20Z1Z18Z1Z17Z1Z79Z2Z17Z1Z18Z1Z20Z1Z1Z219Z20Z1Z18Z1Z17Z1Z79Z1Z17Z1Z18Z1Z20Z1Z1Z220Z20Z1Z18Z1Z17Z2Z18Z1Z20Z1Z1Z221Z20Z1Z18Z1Z17Z1Z18Z1Z20Z1Z1Z222Z20Z1Z18Z1Z20Z1Z1Z224Z20Z1Z1Z224Z5Z1Z4Z1Z5Z1Z1Z223Z5Z1Z1Z1Z5Z1Z1Z223Z5Z1Z1Z1Z5Z1Z1Z26345ZZ1Z29Z0Z1Z1Z7Z3Z1Z0Z1Z1Z2Z3Z1Z0Z1Z3Z1Z0Z1Z1Z1Z3Z1Z0Z2Z3Z1Z1Z1Z3Z1Z1Z2Z3Z1Z0Z1Z1Z1Z2Z1Z1Z197Z2Z1Z0Z1Z1Z1Z2Z1Z1Z5Z2Z1Z0Z1Z1Z1Z2Z1Z1Z1Z3Z1Z1Z1Z3Z1Z1Z1Z2Z2Z1Z3Z3Z1Z2Z1Z1Z3Z3Z1Z1Z197Z2Z1Z1Z1Z3Z1Z1Z7Z2Z1Z1Z2Z2Z1Z1Z1Z2Z1Z1Z5Z3Z1Z1Z2Z2Z1Z1Z3Z2Z1Z1Z197Z2Z2Z1Z10Z0Z1Z1Z2Z2Z1Z1Z4Z0Z1Z1Z205Z2Z2Z1Z13Z2Z2Z1Z3Z0Z1Z1Z205Z2Z2Z1Z13Z2Z1Z1Z3Z2Z1Z0Z1Z1Z206Z3Z1Z1Z5Z3Z1Z1Z3Z2Z1Z1Z3Z2Z2Z1Z209Z2Z3Z1Z11Z0Z1Z2Z1Z1Z210Z2Z1Z1Z2Z3Z1Z1Z11Z2Z1Z1Z1Z0Z1Z1Z6Z2Z1Z1Z201Z2Z1Z1Z2Z2Z1Z3Z1Z1Z7Z3Z1Z1Z6Z0Z1Z1Z3Z2Z1Z1Z5Z3Z1Z2Z1Z3Z1Z1Z193Z0Z1Z2Z1Z1Z9Z0Z1Z1Z214Z2Z2Z1Z20Z3Z1Z1Z203Z2Z2Z1Z6Z2Z1Z1Z17Z0Z1Z1Z6Z3Z1Z1Z193Z3Z1Z2Z1Z1Z18Z3Z1Z1Z2Z3Z1Z0Z1Z1Z6Z0Z1Z1Z196Z3Z1Z2Z1Z1Z1Z3Z1Z1Z4Z3Z1Z1Z7Z3Z1Z0Z1Z1Z5Z2Z1Z1Z4Z0Z1Z1Z198Z3Z1Z1Z12Z3Z1Z0Z1Z1Z2Z0Z1Z1Z5Z2Z1Z1Z3Z0Z1Z1Z215Z3Z1Z1Z9Z0Z1Z1Z195Z3Z1Z1Z16Z0Z1Z3Z1Z1Z8Z2Z1Z1Z197Z0Z1Z3Z1Z1Z15Z0Z1Z1Z12Z3Z1Z1Z195Z0Z1Z3Z1Z1Z15Z0Z1Z2Z1Z1Z1Z0Z1Z1Z11Z2Z1Z1Z192Z0Z2Z3Z1Z1Z8Z3Z1Z1Z6Z3Z1Z1Z1Z3Z1Z0Z1Z2Z1Z1Z204Z0Z1Z3Z1Z1Z3Z3Z1Z1Z11Z2Z1Z1Z3Z2Z1Z1Z204Z0Z1Z3Z1Z1Z8Z3Z3Z1Z3Z3Z1Z2Z1Z1Z5Z2Z1Z1Z202Z0Z1Z3Z1Z1Z6Z0Z1Z1Z7Z0Z1Z1Z1Z2Z1Z1Z207Z0Z1Z3Z1Z1Z13Z3Z1Z1Z3Z2Z1Z3Z1Z1Z206Z3Z1Z1Z13Z3Z1Z1Z216Z3Z1Z1Z7Z3Z2Z1Z215Z2Z1Z0Z1Z3Z1Z0Z1Z1Z5Z3Z1Z1Z217Z3Z1Z2Z1Z1Z6Z0Z1Z1Z217Z2Z1Z1Z6Z3Z1Z1Z218Z2Z1Z1Z6Z0Z1Z1Z218Z2Z1Z1Z438Z0Z1Z1Z25Z0Z1Z2Z1Z0Z1Z1Z197Z0Z2Z1Z27Z0Z1Z1Z195Z0Z3Z1Z4Z0Z1Z1Z29Z2Z2Z1Z187Z0Z4Z1Z221Z0Z3Z1Z27Z0Z1Z1Z180Z0Z2Z1Z13Z0Z3Z1Z27Z0Z1Z1Z11Z0Z1Z1Z3Z2Z1Z1Z164Z0Z3Z1Z9Z0Z2Z1Z1Z0Z2Z1Z5Z0Z1Z1Z202Z0Z5Z1Z7Z0Z6Z1Z2Z0Z2Z1Z1Z0Z3Z1Z198Z0Z7Z1Z7Z0Z6Z1Z1Z0Z2Z1Z2Z0Z3Z1Z197Z0Z8Z1Z7Z0Z5Z1Z2Z0Z1Z1Z2Z0Z4Z1Z197Z0Z9Z1Z5Z0Z6Z1Z1Z0Z2Z1Z1Z0Z5Z1Z197Z0Z9Z1Z5Z0Z6Z1Z3Z0Z7Z1Z196Z0Z10Z1Z3Z2Z1Z0Z16Z1Z196Z0Z10Z1Z3Z0Z17Z1Z196Z0Z11Z1Z1Z2Z1Z0Z17Z1Z196Z0Z11Z2Z1Z0Z18Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z64Z3Z2Z2Z1Z1Z129Z0Z30Z1Z66Z0Z1Z1Z129Z0Z30Z1Z64Z0Z1Z1Z131Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196Z0Z30Z1Z196ZZZ59Z2Z61Z1Z57Z0Z57Z0Z56Z1Z59Z0Z62Z0Z66Z0Z67Z1Z65Z2Z64Z0Z57Z1Z53Z1Z52Z0Z52Z3Z49Z1Z50Z0Z53Z3Z55Z1Z57Z1Z54Z2Z48Z3Z47Z0Z45Z2Z43Z3Z41Z3Z42Z1Z44Z2Z44Z1Z43Z0Z40Z3Z40Z0Z41Z0Z43Z0Z49Z1Z49Z2Z48Z3Z48Z2Z50Z0Z53Z0Z59Z1Z62Z0Z64Z3Z65Z3Z63Z3Z60Z0Z56Z0Z52Z2Z52Z2Z54Z3Z58Z2Z61Z3Z63Z3Z65Z3Z68Z0Z71Z0Z70Z1Z67Z3Z66Z0Z69Z3Z74Z0Z78Z1Z83Z1Z86Z3Z89Z3Z92Z3Z94Z3Z98Z1Z105Z2Z109Z3Z113Z3Z115Z2Z116Z2Z118Z3Z116Z1Z114Z3Z109Z1Z106Z2Z98Z2Z91Z1Z84Z3Z73Z3Z64Z3Z56Z0Z49Z0Z42Z0Z38Z0Z31Z3Z27Z0Z26Z3Z24Z3Z25Z3Z26Z3Z27Z1Z25Z0Z20Z0Z17Z0Z15Z2Z10Z0Z9Z1Z6Z1Z5Z1Z5Z0Z6Z0Z4Z2Z1Z3ZC1Z3Z0Z0Z3Z0Z4Z0Z2Z3Z1Z3Z0Z1ZC1Z1ZZ180Z180";
 const STAGE_VOTE_STAND_SECONDS = 3;
 const STAGE_VOTE_ZONE_WIDTH = 200;
 const STAGE_VOTE_ZONE_DEPTH = 30;
@@ -82,6 +82,79 @@ fetch('levels.json')
         LEVEL_NAMES = levels.map(level => level.name);
     })
     .catch(err => console.error('[levels] failed to load levels.json:', err));
+
+class Profiler {
+    constructor(windowSize = 60, fpsHistorySize = 300) {
+        this.windowSize = windowSize;
+        this.buckets = {};
+        this._current = {};
+        this._frameStart = 0;
+
+        this.fpsHistorySize = fpsHistorySize;
+        this._frameDurations = [];
+    }
+
+    beginFrame(now) {
+        this._frameStart = now;
+        this._current = {};
+    }
+
+    add(name, ms) {
+        if (!(ms >= 0)) return;
+        this._current[name] = (this._current[name] || 0) + ms;
+    }
+
+    time(name, fn) {
+        const t0 = performance.now();
+        const result = fn();
+        this.add(name, performance.now() - t0);
+        return result;
+    }
+
+    endFrame(now, knownBucketNames) {
+        const total = Math.max(0, now - this._frameStart);
+        let tracked = 0;
+        for (const name of knownBucketNames) {
+            tracked += this._current[name] || 0;
+        }
+        this._current.other = Math.max(0, total - tracked);
+
+        const allNames = knownBucketNames.includes('other') ? knownBucketNames : [...knownBucketNames, 'other'];
+        for (const name of allNames) {
+            if (!this.buckets[name]) this.buckets[name] = [];
+            this.buckets[name].push(this._current[name] || 0);
+            if (this.buckets[name].length > this.windowSize) this.buckets[name].shift();
+        }
+    }
+
+    recordFrameTime(ms) {
+        if (!(ms > 0)) return;
+        this._frameDurations.push(ms);
+        if (this._frameDurations.length > this.fpsHistorySize) this._frameDurations.shift();
+    }
+
+    getAverages() {
+        const out = {};
+        for (const name in this.buckets) {
+            const arr = this.buckets[name];
+            if (!arr.length) { out[name] = 0; continue; }
+            out[name] = arr.reduce((a, b) => a + b, 0) / arr.length;
+        }
+        return out;
+    }
+
+    getLowFps(fraction) {
+        const durations = this._frameDurations;
+        if (!durations.length) return 0;
+        const sorted = [...durations].sort((a, b) => b - a);
+        const count = Math.max(1, Math.round(sorted.length * fraction));
+        const slice = sorted.slice(0, count);
+        const avgMs = slice.reduce((a, b) => a + b, 0) / slice.length;
+        return avgMs > 0 ? 1000 / avgMs : 0;
+    }
+}
+
+const PROFILER_BUCKETS = ['physics', 'background', 'tiles', 'players', 'thumbnails', 'results', 'loading', 'ui', 'stageVoteZones'];
 
 class Game {
     constructor(canvasId, playerCount = 2, network = null) {
@@ -108,7 +181,7 @@ class Game {
         this.localSeatIndex = 0;
         this.players = this.createPlayers(this.playerCount, this.localSeatIndex);
 
-        this.camera = { x: 0, y: 0, zoom: 1.25};
+        this.camera = { x: 2500, y: 0, zoom: 1.25};
         this.cameraLookahead = { x: 0, y: 0 }; 
         this.cameraMode = 0; 
         this.showDebugMenu = false;
@@ -116,6 +189,7 @@ class Game {
         this.showInputDisplay = false;
         this._fpsFrameTimes = [];
         this._fps = 0;
+        this.profiler = new Profiler();
         this.ping = null;
         this.lastPingSentAt = null;
         this.keys = {};
@@ -180,21 +254,24 @@ class Game {
         this.ROUND_RESULTS_ANIM_FRAMES = 15;
         this.stageCandidates = [];
         this.stageThumbnails = new Map();
+
+        this.stageTitleCache = new Map();
         this.stageVoteZones = []; 
         this.stageCountdownActive = false;
         this.stageCountdownStart = null;
         this.stageCountdownDuration = STAGE_VOTE_STAND_SECONDS * 1000;
         this.STAGE_VOTE_ZONES = [
-            { x: 270,  y: 77 },
-            { x: 630, y: 677 },
-            { x: 510, y: 437 },
-            { x: 1050, y: 197 },
-            { x: 120, y: 617 },
-            { x: 1080, y: 557 },
-            { x: 570, y: 1037 },
-            { x: 1830, y: 1517 },
-            { x: 90, y: 977 },
-            {x: 1380, y: 197}
+            { x: 2070,  y: 77 }, //MI
+            { x: 3720, y: 1037 }, //pin
+            { x: 2310, y: 437 }, //jungle
+            { x: 2835, y: 197 }, //BB
+            { x: 1930, y: 617 }, //con
+            { x: 2430, y: 677 }, //TM
+            { x: 2370, y: 1037 }, //WI
+            { x: 3180, y: 1217 }, //mon
+            { x: 1890, y: 977 }, //PH
+            {x: 3360, y: 497}, //Sumfink
+            {x: 3810, y: 2357} //chikn
         ];
         this.PARTY_BOX_SLOT_COUNT = Math.ceil(1.5 * this.playerCount);
         this.PARTY_TIME_LIMIT = 12; 
@@ -276,7 +353,7 @@ class Game {
                 return;
             }
 
-            if (e.code === 'KeyV' && !e.repeat && this.gameState === GameState.STAGE_SELECT) {
+            if (e.code === 'KeyV' && !e.repeat && this.gameState !== GameState.MENU) {
                 e.preventDefault();
                 this.stageHintHidden = !this.stageHintHidden;
             }
@@ -686,7 +763,7 @@ class Game {
         ctx.font = '11px ' + THEME.font;
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.fillText('M: Settings   C: Color   H: Controls   V: ' + (this.stageHintHidden ? 'Show hint' : 'Hide hint') + '   3: Input display', this.canvas.width / 2, this.canvas.height - 10);
+        ctx.fillText('H: Controls   V: ' + (this.stageHintHidden ? 'Show hint' : 'Hide hint'), this.canvas.width / 2, this.canvas.height - 10);
         ctx.restore();
     }
 
@@ -694,12 +771,13 @@ class Game {
         if (this.gameState === GameState.MENU) return;
         if (this.gameState === GameState.STAGE_SELECT) return;
         if (this.settingsMenuOpen || this.colorPickerOpen || this.chatOpen || this.helpMenuOpen) return;
+        if (this.stageHintHidden) return;
         const ctx = this.ctx;
         ctx.save();
         ctx.font = '11px ' + THEME.font;
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.fillText('H: Controls   3: Input display', this.canvas.width / 2, this.canvas.height - 10);
+        ctx.fillText('H: Controls', this.canvas.width / 2, this.canvas.height - 10);
         ctx.restore();
     }
 
@@ -1488,7 +1566,36 @@ class Game {
         const thumbH = thumbW * STAGE_PREVIEW_ASPECT;
         this.stageCandidates.forEach(code => this.generateStageThumbnail(code, thumbW, thumbH));
     }
+
+    getStageTitleCanvas(title) {
+        if (this.stageTitleCache.has(title)) return this.stageTitleCache.get(title);
+
+        const BASE_PX = 13;
+        const measure = document.createElement('canvas').getContext('2d');
+        measure.font = `bold ${BASE_PX}px ` + THEME.font;
+        const metrics = measure.measureText(title);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.ceil(metrics.width) + 4);
+        canvas.height = Math.ceil(BASE_PX * 1.4);
+
+        const ctx = canvas.getContext('2d');
+        ctx.font = `bold ${BASE_PX}px ` + THEME.font;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = '#000000';
+        ctx.fillText(title, canvas.width / 2, canvas.height - 4);
+
+        this.stageTitleCache.set(title, canvas);
+        return canvas;
+    }
     generateStageThumbnail(levelCode, width = 150, height = 74) {
+        const t0 = performance.now();
+        const result = this._generateStageThumbnailImpl(levelCode, width, height);
+        this.profiler.add('thumbnails', performance.now() - t0);
+        return result;
+    }
+    _generateStageThumbnailImpl(levelCode, width = 150, height = 74) {
         if (this.stageThumbnails.has(levelCode)) return this.stageThumbnails.get(levelCode);
         if (!this.renderer.assetsLoaded) return null;
 
@@ -1503,19 +1610,36 @@ class Game {
         const TILE_SIZE = this.renderer.tileSize;
 
         const REGION_PAD = 2;
-        const spawnIdx = levelData.map.indexOf(76);
-        const finishIdx = levelData.map.indexOf(63);
+        const TRACKED_BLOCK_ID = 22;
+        const trackedIndices = [];
+        levelData.map.forEach((cell, i) => { if (cell === TRACKED_BLOCK_ID) trackedIndices.push(i); });
         let centerCol = cols / 2;
         let centerRow = rows / 2;
         let boxCols = Math.min(15, cols);
         let boxRows = Math.min(10, rows);
-        if (spawnIdx >= 0 && finishIdx >= 0) {
-            const spawnCol = spawnIdx % cols, spawnRow = Math.floor(spawnIdx / cols);
-            const finishCol = finishIdx % cols, finishRow = Math.floor(finishIdx / cols);
-            centerCol = (spawnCol + finishCol) / 2 + 0.5;
-            centerRow = (spawnRow + finishRow) / 2 + 0.5;
-            boxCols = Math.abs(finishCol - spawnCol) + REGION_PAD * 2;
-            boxRows = Math.abs(finishRow - spawnRow) + REGION_PAD * 2;
+        if (trackedIndices.length >= 2) {
+            const [idxA, idxB] = trackedIndices;
+            const colA = idxA % cols, rowA = Math.floor(idxA / cols);
+            const colB = idxB % cols, rowB = Math.floor(idxB / cols);
+            centerCol = (colA + colB) / 2 + 0.5;
+            centerRow = (rowA + rowB) / 2 + 0.5;
+            boxCols = Math.abs(colB - colA) + REGION_PAD * 2;
+            boxRows = Math.abs(rowB - rowA) + REGION_PAD * 2;
+        } else {
+            const spawnIdx = levelData.map.indexOf(76);
+            const finishIdx = levelData.map.indexOf(63);
+            if (spawnIdx >= 0 && finishIdx >= 0) {
+                const spawnCol = spawnIdx % cols, spawnRow = Math.floor(spawnIdx / cols);
+                const finishCol = finishIdx % cols, finishRow = Math.floor(finishIdx / cols);
+                centerCol = (spawnCol + finishCol) / 2 + 0.5;
+                centerRow = (spawnRow + finishRow) / 2 + 0.5;
+                boxCols = Math.abs(finishCol - spawnCol) + REGION_PAD * 2;
+                boxRows = Math.abs(finishRow - spawnRow) + REGION_PAD * 2;
+            } else if (trackedIndices.length === 1) {
+                const idx = trackedIndices[0];
+                centerCol = (idx % cols) + 0.5;
+                centerRow = Math.floor(idx / cols) + 0.5;
+            }
         }
         boxCols = Math.max(1, boxCols);
         boxRows = Math.max(1, boxRows);
@@ -1552,6 +1676,18 @@ class Game {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(native, 0, 0, canvasWidth, canvasHeight);
+
+        const cornerRadius = Math.min(8 * (canvasWidth / width), canvasWidth / 2, canvasHeight / 2);
+        ctx.globalCompositeOperation = 'destination-in';
+        ctx.beginPath();
+        ctx.moveTo(cornerRadius, 0);
+        ctx.arcTo(canvasWidth, 0, canvasWidth, canvasHeight, cornerRadius);
+        ctx.arcTo(canvasWidth, canvasHeight, 0, canvasHeight, cornerRadius);
+        ctx.arcTo(0, canvasHeight, 0, 0, cornerRadius);
+        ctx.arcTo(0, 0, canvasWidth, 0, cornerRadius);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
 
         this.stageThumbnails.set(levelCode, thumbCanvas);
         return thumbCanvas;
@@ -1795,6 +1931,14 @@ class Game {
         const finishIdx = this.physics.MAP.indexOf(63);
         if (finishIdx >= 0) {
             return { col: finishIdx % cols, row: Math.floor(finishIdx / cols) };
+        }
+        return this.getSpawnCell();
+    }
+    getBlockCell(blockId) {
+        const cols = this.levelData.size_x;
+        const idx = this.physics.MAP.indexOf(blockId);
+        if (idx >= 0) {
+            return { col: idx % cols, row: Math.floor(idx / cols) };
         }
         return this.getSpawnCell();
     }
@@ -2143,15 +2287,21 @@ class Game {
             const now = performance.now();
             const delta = now - lastFrameTime;
             if (delta >= frameDuration - 1) {
+                this.profiler.recordFrameTime(delta);
                 lastFrameTime = now;
                 this.recordFrame(now);
+                this.profiler.beginFrame(now);
 
                 if (this.gameState === GameState.LOADING) {
-                    this.checkLoadStatus();
-                    this.drawLoadingScreen();
+                    this.profiler.time('loading', () => {
+                        this.checkLoadStatus();
+                        this.drawLoadingScreen();
+                    });
                 } else {
                     this.gameLoop();
                 }
+
+                this.profiler.endFrame(performance.now(), PROFILER_BUCKETS);
 
                 if (this.showDebugMenu) this.drawDebugMenu();
             }
@@ -2293,6 +2443,23 @@ class Game {
         this.ctx.fillStyle = textColor || (urgent ? THEME.danger : THEME.text);
         this.ctx.fillText(`${Math.ceil(remaining)}`, cx, cy + 5);
     }
+
+    getDistanceVolume(worldX, worldY) {
+        if (typeof worldX !== 'number' || typeof worldY !== 'number' || !this.camera || !this.camera.zoom) {
+            return 1;
+        }
+        const halfW = (this.canvas.width / 2) / this.camera.zoom;
+        const halfH = (this.canvas.height / 2) / this.camera.zoom;
+        const dx = Math.max(0, Math.abs(worldX - this.camera.x) - halfW);
+        const dy = Math.max(0, Math.abs(worldY - this.camera.y) - halfH);
+        const dist = Math.hypot(dx, dy);
+        if (dist <= 0) return 1;
+
+        const FALLOFF_DISTANCE = 400;
+        const MIN_VOLUME = 0.08;
+        const t = Math.min(1, dist / FALLOFF_DISTANCE);
+        return 1 - t * (1 - MIN_VOLUME);
+    }
     getInputKeysFor(player) {
         if (this.gameState !== GameState.RACE) return "";
         if (player.hasFinished || player.eliminated) return ""; 
@@ -2316,16 +2483,17 @@ class Game {
         let chainedFromWallJump = prev ? !!prev.chainedFromWallJump : false;
 
         if (prev && typeof playSfx === 'function') {
+            const vol = this.getDistanceVolume(payload.x, payload.y);
             const jumpImpulse = prev.sy <= 4 && sy >= 14;
             if (jumpImpulse && prev.onWall) {
-                playSfx('wall_jump');
+                playSfx('wall_jump', vol);
                 chainedFromWallJump = true;
             } else if (jumpImpulse && chainedFromWallJump) {
-                playSfx('sidejump');
+                playSfx('sidejump', vol);
             } else if (jumpImpulse) {
-                playSfx('jump');
+                playSfx('jump', vol);
             } else if (prev.sy < -4 && sy >= -1 && sy <= 4 && !onWall) {
-                playSfx('land');
+                playSfx('land', vol);
                 chainedFromWallJump = false;
             }
         }
@@ -2428,10 +2596,10 @@ class Game {
                 if ((player.livesRemaining || 1) > 1) {
                     player.livesRemaining -= 1;
                     player.respawnPendingFrames = this.RESPAWN_DELAY_FRAMES;
-                    if (typeof playSfx === 'function') playSfx('boom');
+                    if (typeof playSfx === 'function') playSfx('boom', this.getDistanceVolume(player.physicsState.PLAYER_X, player.physicsState.PLAYER_Y));
                 } else {
                     console.log(`${player.name} died!`);
-                    if (typeof playSfx === 'function') playSfx('boom');
+                    if (typeof playSfx === 'function') playSfx('boom', this.getDistanceVolume(player.physicsState.PLAYER_X, player.physicsState.PLAYER_Y));
                     player.eliminated = true;
                 }
             }
@@ -2452,7 +2620,7 @@ class Game {
                 player.finishedPostmortem = player.respawnPendingFrames > 0;
                 player.respawnPendingFrames = 0;
                 player.finishTick = this.tick;
-                playSfx('finish');
+                playSfx('finish', this.getDistanceVolume(player.physicsState.PLAYER_X, player.physicsState.PLAYER_Y));
                 console.log(`${player.name} finished!`);
             }
         }
@@ -2505,7 +2673,12 @@ class Game {
 
         let active = this.players.filter(p => p && p.connected !== false && !p.eliminated && !p.hasFinished && p.physicsState);
         const roundWrappingUp = active.length === 0;
-        if (roundWrappingUp) active = this.players.filter(p => p && p.connected !== false && p.physicsState);
+        if (roundWrappingUp) {
+            active = this.players.filter(p => p && p.connected !== false && p.physicsState && (p.eliminated || p.hasFinished));
+            if (active.length === 0) {
+                active = this.players.filter(p => p && p.connected !== false && p.physicsState);
+            }
+        }
         if (active.length === 0) return;
 
         const xs = active.map(p => p.physicsState.PLAYER_X);
@@ -2550,24 +2723,53 @@ class Game {
     }
 
     updateRaceCameraFitStartFinish() {
-        const startWorld = this.buildCellToWorld(this.getSpawnCell());
-        const finishWorld = this.buildCellToWorld(this.getFinishCell());
+        const TRACKED_BLOCK_ID = 22;
+        const trackedIndices = [];
+        this.physics.MAP.forEach((cell, i) => { if (cell === TRACKED_BLOCK_ID) trackedIndices.push(i); });
 
-        const targetCameraX = (startWorld.x + finishWorld.x) / 2;
-        const targetCameraY = (startWorld.y + finishWorld.y) / 2;
-
-        const PADDING_X = 160;
-        const PADDING_Y = 80;
-        const boxW = Math.max(Math.abs(finishWorld.x - startWorld.x), 1);
-        const boxH = Math.max(Math.abs(finishWorld.y - startWorld.y), 1);
-
-        const zoomToFitX = Math.max(0, this.canvas.width - PADDING_X * 2) / boxW;
-        const zoomToFitY = Math.max(0, this.canvas.height - PADDING_Y * 2) / boxH;
-        const fitZoom = Math.min(zoomToFitX, zoomToFitY);
-
+        let targetCameraX, targetCameraY, targetZoom;
         const MAX_ZOOM = 1.25;
         const ZOOM_EPSILON = 0.05;
-        const targetZoom = Math.max(ZOOM_EPSILON, Math.min(MAX_ZOOM, fitZoom));
+
+        if (trackedIndices.length >= 2) {
+            const cols = this.levelData.size_x;
+            const [idxA, idxB] = trackedIndices;
+            const cellA = { col: idxA % cols, row: Math.floor(idxA / cols) };
+            const cellB = { col: idxB % cols, row: Math.floor(idxB / cols) };
+            const worldA = this.buildCellToWorld(cellA);
+            const worldB = this.buildCellToWorld(cellB);
+
+            targetCameraX = (worldA.x + worldB.x) / 2;
+            targetCameraY = (worldA.y + worldB.y) / 2;
+
+            const PADDING_X = 160;
+            const PADDING_Y = 80;
+            const boxW = Math.max(Math.abs(worldB.x - worldA.x), 1);
+            const boxH = Math.max(Math.abs(worldB.y - worldA.y), 1);
+
+            const zoomToFitX = Math.max(0, this.canvas.width - PADDING_X * 2) / boxW;
+            const zoomToFitY = Math.max(0, this.canvas.height - PADDING_Y * 2) / boxH;
+            const fitZoom = Math.min(zoomToFitX, zoomToFitY);
+
+            targetZoom = Math.max(ZOOM_EPSILON, Math.min(MAX_ZOOM, fitZoom));
+        } else {
+            const startWorld = this.buildCellToWorld(this.getSpawnCell());
+            const finishWorld = this.buildCellToWorld(this.getFinishCell());
+
+            targetCameraX = (startWorld.x + finishWorld.x) / 2;
+            targetCameraY = (startWorld.y + finishWorld.y) / 2;
+
+            const PADDING_X = 160;
+            const PADDING_Y = 80;
+            const boxW = Math.max(Math.abs(finishWorld.x - startWorld.x), 1);
+            const boxH = Math.max(Math.abs(finishWorld.y - startWorld.y), 1);
+
+            const zoomToFitX = Math.max(0, this.canvas.width - PADDING_X * 2) / boxW;
+            const zoomToFitY = Math.max(0, this.canvas.height - PADDING_Y * 2) / boxH;
+            const fitZoom = Math.min(zoomToFitX, zoomToFitY);
+
+            targetZoom = Math.max(ZOOM_EPSILON, Math.min(MAX_ZOOM, fitZoom));
+        }
 
         this.camera.x += (targetCameraX - this.camera.x) * 0.1;
         this.camera.y += (targetCameraY - this.camera.y) * 0.1;
@@ -2688,6 +2890,73 @@ class Game {
         }
 
         this.renderer.renderDynamic(firstPlayer.physicsState.OBJ, this.camera);
+
+        this.drawOffscreenIndicators();
+    }
+    drawOffscreenIndicators() {
+        if (!this.camera || !this.camera.zoom) return;
+        const ctx = this.ctx;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+        const margin = 28;
+        const cx = w / 2;
+        const cy = h / 2;
+
+        for (const player of this.players) {
+            if (!player || !player.physicsState) continue;
+            if (player.connected === false) continue;
+            if (player === this.players[this.localSeatIndex]) continue;
+            if (player.eliminated || player.hasFinished) continue;
+
+            const screen = this.worldToScreen(player.physicsState.PLAYER_X, player.physicsState.PLAYER_Y);
+
+            const onScreen = screen.x >= margin && screen.x <= w - margin &&
+                              screen.y >= margin && screen.y <= h - margin;
+            if (onScreen) continue;
+
+            const dx = screen.x - cx;
+            const dy = screen.y - cy;
+            const angle = Math.atan2(dy, dx);
+
+            const halfW = w / 2 - margin;
+            const halfH = h / 2 - margin;
+            const scale = Math.min(
+                dx !== 0 ? Math.abs(halfW / dx) : Infinity,
+                dy !== 0 ? Math.abs(halfH / dy) : Infinity
+            );
+            const arrowX = cx + dx * scale;
+            const arrowY = cy + dy * scale;
+
+            ctx.save();
+            ctx.translate(arrowX, arrowY);
+            ctx.rotate(angle);
+
+            ctx.fillStyle = player.color || '#ffffff';
+            ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+            ctx.lineWidth = 2;
+
+            ctx.beginPath();
+            ctx.moveTo(12, 0);
+            ctx.lineTo(-8, -8);
+            ctx.lineTo(-8, 8);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.fill();
+
+            ctx.rotate(-angle);
+
+            if (player.name) {
+                ctx.font = "bold 11px Arial, sans-serif";
+                ctx.textAlign = "center";
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = "#000000";
+                ctx.strokeText(player.name, 0, -14);
+                ctx.fillStyle = player.color || '#ffffff';
+                ctx.fillText(player.name, 0, -14);
+            }
+
+            ctx.restore();
+        }
     }
     _wrapChatMessage(ctx, nameWidth, bodyText, maxWidth) {
         const words = bodyText.split(' ');
@@ -2874,74 +3143,6 @@ class Game {
         ctx.restore();
     }
 
-    drawOffscreenIndicators() {
-        const ctx = this.ctx;
-        const localPlayer = this.players[this.localSeatIndex] || this.players[0];
-        if (!localPlayer) return;
-
-        const w = this.canvas.width;
-        const h = this.canvas.height;
-        const margin = 28;
-        const cx = w / 2;
-        const cy = h / 2;
-        const halfW = w / 2 - margin;
-        const halfH = h / 2 - margin;
-
-        for (const player of this.players) {
-            if (player === localPlayer || !player.physicsState) continue;
-            if (player.eliminated || player.hasFinished) continue;
-
-            const worldX = player.physicsState.PLAYER_X;
-            const worldY = player.physicsState.PLAYER_Y;
-            const screenX = cx + this.camera.zoom * (worldX - this.camera.x);
-            const screenY = cy + this.camera.zoom * (this.camera.y - worldY);
-
-            const offscreen = screenX < margin || screenX > w - margin || screenY < margin || screenY > h - margin;
-            if (!offscreen) continue;
-
-            const dx = screenX - cx;
-            const dy = screenY - cy;
-            const angle = Math.atan2(dy, dx);
-
-            const scale = Math.min(
-                dx !== 0 ? Math.abs(halfW / dx) : Infinity,
-                dy !== 0 ? Math.abs(halfH / dy) : Infinity
-            );
-            const arrowX = cx + dx * scale;
-            const arrowY = cy + dy * scale;
-
-            ctx.save();
-            ctx.translate(arrowX, arrowY);
-            ctx.rotate(angle);
-            ctx.beginPath();
-            ctx.moveTo(11, 0);
-            ctx.lineTo(-7, -8);
-            ctx.lineTo(-7, 8);
-            ctx.closePath();
-            ctx.fillStyle = player.color || '#ffffff';
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.65)';
-            ctx.lineWidth = 2;
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-
-            if (player.name) {
-                const labelX = arrowX - Math.cos(angle) * 18;
-                const labelY = arrowY - Math.sin(angle) * 18;
-                ctx.save();
-                ctx.font = 'bold 11px Arial, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.lineWidth = 3;
-                ctx.lineJoin = 'round';
-                ctx.strokeStyle = '#000000';
-                ctx.strokeText(player.name, labelX, labelY);
-                ctx.fillStyle = player.color || '#ffffff';
-                ctx.fillText(player.name, labelX, labelY);
-                ctx.restore();
-            }
-        }
-    }
-
     recordFrame(now) {
         const times = this._fpsFrameTimes;
         times.push(now);
@@ -2955,8 +3156,11 @@ class Game {
         const localPlayer = this.players[this.localSeatIndex];
         const connectedCount = this.players.filter(p => p.connected !== false).length;
 
+        const low1 = this.profiler.getLowFps(0.01);
+        const low10 = this.profiler.getLowFps(0.10);
+
         const lines = [
-            `FPS: ${this._fps}`,
+            `FPS: ${this._fps}  (1% low: ${low1 ? low1.toFixed(0) : '--'}  10% low: ${low10 ? low10.toFixed(0) : '--'})`,
             `Ping: ${this.ping !== null ? this.ping + ' ms' : 'n/a'}`,
             `Game state: ${this.gameState}`,
             `Tick: ${this.tick}`,
@@ -2978,22 +3182,122 @@ class Game {
         const paddingX = 10;
         const paddingY = 8;
         const lineHeight = 16;
-        const boxWidth = 220;
-        const boxHeight = paddingY * 2 + lineHeight * lines.length;
+        const boxWidth = 260;
+        const statsBoxHeight = paddingY * 2 + lineHeight * lines.length;
         const boxX = this.canvas.width - boxWidth - 10;
         const boxY = 10;
 
         ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+        ctx.fillRect(boxX, boxY, boxWidth, statsBoxHeight);
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
         ctx.lineWidth = 1;
-        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+        ctx.strokeRect(boxX, boxY, boxWidth, statsBoxHeight);
 
         ctx.textAlign = 'left';
         ctx.fillStyle = '#4ade80';
         lines.forEach((line, i) => {
             ctx.fillText(line, boxX + paddingX, boxY + paddingY + lineHeight * (i + 1) - 4);
         });
+        ctx.restore();
+
+        this.drawDebugPieChart(boxX, boxY + statsBoxHeight + 8, boxWidth);
+    }
+
+    static get DEBUG_PIE_STYLE() {
+        return {
+            physics: { label: 'Physics tick', color: '#3aa0ff' },
+            background: { label: 'Background', color: '#a78bfa' },
+            tiles: { label: 'Tiles/walls', color: '#4ade80' },
+            players: { label: 'Players', color: '#ff5470' },
+            thumbnails: { label: 'Thumbnails', color: '#fbbf24' },
+            results: { label: 'Results screen', color: '#f97316' },
+            loading: { label: 'Loading screen', color: '#22d3ee' },
+            ui: { label: 'UI/HUD', color: '#38bdf8' },
+            other: { label: 'Other', color: '#8891a3' }
+        };
+    }
+
+    drawDebugPieChart(boxX, boxY, boxWidth) {
+        const ctx = this.ctx;
+        const averages = this.profiler.getAverages();
+        const style = Game.DEBUG_PIE_STYLE;
+        const order = ['physics', 'background', 'tiles', 'players', 'thumbnails', 'results', 'loading', 'ui', 'other'];
+
+        const total = order.reduce((sum, name) => sum + (averages[name] || 0), 0);
+        const rowHeight = 15;
+        const headerHeight = 20;
+        const pieAreaHeight = 96;
+        const boxHeight = headerHeight + pieAreaHeight + rowHeight * order.length + 10;
+
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+        ctx.beginPath();
+        ctx.rect(boxX, boxY, boxWidth, boxHeight);
+        ctx.clip();
+
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#f4f6fb';
+        ctx.fillText(`Frame time: ${total.toFixed(1)} ms/frame`, boxX + 10, boxY + 15);
+
+        const cx = boxX + boxWidth / 2;
+        const cy = boxY + headerHeight + pieAreaHeight / 2;
+        const radius = 40;
+
+        if (total > 0.001) {
+            let startAngle = -Math.PI / 2;
+            for (const name of order) {
+                const value = averages[name] || 0;
+                if (value <= 0) continue;
+                const sliceAngle = (value / total) * Math.PI * 2;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, radius, startAngle, startAngle + sliceAngle);
+                ctx.closePath();
+                ctx.fillStyle = style[name].color;
+                ctx.fill();
+                startAngle += sliceAngle;
+            }
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        } else {
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#8891a3';
+            ctx.fillText('no data yet', cx, cy);
+            ctx.textAlign = 'left';
+        }
+
+        const legendLeft = boxX + 23;
+        const legendRight = boxX + boxWidth - 10;
+        let legendY = boxY + headerHeight + pieAreaHeight + 10;
+        ctx.font = '11px monospace';
+        for (const name of order) {
+            const value = averages[name] || 0;
+            const pct = total > 0.001 ? (value / total) * 100 : 0;
+
+            ctx.fillStyle = style[name].color;
+            ctx.fillRect(boxX + 10, legendY - 8, 9, 9);
+
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#f4f6fb';
+            ctx.fillText(style[name].label, legendLeft, legendY);
+
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#c3c9d6';
+            ctx.fillText(`${pct.toFixed(0)}% (${value.toFixed(1)}ms)`, legendRight, legendY);
+            ctx.textAlign = 'left';
+
+            legendY += rowHeight;
+        }
+
         ctx.restore();
     }
 
@@ -3021,7 +3325,7 @@ class Game {
                 break;
 
             case GameState.ROUND_RESULTS:
-                this.drawRoundResultsScreen(this.ctx);
+                this.profiler.time('results', () => this.drawRoundResultsScreen(this.ctx));
                 break;
 
             case GameState.MENU:
@@ -3029,9 +3333,11 @@ class Game {
                 break;
         }
 
-        this.drawChat();
-        this.drawGlobalHints();
-        this.drawHelpMenu();
+        this.profiler.time('ui', () => {
+            this.drawChat();
+            this.drawGlobalHints();
+            this.drawHelpMenu();
+        });
     }
 
     raceLoop() {
@@ -3039,21 +3345,28 @@ class Game {
             this.raceTimeRemaining = Math.max(0, this.raceTimeRemaining - (1 / 30));
         }
 
-        this.update();
-        this.updateGiveUpHold();
+        this.profiler.time('physics', () => {
+            this.update();
+            this.updateGiveUpHold();
+        });
 
         if (this.levelData) {
             this.renderer.render(this.levelData, this.camera, this.tick);
+            const t = this.renderer.lastTimings;
+            if (t) {
+                this.profiler.add('background', t.background || 0);
+                this.profiler.add('tiles', t.tiles || 0);
+            }
         }
 
-        this.drawEntities();
-        this.drawOffscreenIndicators();
+        this.profiler.time('players', () => this.drawEntities());
 
-        this.drawRaceTimer();
-        this.drawLivesIndicator();
-        this.drawGiveUpHint();
-        this.drawGiveUpRing();
-        this.drawInputDisplay();
+        this.profiler.time('ui', () => {
+            this.drawRaceTimer();
+            this.drawLivesIndicator();
+            this.drawGiveUpRing();
+            this.drawInputDisplay();
+        });
 
         this.tick += 1;
     }
@@ -3140,25 +3453,6 @@ class Game {
     }
 
 
-    drawGiveUpHint() {
-        if (this.gameState !== GameState.RACE) return;
-
-        const player = this.players.find(p => p && p.controls);
-        if (!player || player.hasFinished || player.eliminated) return;
-
-        const raceElapsedSeconds = this.RACE_TIME_LIMIT - this.raceTimeRemaining;
-        if (raceElapsedSeconds < this.GIVE_UP_LOCKOUT_SECONDS) return;
-
-        const ctx = this.ctx;
-        ctx.save();
-        ctx.font = '12px ' + THEME.font;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.fillText('Hold SHIFT to give up', this.canvas.width / 2, this.canvas.height - 10);
-        ctx.restore();
-    }
-
     drawGiveUpRing() {
         if (this.giveUpHoldFrames <= 0) return;
         const cx = this.canvas.width / 2;
@@ -3240,13 +3534,20 @@ class Game {
             }
         }
 
-        this.updateBuildCursorMovement();
-        this.updateBuildCamera();
+        this.profiler.time('physics', () => {
+            this.updateBuildCursorMovement();
+            this.updateBuildCamera();
+        });
 
         if (this.levelData) {
             this.renderer.render(this.levelData, this.camera, this.tick);
+            const t = this.renderer.lastTimings;
+            if (t) {
+                this.profiler.add('background', t.background || 0);
+                this.profiler.add('tiles', t.tiles || 0);
+            }
         }
-        this.drawBuildScreen();
+        this.profiler.time('players', () => this.drawBuildScreen());
     }
 
     updateBuildCamera() {
@@ -3307,13 +3608,6 @@ class Game {
     drawBuildScreen() {
         this.drawScreenTitle('Build!');
 
-        this.ctx.font = "13px " + THEME.font;
-        this.ctx.fillStyle = THEME.textMuted;
-        this.ctx.fillText(
-            'Arrow keys to move, Q/E rotate, Enter/Shift to place.',
-            this.canvas.width / 2, 66
-        );
-
         this.drawRoundBadge();
         this.drawCountdownRing(this.buildTimeRemaining, this.BUILD_TIME_LIMIT, "#000000");
 
@@ -3355,10 +3649,10 @@ class Game {
         this.partyTimeRemaining = Math.max(0, this.partyTimeRemaining - (1 / 30));
 
         if (this.partyTimeRemaining <= 0 && !this.players.every(p => p.piece)) {
-            this.autoAssignRemainingPartyPicks();
+            this.profiler.time('physics', () => this.autoAssignRemainingPartyPicks());
         }
 
-        this.drawPartyBoxScreen();
+        this.profiler.time('ui', () => this.drawPartyBoxScreen());
     }
     drawSelectionOutlines(x, y, width, height, radius, playersHere, lockedField) {
         const RING_GAP = 4;
@@ -3442,13 +3736,6 @@ class Game {
         this.drawCountdownRing(this.partyTimeRemaining, this.PARTY_TIME_LIMIT);
         this.drawChosenLevelThumbnail();
 
-        this.ctx.font = "14px " + THEME.font;
-        this.ctx.fillStyle = THEME.textMuted;
-        this.ctx.fillText(
-            'Arrow keys to move, Enter/Shift to grab',
-            this.canvas.width / 2, 78
-        );
-
         const slots = this.partySlots;
         if (!slots || slots.length === 0) return;
         const spacing = this.canvas.width / (slots.length + 1);
@@ -3486,19 +3773,26 @@ class Game {
         this.drawPartyStatusList(boxY + boxHeight + 45);
     }
     stageSelectLoop() {
-        this.updateStageSelectPhysics();
+        this.profiler.time('physics', () => this.updateStageSelectPhysics());
 
         if (this.levelData) {
             this.renderer.render(this.levelData, this.camera, this.tick);
+            const t = this.renderer.lastTimings;
+            if (t) {
+                this.profiler.add('background', t.background || 0);
+                this.profiler.add('tiles', t.tiles || 0);
+            }
         }
-        this.drawStageVoteZones();
-        this.drawEntities();
-        this.drawStageSelectHud();
-        this.drawStageVoteTimer();
-        this.drawHubMenuHints();
-        this.drawSettingsMenu();
-        this.drawColorPicker();
-        this.drawInputDisplay();
+        this.profiler.time('stageVoteZones', () => this.drawStageVoteZones());
+        this.profiler.time('players', () => this.drawEntities());
+        this.profiler.time('ui', () => {
+            this.drawStageSelectHud();
+            this.drawStageVoteTimer();
+            this.drawHubMenuHints();
+            this.drawSettingsMenu();
+            this.drawColorPicker();
+            this.drawInputDisplay();
+        });
     }
     drawStageSelectHud() {
         if (this.stageHintHidden) return;
@@ -3511,16 +3805,6 @@ class Game {
         this.ctx.strokeText('Stand on the stage you want!', this.canvas.width / 2, 44);
         this.ctx.fillStyle = THEME.text;
         this.ctx.fillText('Stand on the stage you want!', this.canvas.width / 2, 44);
-
-        this.ctx.font = "13px " + THEME.font;
-        this.ctx.textAlign = 'center';
-        const subtitle = `Everyone must stand still on a stage. The countdown starts once all players are ready.`;
-        this.ctx.lineWidth = 3;
-        this.ctx.lineJoin = 'round';
-        this.ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
-        this.ctx.strokeText(subtitle, this.canvas.width / 2, 66);
-        this.ctx.fillStyle = THEME.textMuted;
-        this.ctx.fillText(subtitle, this.canvas.width / 2, 66);
     }
     drawStageVoteZones() {
         const zones = this.stageVoteZones || [];
@@ -3528,6 +3812,7 @@ class Game {
         const ctx = this.ctx;
 
         ctx.save();
+
         zones.forEach((zone, i) => {
             const code = candidates[i];
             if (!code) return;
@@ -3536,23 +3821,26 @@ class Game {
             const boxWidth = 200 * this.camera.zoom;
             const thumbH = boxWidth * STAGE_PREVIEW_ASPECT;
             const thumbX = screen.x - boxWidth / 2;
-            const thumbY = screen.y - thumbH + 18;
+            const thumbY = screen.y - thumbH + 14 * this.camera.zoom;
 
             const levelIndex = LEVEL_POOL.indexOf(code);
             const levelTitle = (levelIndex !== -1 && LEVEL_NAMES[levelIndex]) ? LEVEL_NAMES[levelIndex] : `Stage ${i + 1}`;
-            ctx.fillStyle = '#000000';
-            ctx.font = `${13 * this.camera.zoom}px ` + THEME.font;
-            ctx.textAlign = 'center';
-            ctx.fillText(levelTitle, screen.x, thumbY - 8 * this.camera.zoom);
+
+            const titleCanvas = this.getStageTitleCanvas(levelTitle);
+            const titleScale = this.camera.zoom;
+            const titleBaselineY = thumbY - 8 * this.camera.zoom;
+            const titleW = titleCanvas.width * titleScale;
+            const titleH = titleCanvas.height * titleScale;
+            ctx.drawImage(
+                titleCanvas,
+                screen.x - titleW / 2,
+                titleBaselineY - titleH * titleScale,
+                titleW,
+                titleH
+            );
 
             const thumb = this.generateStageThumbnail(code, boxWidth, thumbH);
-            ctx.save();
-            ctx.imageSmoothingEnabled = true;
-            this.roundRectPath(thumbX, thumbY, boxWidth, thumbH, Math.min(8 * this.camera.zoom, boxWidth / 2, thumbH / 2));
-            ctx.clip();
-            ctx.drawImage(thumb, thumbX, thumbY, boxWidth, thumbH);
-            ctx.restore();
-
+            if (thumb) ctx.drawImage(thumb, thumbX, thumbY, boxWidth, thumbH);
         });
         ctx.restore();
     }
@@ -4246,13 +4534,23 @@ class Game {
         }
     }
 
+    getVolumeForSeat(seatIndex) {
+        const pos = this.remotePositions.get(seatIndex);
+        if (pos) return this.getDistanceVolume(pos.x, pos.y);
+        const player = this.players[seatIndex];
+        if (player && player.physicsState) {
+            return this.getDistanceVolume(player.physicsState.PLAYER_X, player.physicsState.PLAYER_Y);
+        }
+        return 1;
+    }
+
     handleFinishConfirmed(payload) {
         const player = this.players[payload.seatIndex];
         if (!player) return;
         player.hasFinished = true;
         player.respawnPendingFrames = 0;
         player.finishTick = payload.finishTick;
-        playSfx('finish');
+        playSfx('finish', this.getVolumeForSeat(payload.seatIndex));
     }
 
     handleEliminationConfirmed(payload) {
@@ -4260,14 +4558,14 @@ class Game {
         if (!player) return;
         player.eliminated = true;
         player.dnf = payload.cause === 'dnf';
-        if (typeof playSfx === 'function') playSfx('boom');
+        if (typeof playSfx === 'function') playSfx('boom', this.getVolumeForSeat(payload.seatIndex));
     }
     handleRespawnSync(payload) {
         const player = this.players[payload && payload.seatIndex];
         if (!player || player.hasFinished || player.eliminated) return;
         if (player.controls) return; 
         player.respawnPendingFrames = this.RESPAWN_DELAY_FRAMES;
-        if (typeof playSfx === 'function') playSfx('boom');
+        if (typeof playSfx === 'function') playSfx('boom', this.getVolumeForSeat(payload.seatIndex));
     }
 
     handleRoundResult(payload) {

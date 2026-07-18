@@ -14,8 +14,36 @@ class LevelRenderer {
         this.assetsLoaded = false;
         this.tileSize = 60;
 
+        this._rotationCache = new WeakMap();
+
         this.needsHue = [..."01111110010010001101100000000001100000000111000001111111101000000001000001001111111001"]
             .flatMap((c, i) => c === "1" ? [i] : []);
+
+        this.isFullBlockList = [..."011000000100000011011000000000001000000000000000011111111000000000010000000000111"];
+        this.isFullBlock = new Set(
+            this.isFullBlockList.flatMap((c, i) => c === "1" ? [i] : [])
+        );
+    }
+
+    isTileFullBlock(rawTileVal) {
+        return this.isFullBlock.has(rawTileVal - 1);
+    }
+
+    isSurroundedByFullBlocks(levelData, row, col) {
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                const nRow = row + dr;
+                const nCol = col + dc;
+                const nIdx = nRow * levelData.size_x + nCol;
+                if (nIdx < 0 || nIdx >= levelData.map.length) return false;
+                if (nCol < 0 || nCol >= levelData.size_x) return false;
+
+                const neighborVal = levelData.map[nIdx];
+                if (!this.isTileFullBlock(neighborVal)) return false;
+            }
+        }
+        return true;
     }
 
     static getDataFromCode(code) {
@@ -236,6 +264,31 @@ class LevelRenderer {
         this.ctx.restore();
     }
     
+    getRotatedTile(tile, rotation) {
+        if (rotation === 1) return tile;
+        if (!tile.width || !tile.height) return tile;
+
+        let byRotation = this._rotationCache.get(tile);
+        if (!byRotation) {
+            byRotation = new Map();
+            this._rotationCache.set(tile, byRotation);
+        }
+
+        let rotated = byRotation.get(rotation);
+        if (rotated) return rotated;
+
+        rotated = document.createElement('canvas');
+        rotated.width = tile.width;
+        rotated.height = tile.height;
+        const rctx = rotated.getContext('2d');
+        rctx.translate(rotated.width / 2, rotated.height / 2);
+        rctx.rotate((rotation - 1) * Math.PI / 2);
+        rctx.drawImage(tile, -tile.width / 2, -tile.height / 2, tile.width, tile.height);
+
+        byRotation.set(rotation, rotated);
+        return rotated;
+    }
+
     getHuedTileset(hue) {
         if (hue === 0) return this.tiles;
         if (this.tilesetCache.has(hue)) return this.tilesetCache.get(hue);
@@ -401,13 +454,14 @@ class LevelRenderer {
                 const tile = activeTileset[tileIndex];
                 if (!tile) continue;
 
-                ctx.save();
-                ctx.translate(tileX, tileY);
-                if (rotation !== 1) {
-                    ctx.rotate((rotation - 1) * Math.PI / 2);
-                }
-                ctx.drawImage(tile, -tile.width / 2, -tile.height / 2, tile.width, tile.height);
-                ctx.restore();
+                const drawTile = this.getRotatedTile(tile, rotation);
+                ctx.drawImage(
+                    drawTile,
+                    tileX - drawTile.width / 2,
+                    tileY - drawTile.height / 2,
+                    drawTile.width,
+                    drawTile.height
+                );
             }
         }
 
@@ -454,6 +508,7 @@ class LevelRenderer {
 
     render(levelData, camera, tick) {
         if (!this.assetsLoaded) return;
+        const _t0 = performance.now();
 
         const { width, height } = this.canvas;
         const ctx = this.ctx;
@@ -487,6 +542,7 @@ class LevelRenderer {
                 ctx.drawImage(bg, tx, ty, bgW + 2, bgH + 2);
             }
         }
+        const _t1 = performance.now();
 
         ctx.save();
         ctx.translate(width / 2, height / 2);
@@ -537,6 +593,11 @@ class LevelRenderer {
                         rawTileVal = 63 + Math.abs(Math.floor(tick / 3) % 8 -3);
                     } 
 
+                    if (isForeground === 0 && this.isTileFullBlock(rawTileVal) &&
+                        this.isSurroundedByFullBlocks(levelData, row, col)) {
+                        continue;
+                    }
+
                     const tileIndex = rawTileVal - 1 + offset;
                     const tile = activeTileset[tileIndex];
                     if (!tile) continue;
@@ -545,27 +606,26 @@ class LevelRenderer {
                     const tileX = col * 60 + 30;
                     const tileY = -row * 60 - 30;
 
-                    ctx.save();
-                    ctx.translate(tileX, tileY);
-                    if (rotation !== 1) {
-                        ctx.rotate((rotation - 1) * Math.PI / 2);
-                    }
-
-                    const drawW = tile.width;
-                    const drawH = tile.height;
+                    const drawTile = this.getRotatedTile(tile, rotation);
+                    const drawW = drawTile.width;
+                    const drawH = drawTile.height;
 
                     ctx.drawImage(
-                        tile, 
-                        -drawW / 2, 
-                        -drawH / 2, 
-                        drawW, 
+                        drawTile,
+                        tileX - drawW / 2,
+                        tileY - drawH / 2,
+                        drawW,
                         drawH
                     );
-
-                    ctx.restore();
                 }
             }
         }
         ctx.restore();
+
+        const _t2 = performance.now();
+        this.lastTimings = {
+            background: _t1 - _t0,
+            tiles: _t2 - _t1
+        };
     }
 }

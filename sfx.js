@@ -19,7 +19,7 @@ for (const [name, path] of Object.entries(SFX_FILES)) {
 }
 const ACTIVE_CRUMBLE_NODES = new Set();
 
-function playSfx(name) {
+function playSfx(name, volume = 1) {
     const base = SFX_CACHE[name];
     if (!base) {
         console.warn(`[sfx] unknown sound: ${name}`);
@@ -35,6 +35,7 @@ function playSfx(name) {
     }
 
     const node = base.cloneNode();
+    node.volume = Math.max(0, Math.min(1, volume));
 
     if (name === 'crumble') {
         ACTIVE_CRUMBLE_NODES.add(node);

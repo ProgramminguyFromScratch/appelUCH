@@ -46,7 +46,7 @@ const DEFAULT_SETTINGS = {
     comebackPoints: 2,
     firstPlacePoints: 1,
     totalRounds: TOTAL_ROUNDS,
-    raceTimeLimit: 60,
+    raceTimeLimit: 100,
     pieceChances: {}
 };
 
