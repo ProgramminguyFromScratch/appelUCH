@@ -175,7 +175,7 @@ class LevelRenderer {
         this.playerSpriteCache.set(hue, sprite);
         return sprite;
     }
-    renderPlayer(playerPos, camera, hue = 0, name = "", color = "#ffffff", status = null) {
+    renderPlayer(playerPos, camera, hue = 0, name = "", color = "#ffffff", status = null, alpha = 1) {
         if (!this.playerNormal || !this.playerCrouch) return;
 
         const sprite = this.getHuedPlayerSprite(hue);
@@ -221,9 +221,11 @@ class LevelRenderer {
             dx = -12; dy = -16; dw = 24; dh = 32;
         }
 
+        let drawAlpha = alpha;
         if (status === 'dead' || status === 'won' || status === 'respawning') {
-            this.ctx.globalAlpha = 0.45;
+            drawAlpha = Math.min(drawAlpha, 0.45);
         }
+        this.ctx.globalAlpha = drawAlpha;
 
         this.ctx.drawImage(image, dx, dy, dw, dh);
 
@@ -234,6 +236,7 @@ class LevelRenderer {
             this.ctx.globalCompositeOperation = 'source-over';
         }
 
+        this.ctx.globalAlpha = 1;
         this.ctx.restore();
     }
 

@@ -1161,10 +1161,10 @@ class Room {
         if (allConfirmed) this.advanceRound();
     }
     handleNextRequest(seat) {
-        if (!seat || !seat.isAdmin) return;
+        if (!this.isPrivileged(seat)) return;
         if (this.phase !== PHASE.ROUND_RESULTS) return;
         if (this.locks.continueAdvanced) return;
-        console.log(`[room ${this.roomCode}] admin "${seat.name}" skipped round-results wait`);
+        console.log(`[room ${this.roomCode}] "${seat.name}" skipped round-results wait`);
         this.advanceRound();
     }
 
