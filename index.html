@@ -380,7 +380,7 @@
         </div>
         <div class="openLobbyRow" id="createOpenLobbyRow">
             <input id="createOpenLobbyCheckbox" type="checkbox" checked />
-            <label for="createOpenLobbyCheckbox">Open lobby (visible in Browse Open Lobbies) — only applies when creating a new room</label>
+            <label for="createOpenLobbyCheckbox">Open lobby (visible in Browse Open Lobbies)</label>
         </div>
         <div class="rowGroup">
             <button id="btnCreateOrJoin">Create / Join Room</button>
@@ -394,7 +394,7 @@
     <div id="lobbyBrowserScreen" class="overlay" style="display:none;">
         <h1>Open Lobbies</h1>
         <ul id="openLobbyList"></ul>
-        <div id="noLobbiesText" style="display:none;">No open lobbies right now — create your own!</div>
+        <div id="noLobbiesText" style="display:none;">No open lobbies right now. Create your own!</div>
         <div class="rowGroup">
             <button id="btnRefreshLobbies" class="secondary">Refresh</button>
             <button id="btnBackFromBrowser" class="secondary">Back</button>
@@ -976,7 +976,7 @@
                 openLobbyRow.classList.toggle('readOnly', !isHost);
                 openLobbyStatus.textContent = isHost
                     ? ''
-                    : (settings.openLobby ? 'This lobby is open — visible in the lobby browser.' : 'This lobby is closed — invite link only.');
+                    : (settings.openLobby ? 'This lobby is lobby to other players.' : 'This lobby is closed. Invite link only.');
             }
 
             openLobbyCheckbox.addEventListener('change', () => {
