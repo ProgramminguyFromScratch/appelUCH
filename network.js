@@ -180,8 +180,8 @@ class NetworkClient {
         }
     }
 
-    joinRoom(roomCode, displayName, playerId = null) {
-        this._send('JOIN_ROOM', { roomCode: roomCode || '', displayName, playerId });
+    joinRoom(roomCode, displayName, playerId = null, openLobby = true) {
+        this._send('JOIN_ROOM', { roomCode: roomCode || '', displayName, playerId, openLobby: !!openLobby });
     }
 
     requestLobbyList() {

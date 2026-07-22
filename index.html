@@ -96,6 +96,12 @@
             font-weight: bold;
             color: #3aa0ff;
         }
+        #joinLobbyCode {
+            font-size: 24px;
+            letter-spacing: 4px;
+            font-weight: bold;
+            color: #3aa0ff;
+        }
 
         #playerList {
             list-style: none;
@@ -144,20 +150,24 @@
             gap: 14px;
         }
 
-        #openLobbyRow {
+        .openLobbyRow {
             display: flex;
             align-items: center;
             gap: 10px;
             font-size: 14px;
             color: #ccc;
         }
-        #openLobbyRow input[type="checkbox"] {
+        .openLobbyRow input[type="checkbox"] {
             width: 18px;
             height: 18px;
             cursor: pointer;
         }
-        #openLobbyRow.readOnly input[type="checkbox"] {
+        .openLobbyRow.readOnly input[type="checkbox"] {
             cursor: default;
+        }
+        #createOpenLobbyRow label {
+            max-width: 320px;
+            text-align: left;
         }
         #openLobbyStatus {
             color: #8891a3;
@@ -361,6 +371,10 @@
         <div class="rowGroup">
             <input id="roomCodeInput" type="text" placeholder="Room code (optional)" maxlength="5" style="text-transform:uppercase; width: 160px;" />
         </div>
+        <div class="openLobbyRow" id="createOpenLobbyRow">
+            <input id="createOpenLobbyCheckbox" type="checkbox" checked />
+            <label for="createOpenLobbyCheckbox">Open lobby (visible in Browse Open Lobbies) — only applies when creating a new room</label>
+        </div>
         <div class="rowGroup">
             <button id="btnCreateOrJoin">Create / Join Room</button>
         </div>
@@ -376,6 +390,17 @@
         <div class="rowGroup">
             <button id="btnRefreshLobbies" class="secondary">Refresh</button>
             <button id="btnBackFromBrowser" class="secondary">Back</button>
+        </div>
+    </div>
+
+    <div id="joinLobbyModal" class="overlay" style="display:none;">
+        <h1>Join Lobby</h1>
+        <div id="joinLobbyCode"></div>
+        <input id="joinLobbyNameInput" type="text" placeholder="Your name" maxlength="24" />
+        <div id="joinLobbyError"></div>
+        <div class="rowGroup">
+            <button id="btnConfirmJoinLobby">Join</button>
+            <button id="btnCancelJoinLobby" class="secondary">Cancel</button>
         </div>
     </div>
 
@@ -474,7 +499,7 @@
         </div>
         <ul id="playerList"></ul>
 
-        <div id="openLobbyRow">
+        <div id="openLobbyRow" class="openLobbyRow">
             <input id="openLobbyCheckbox" type="checkbox" checked />
             <label for="openLobbyCheckbox">Open lobby (visible to lobby browser)</label>
         </div>
@@ -529,9 +554,16 @@
         const btnBrowseLobbies = document.getElementById('btnBrowseLobbies');
         const btnRefreshLobbies = document.getElementById('btnRefreshLobbies');
         const btnBackFromBrowser = document.getElementById('btnBackFromBrowser');
+        const joinLobbyModal = document.getElementById('joinLobbyModal');
+        const joinLobbyCode = document.getElementById('joinLobbyCode');
+        const joinLobbyNameInput = document.getElementById('joinLobbyNameInput');
+        const joinLobbyError = document.getElementById('joinLobbyError');
+        const btnConfirmJoinLobby = document.getElementById('btnConfirmJoinLobby');
+        const btnCancelJoinLobby = document.getElementById('btnCancelJoinLobby');
         const openLobbyRow = document.getElementById('openLobbyRow');
         const openLobbyCheckbox = document.getElementById('openLobbyCheckbox');
         const openLobbyStatus = document.getElementById('openLobbyStatus');
+        const createOpenLobbyCheckbox = document.getElementById('createOpenLobbyCheckbox');
 
         const copyLevelCodeBtn = document.getElementById('copyLevelCodeBtn');
         function wireCopyLevelCodeButton(game) {
@@ -586,8 +618,8 @@
             fullscreenBtn.style.display = document.fullscreenElement ? 'none' : 'block';
         });
 
-        // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
-        const serverUrl = params.get('server') || `https://appeluch.onrender.com`;
+        const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
+        // const serverUrl = params.get('server') || `https://appeluch.onrender.com`;
 
         const network = new NetworkClient(serverUrl);
         const game = new Game('gameCanvas', playerCount, network);
@@ -668,6 +700,15 @@
                 }
             }
 
+            const OPEN_LOBBY_PREF_KEY = 'appel_open_lobby_pref';
+            const savedOpenLobbyPref = localStorage.getItem(OPEN_LOBBY_PREF_KEY);
+            if (savedOpenLobbyPref !== null) {
+                createOpenLobbyCheckbox.checked = savedOpenLobbyPref === '1';
+            }
+            createOpenLobbyCheckbox.addEventListener('change', () => {
+                localStorage.setItem(OPEN_LOBBY_PREF_KEY, createOpenLobbyCheckbox.checked ? '1' : '0');
+            });
+
             function joinWithCode(roomCode) {
                 const name = sanitizeDisplayName(displayNameInput.value);
                 if (!name) {
@@ -680,9 +721,53 @@
 
                 connectAndRun(() => {
                     const savedPlayerId = sessionStorage.getItem(STORAGE_KEY);
-                    network.joinRoom(roomCode, name, savedPlayerId);
+                    network.joinRoom(roomCode, name, savedPlayerId, createOpenLobbyCheckbox.checked);
                 });
             }
+
+            let pendingJoinRoomCode = null;
+
+            function openJoinLobbyModal(roomCode) {
+                pendingJoinRoomCode = roomCode;
+                joinLobbyCode.textContent = roomCode;
+                joinLobbyNameInput.value = sanitizeDisplayName(displayNameInput.value) || '';
+                joinLobbyError.textContent = '';
+                btnConfirmJoinLobby.disabled = false;
+                lobbyBrowserScreen.style.display = 'none';
+                joinLobbyModal.style.display = 'flex';
+                joinLobbyNameInput.focus();
+            }
+
+            function closeJoinLobbyModal(backToBrowser) {
+                joinLobbyModal.style.display = 'none';
+                pendingJoinRoomCode = null;
+                if (backToBrowser) lobbyBrowserScreen.style.display = 'flex';
+            }
+
+            function confirmJoinLobby() {
+                if (!pendingJoinRoomCode) return;
+                const name = sanitizeDisplayName(joinLobbyNameInput.value);
+                if (!name) {
+                    joinLobbyError.textContent = 'Enter a name using standard keyboard characters.';
+                    return;
+                }
+                joinLobbyNameInput.value = name;
+                displayNameInput.value = name; // keep the name screen in sync for next time
+                joinLobbyError.textContent = '';
+                btnConfirmJoinLobby.disabled = true;
+
+                const roomCode = pendingJoinRoomCode;
+                connectAndRun(() => {
+                    const savedPlayerId = sessionStorage.getItem(STORAGE_KEY);
+                    network.joinRoom(roomCode, name, savedPlayerId, createOpenLobbyCheckbox.checked);
+                });
+            }
+
+            btnConfirmJoinLobby.addEventListener('click', confirmJoinLobby);
+            btnCancelJoinLobby.addEventListener('click', () => closeJoinLobbyModal(true));
+            joinLobbyNameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') confirmJoinLobby();
+            });
 
             btnCreateOrJoin.addEventListener('click', () => {
                 joinWithCode(roomCodeInput.value.trim().toUpperCase());
@@ -704,16 +789,15 @@
                     const meta = document.createElement('span');
                     meta.className = 'lobbyMeta';
                     const hostPart = lobby.hostName ? `${lobby.hostName}'s lobby · ` : '';
-                    meta.textContent = `${hostPart}${lobby.playerCount}/${lobby.maxPlayers} players`;
+                    const statusPart = lobby.inHub ? ' · in hub' : '';
+                    meta.textContent = `${hostPart}${lobby.playerCount}/${lobby.maxPlayers} players${statusPart}`;
                     info.appendChild(meta);
                     li.appendChild(info);
 
                     const joinBtn = document.createElement('button');
                     joinBtn.textContent = 'Join';
                     joinBtn.addEventListener('click', () => {
-                        lobbyBrowserScreen.style.display = 'none';
-                        nameScreen.style.display = 'flex';
-                        joinWithCode(lobby.roomCode);
+                        openJoinLobbyModal(lobby.roomCode);
                     });
                     li.appendChild(joinBtn);
 
@@ -749,20 +833,28 @@
             network.onSeatAssigned = (payload) => {
                 if (priorOnSeatAssigned) priorOnSeatAssigned(payload);
                 sessionStorage.setItem(STORAGE_KEY, payload.playerId);
+                closeJoinLobbyModal(false);
                 nameScreen.style.display = 'none';
                 lobbyScreen.style.display = 'flex';
             };
 
             network.onJoinRejected = (payload) => {
-                btnCreateOrJoin.disabled = false;
-                window.history.replaceState({}, '', '/' + window.location.search);
-                showError(
+                const message =
                     payload.reason === 'room_full' ? 'That room is full.' :
                     payload.reason === 'match_in_progress' ? 'That room already started a match.' :
                     payload.reason === 'name_taken' ? 'That name is already taken in this room.' :
                     payload.reason === 'invalid_name' ? 'Enter a name using standard keyboard characters.' :
-                    'Could not join that room.'
-                );
+                    'Could not join that room.';
+
+                if (pendingJoinRoomCode) {
+                    btnConfirmJoinLobby.disabled = false;
+                    joinLobbyError.textContent = message;
+                    return;
+                }
+
+                btnCreateOrJoin.disabled = false;
+                window.history.replaceState({}, '', '/' + window.location.search);
+                showError(message);
             };
 
             const colorSlider = document.getElementById('colorSlider');

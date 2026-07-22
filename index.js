@@ -27,7 +27,11 @@ function send(ws, message) {
 }
 
 function handleJoinRoom(ws, payload = {}) {
-    const room = roomManager.getOrCreateRoom(payload.roomCode);
+    // Only matters when this call actually creates a new room — an existing
+    // room's openLobby setting is left alone so a lobby is never briefly
+    // open/closed before its creator's preference takes effect.
+    const initialOpenLobby = payload.openLobby === false || payload.openLobby === 0 ? 0 : 1;
+    const room = roomManager.getOrCreateRoom(payload.roomCode, initialOpenLobby);
 
     if (payload.playerId) {
         const existing = [...room.seats.values()].find(s => s.playerId === payload.playerId && !s.connected);

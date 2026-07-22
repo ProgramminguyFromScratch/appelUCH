@@ -19,12 +19,17 @@ class RoomManager {
         return code;
     }
 
-    getOrCreateRoom(requestedCode) {
+    getOrCreateRoom(requestedCode, initialOpenLobby) {
         if (requestedCode && this.rooms.has(requestedCode)) {
             return this.rooms.get(requestedCode);
         }
         const code = requestedCode && requestedCode.length > 0 ? requestedCode : this.generateRoomCode();
         const room = new Room(code);
+        // Only applies at creation — an existing room's setting is untouched
+        // (and can only be changed afterward via the host's settings toggle).
+        if (typeof initialOpenLobby !== 'undefined') {
+            room.settings.openLobby = initialOpenLobby ? 1 : 0;
+        }
         this.rooms.set(code, room);
         console.log(`[RoomManager] created room ${code}`);
         return room;
@@ -47,7 +52,9 @@ class RoomManager {
     listOpenLobbies() {
         const list = [];
         for (const room of this.rooms.values()) {
-            if (room.phase !== PHASE.LOBBY) continue;
+            // Rooms are joinable while in LOBBY or STAGE_SELECT (the hub) —
+            // see index.js handleJoinRoom — so both should be browsable.
+            if (room.phase !== PHASE.LOBBY && room.phase !== PHASE.STAGE_SELECT) continue;
             if (!room.settings || !room.settings.openLobby) continue;
 
             const seats = [...room.seats.values()];
@@ -60,7 +67,8 @@ class RoomManager {
                 roomCode: room.roomCode,
                 playerCount: connectedSeats.length,
                 maxPlayers: MAX_PLAYERS,
-                hostName: host ? host.name : ''
+                hostName: host ? host.name : '',
+                inHub: room.phase === PHASE.STAGE_SELECT
             });
         }
         return list;
