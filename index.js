@@ -10,10 +10,8 @@ const roomManager = new RoomManager();
 const wss = new WebSocketServer({
     port: PORT,
     perMessageDeflate: {
-        // Compress messages sent to each client — big win for the repetitive
-        // JSON we're sending every tick (POSITION_SYNC, INPUT_RELAY, etc).
         zlibDeflateOptions: { level: 6 },
-        threshold: 64 // don't bother compressing tiny messages, not worth the CPU
+        threshold: 64
     }
 });
 
@@ -27,9 +25,6 @@ function send(ws, message) {
 }
 
 function handleJoinRoom(ws, payload = {}) {
-    // Only matters when this call actually creates a new room — an existing
-    // room's openLobby setting is left alone so a lobby is never briefly
-    // open/closed before its creator's preference takes effect.
     const initialOpenLobby = payload.openLobby === false || payload.openLobby === 0 ? 0 : 1;
     const room = roomManager.getOrCreateRoom(payload.roomCode, initialOpenLobby);
 

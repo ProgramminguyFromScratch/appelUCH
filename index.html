@@ -86,6 +86,13 @@
             min-height: 18px;
         }
 
+        #wakingText {
+            color: #8891a3;
+            font-size: 13px;
+            min-height: 18px;
+            display: none;
+        }
+
         #roomCodeLabel {
             font-size: 15px;
             color: #8891a3;
@@ -380,6 +387,7 @@
         </div>
         <button id="btnBrowseLobbies" class="secondary">Browse Open Lobbies</button>
         <div id="errorText"></div>
+        <div id="wakingText"></div>
         <button id="btnShowCredits" class="secondary">Credits</button>
     </div>
 
@@ -542,6 +550,7 @@
         const roomCodeInput = document.getElementById('roomCodeInput');
         const btnCreateOrJoin = document.getElementById('btnCreateOrJoin');
         const errorText = document.getElementById('errorText');
+        const wakingText = document.getElementById('wakingText');
         const roomCodeValue = document.getElementById('roomCodeValue');
         const btnCopyInvite = document.getElementById('btnCopyInvite');
         const playerList = document.getElementById('playerList');
@@ -618,8 +627,8 @@
             fullscreenBtn.style.display = document.fullscreenElement ? 'none' : 'block';
         });
 
-        // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
-        const serverUrl = params.get('server') || `https://appeluch.onrender.com`;
+        const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
+        // const serverUrl = params.get('server') || `https://appeluch.onrender.com`;
 
         const network = new NetworkClient(serverUrl);
         const game = new Game('gameCanvas', playerCount, network);
@@ -691,11 +700,28 @@
                 if (network.isConnected) {
                     fn();
                 } else {
+                    const wakingTimer = setTimeout(() => {
+                        wakingText.textContent = 'Waking up the server. This can take up to a minute...';
+                        wakingText.style.display = 'block';
+                    }, 2000);
+
                     const priorOnOpen = network.onOpen;
                     network.onOpen = () => {
+                        clearTimeout(wakingTimer);
+                        wakingText.textContent = '';
+                        wakingText.style.display = 'none';
                         if (priorOnOpen) priorOnOpen();
                         fn();
                     };
+
+                    const priorOnError = network.onError;
+                    network.onError = (err) => {
+                        clearTimeout(wakingTimer);
+                        wakingText.textContent = '';
+                        wakingText.style.display = 'none';
+                        if (priorOnError) priorOnError(err);
+                    };
+
                     network.connect();
                 }
             }
@@ -752,7 +778,7 @@
                     return;
                 }
                 joinLobbyNameInput.value = name;
-                displayNameInput.value = name; // keep the name screen in sync for next time
+                displayNameInput.value = name;
                 joinLobbyError.textContent = '';
                 btnConfirmJoinLobby.disabled = true;
 

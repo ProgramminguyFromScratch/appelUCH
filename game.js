@@ -2479,7 +2479,6 @@ class Game {
         return keys;
     }
     handleRemotePositionSync(raw) {
-        // raw is now the compact array: [seatIndex, tick, x, y, sx*10, sy*10, direction*100, dir, flags]
         const [seatIndex, tick, x, y, sx10, sy10, dir100, dir, flags] = raw;
         const payload = {
             seatIndex, tick, x, y,

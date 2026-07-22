@@ -889,8 +889,6 @@ class Room {
 
     handlePositionSnapshot(seat, payload) {
         if (this.phase !== PHASE.RACE && this.phase !== PHASE.STAGE_SELECT) return;
-        // payload is now the compact array from NetworkClient.sendPositionSnapshot:
-        // [tick, x, y, sx*10, sy*10, direction*100, dir, flags]
         if (!Array.isArray(payload) || payload.length < 8) return;
 
         const now = Date.now();
@@ -898,8 +896,6 @@ class Room {
         if (now - lastSent < POSITION_SYNC_INTERVAL_MS) return;
         this.lastPositionBroadcastAt.set(seat.seatIndex, now);
 
-        // Just relay it with seatIndex prepended — values are already rounded
-        // integers, no need to unpack/repack them server-side.
         this.broadcast({
             type: 'POSITION_SYNC',
             phase: this.phase,

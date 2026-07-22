@@ -221,11 +221,6 @@ class NetworkClient {
     }
 
     sendPositionSnapshot(tick, x, y, sx, sy, direction, dir, crouched, onWall) {
-        // Compact wire format: no key names, every field rounded to an integer.
-        // x/y -> whole pixels. sx/sy -> tenths (velocity needs a bit more than
-        // whole-number precision or movement gets jittery). direction -> a
-        // radian angle, kept to 2 decimal places (hundredths).
-        // crouched/onWall are packed into a single flags bitmask.
         const flags = (crouched ? 1 : 0) | (onWall ? 2 : 0);
         this._send('POSITION_SNAPSHOT', [
             tick,

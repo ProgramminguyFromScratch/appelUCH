@@ -47,7 +47,7 @@ const DEFAULT_SETTINGS = {
     firstPlacePoints: 1,
     totalRounds: TOTAL_ROUNDS,
     raceTimeLimit: 100,
-    openLobby: 1, // 1 = visible to lobby browser, 0 = closed/invite-only. On by default.
+    openLobby: 1,
     pieceChances: {}
 };
 

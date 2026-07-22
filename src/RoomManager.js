@@ -25,8 +25,6 @@ class RoomManager {
         }
         const code = requestedCode && requestedCode.length > 0 ? requestedCode : this.generateRoomCode();
         const room = new Room(code);
-        // Only applies at creation — an existing room's setting is untouched
-        // (and can only be changed afterward via the host's settings toggle).
         if (typeof initialOpenLobby !== 'undefined') {
             room.settings.openLobby = initialOpenLobby ? 1 : 0;
         }
@@ -52,8 +50,6 @@ class RoomManager {
     listOpenLobbies() {
         const list = [];
         for (const room of this.rooms.values()) {
-            // Rooms are joinable while in LOBBY or STAGE_SELECT (the hub) —
-            // see index.js handleJoinRoom — so both should be browsable.
             if (room.phase !== PHASE.LOBBY && room.phase !== PHASE.STAGE_SELECT) continue;
             if (!room.settings || !room.settings.openLobby) continue;
 
