@@ -271,7 +271,8 @@ class Game {
             { x: 3180, y: 1217 }, //mon
             { x: 1890, y: 977 }, //PH
             {x: 3360, y: 497}, //Sumfink
-            {x: 3810, y: 2357} //chikn
+            {x: 3810, y: 2357}, //chicken
+            {x: 1950, y: 1937} //chikn
         ];
         this.PARTY_BOX_SLOT_COUNT = Math.ceil(1.5 * this.playerCount);
         this.PARTY_TIME_LIMIT = 12; 
