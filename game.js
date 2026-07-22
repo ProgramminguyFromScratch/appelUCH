@@ -222,6 +222,7 @@ class Game {
             firstPlacePoints: 1,
             totalRounds: 10,
             raceTimeLimit: 60,
+            openLobby: 1,
             pieceChances: {}
         };
         this.onSettingsUpdated = null; 
@@ -238,7 +239,8 @@ class Game {
             { key: 'comebackPoints', label: 'Comeback points', min: 0, max: 10, step: 1 },
             { key: 'firstPlacePoints', label: 'First place points', min: 0, max: 10, step: 1 },
             { key: 'totalRounds', label: 'Rounds', min: 1, max: 30, step: 1 },
-            { key: 'raceTimeLimit', label: 'Race time limit (s)', min: 15, max: 180, step: 5 }
+            { key: 'raceTimeLimit', label: 'Race time limit (s)', min: 15, max: 180, step: 5 },
+            { key: 'openLobby', label: 'Open Lobby', min: 0, max: 1, step: 1, toggle: true, toggleLabels: ['Closed', 'Open'] }
         ];
         this.PIECE_CHANCE_META = (typeof PIECE_POOL !== 'undefined' ? PIECE_POOL : []).map(piece => ({
             pieceId: piece.id,
@@ -680,8 +682,9 @@ class Game {
 
             ctx.textAlign = 'right';
             const value = this.getSettingsMenuValue(meta);
+            const displayValue = meta.toggle ? meta.toggleLabels[value ? 1 : 0] : String(value);
             ctx.fillStyle = selected ? THEME.accent : THEME.textMuted;
-            ctx.fillText(String(value), x + width - paddingX, rowY + rowHeight / 2 - 3);
+            ctx.fillText(displayValue, x + width - paddingX, rowY + rowHeight / 2 - 3);
         });
 
         ctx.textAlign = 'center';
@@ -2475,7 +2478,19 @@ class Game {
 
         return keys;
     }
-    handleRemotePositionSync(payload) {
+    handleRemotePositionSync(raw) {
+        // raw is now the compact array: [seatIndex, tick, x, y, sx*10, sy*10, direction*100, dir, flags]
+        const [seatIndex, tick, x, y, sx10, sy10, dir100, dir, flags] = raw;
+        const payload = {
+            seatIndex, tick, x, y,
+            sx: sx10 / 10,
+            sy: sy10 / 10,
+            direction: dir100 / 100,
+            dir,
+            crouched: !!(flags & 1),
+            onWall: !!(flags & 2)
+        };
+
         if (payload.seatIndex === this.localSeatIndex) return; 
 
         const sy = payload.sy;

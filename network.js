@@ -41,7 +41,8 @@ class NetworkClient {
         this.onLoginResult = null;       
         this.onLivesAdjusted = null;     
         this.onKickRejected = null;      
-        this.onHostUpdated = null;       
+        this.onHostUpdated = null;      
+        this.onLobbyList = null;          
         this._GROUPED_MAP = {
             STAGE_SELECT_START: 'onStageState',
             STAGE_CURSOR_MOVE: 'onStageState',
@@ -100,6 +101,7 @@ class NetworkClient {
         this._DIRECT_MAP.LIVES_ADJUSTED = 'onLivesAdjusted';
         this._DIRECT_MAP.KICK_REJECTED = 'onKickRejected';
         this._DIRECT_MAP.HOST_UPDATED = 'onHostUpdated';
+        this._DIRECT_MAP.LOBBY_LIST = 'onLobbyList';
     }
 
     connect() {
@@ -182,6 +184,10 @@ class NetworkClient {
         this._send('JOIN_ROOM', { roomCode: roomCode || '', displayName, playerId });
     }
 
+    requestLobbyList() {
+        this._send('LIST_LOBBIES_REQUEST', {});
+    }
+
     sendSetColorRequest(hue) {
         this._send('SET_COLOR_REQUEST', { hue });
     }
@@ -215,7 +221,22 @@ class NetworkClient {
     }
 
     sendPositionSnapshot(tick, x, y, sx, sy, direction, dir, crouched, onWall) {
-        this._send('POSITION_SNAPSHOT', { tick, x, y, sx, sy, direction, dir, crouched, onWall });
+        // Compact wire format: no key names, every field rounded to an integer.
+        // x/y -> whole pixels. sx/sy -> tenths (velocity needs a bit more than
+        // whole-number precision or movement gets jittery). direction -> a
+        // radian angle, kept to 2 decimal places (hundredths).
+        // crouched/onWall are packed into a single flags bitmask.
+        const flags = (crouched ? 1 : 0) | (onWall ? 2 : 0);
+        this._send('POSITION_SNAPSHOT', [
+            tick,
+            Math.round(x),
+            Math.round(y),
+            Math.round(sx * 10),
+            Math.round(sy * 10),
+            Math.round(direction * 100),
+            dir,
+            flags
+        ]);
     }
 
     sendTileUpdate(idx, tile, rot) {

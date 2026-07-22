@@ -7,7 +7,15 @@ const { PHASE, CLIENT_MESSAGE_PHASES } = require('./src/protocol');
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
 
 const roomManager = new RoomManager();
-const wss = new WebSocketServer({ port: PORT });
+const wss = new WebSocketServer({
+    port: PORT,
+    perMessageDeflate: {
+        // Compress messages sent to each client — big win for the repetitive
+        // JSON we're sending every tick (POSITION_SYNC, INPUT_RELAY, etc).
+        zlibDeflateOptions: { level: 6 },
+        threshold: 64 // don't bother compressing tiny messages, not worth the CPU
+    }
+});
 
 function send(ws, message) {
     if (ws.readyState !== 1) return;
@@ -110,6 +118,11 @@ function handleMessage(ws, raw) {
 
     if (type === 'PING') {
         send(ws, { type: 'PONG', payload: { t: payload && payload.t, serverTime: Date.now() } });
+        return;
+    }
+
+    if (type === 'LIST_LOBBIES_REQUEST') {
+        send(ws, { type: 'LOBBY_LIST', payload: { lobbies: roomManager.listOpenLobbies() } });
         return;
     }
 

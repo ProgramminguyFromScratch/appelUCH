@@ -47,6 +47,7 @@ const DEFAULT_SETTINGS = {
     firstPlacePoints: 1,
     totalRounds: TOTAL_ROUNDS,
     raceTimeLimit: 100,
+    openLobby: 1, // 1 = visible to lobby browser, 0 = closed/invite-only. On by default.
     pieceChances: {}
 };
 
@@ -56,7 +57,8 @@ const SETTINGS_LIMITS = {
     comebackPoints: { min: 0, max: 10 },
     firstPlacePoints: { min: 0, max: 10 },
     totalRounds: { min: 1, max: 30 },
-    raceTimeLimit: { min: 15, max: 180 }
+    raceTimeLimit: { min: 15, max: 180 },
+    openLobby: { min: 0, max: 1 }
 };
 
 const PIECE_CHANCE_LIMITS = { min: 0, max: 20 };

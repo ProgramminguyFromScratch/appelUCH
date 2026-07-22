@@ -1,4 +1,5 @@
 const { Room } = require('./Room');
+const { PHASE, MAX_PLAYERS } = require('./protocol');
 
 const ROOM_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
 const EMPTY_ROOM_SWEEP_MS = 5 * 60 * 1000; 
@@ -39,6 +40,28 @@ class RoomManager {
             for (const seat of room.seats.values()) {
                 list.push({ roomCode: room.roomCode, seatIndex: seat.seatIndex, name: seat.name, connected: seat.connected });
             }
+        }
+        return list;
+    }
+
+    listOpenLobbies() {
+        const list = [];
+        for (const room of this.rooms.values()) {
+            if (room.phase !== PHASE.LOBBY) continue;
+            if (!room.settings || !room.settings.openLobby) continue;
+
+            const seats = [...room.seats.values()];
+            const connectedSeats = seats.filter(s => s.connected);
+            if (connectedSeats.length === 0) continue;
+            if (connectedSeats.length >= MAX_PLAYERS) continue;
+
+            const host = seats.find(s => s.seatIndex === room.hostSeatIndex);
+            list.push({
+                roomCode: room.roomCode,
+                playerCount: connectedSeats.length,
+                maxPlayers: MAX_PLAYERS,
+                hostName: host ? host.name : ''
+            });
         }
         return list;
     }

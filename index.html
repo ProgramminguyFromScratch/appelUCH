@@ -143,6 +143,70 @@
             align-items: center;
             gap: 14px;
         }
+
+        #openLobbyRow {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: #ccc;
+        }
+        #openLobbyRow input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        #openLobbyRow.readOnly input[type="checkbox"] {
+            cursor: default;
+        }
+        #openLobbyStatus {
+            color: #8891a3;
+            font-size: 12px;
+        }
+
+        #openLobbyList {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            width: 340px;
+            max-height: 320px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        #openLobbyList li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.14);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        #openLobbyList li .lobbyInfo {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        #openLobbyList li .lobbyCode {
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #3aa0ff;
+        }
+        #openLobbyList li .lobbyMeta {
+            font-size: 12px;
+            color: #8891a3;
+        }
+        #openLobbyList li button {
+            font-size: 13px;
+            padding: 6px 14px;
+        }
+        #noLobbiesText {
+            color: #8891a3;
+            font-size: 14px;
+        }
         #colorPreviewCanvas {
             width: 72px;
             height: 72px;
@@ -300,8 +364,19 @@
         <div class="rowGroup">
             <button id="btnCreateOrJoin">Create / Join Room</button>
         </div>
+        <button id="btnBrowseLobbies" class="secondary">Browse Open Lobbies</button>
         <div id="errorText"></div>
         <button id="btnShowCredits" class="secondary">Credits</button>
+    </div>
+
+    <div id="lobbyBrowserScreen" class="overlay" style="display:none;">
+        <h1>Open Lobbies</h1>
+        <ul id="openLobbyList"></ul>
+        <div id="noLobbiesText" style="display:none;">No open lobbies right now — create your own!</div>
+        <div class="rowGroup">
+            <button id="btnRefreshLobbies" class="secondary">Refresh</button>
+            <button id="btnBackFromBrowser" class="secondary">Back</button>
+        </div>
     </div>
 
     <div id="creditsScreen" class="overlay" style="display:none;">
@@ -399,6 +474,12 @@
         </div>
         <ul id="playerList"></ul>
 
+        <div id="openLobbyRow">
+            <input id="openLobbyCheckbox" type="checkbox" checked />
+            <label for="openLobbyCheckbox">Open lobby (visible to lobby browser)</label>
+        </div>
+        <div id="openLobbyStatus"></div>
+
         <div id="settingsHint">Match settings (lives, rounds, points, piece chances...) can be changed by the host with the <strong>M</strong> key once you're in-game.</div>
 
         <button id="btnStartMatch" style="display:none;">Start</button>
@@ -441,6 +522,16 @@
         const playerList = document.getElementById('playerList');
         const btnStartMatch = document.getElementById('btnStartMatch');
         const waitingForHost = document.getElementById('waitingForHost');
+
+        const lobbyBrowserScreen = document.getElementById('lobbyBrowserScreen');
+        const openLobbyList = document.getElementById('openLobbyList');
+        const noLobbiesText = document.getElementById('noLobbiesText');
+        const btnBrowseLobbies = document.getElementById('btnBrowseLobbies');
+        const btnRefreshLobbies = document.getElementById('btnRefreshLobbies');
+        const btnBackFromBrowser = document.getElementById('btnBackFromBrowser');
+        const openLobbyRow = document.getElementById('openLobbyRow');
+        const openLobbyCheckbox = document.getElementById('openLobbyCheckbox');
+        const openLobbyStatus = document.getElementById('openLobbyStatus');
 
         const copyLevelCodeBtn = document.getElementById('copyLevelCodeBtn');
         function wireCopyLevelCodeButton(game) {
@@ -564,7 +655,20 @@
                 return String(raw || '').replace(/[^\x20-\x7E]/g, '').trim();
             }
 
-            btnCreateOrJoin.addEventListener('click', () => {
+            function connectAndRun(fn) {
+                if (network.isConnected) {
+                    fn();
+                } else {
+                    const priorOnOpen = network.onOpen;
+                    network.onOpen = () => {
+                        if (priorOnOpen) priorOnOpen();
+                        fn();
+                    };
+                    network.connect();
+                }
+            }
+
+            function joinWithCode(roomCode) {
                 const name = sanitizeDisplayName(displayNameInput.value);
                 if (!name) {
                     showError('Enter a name using standard keyboard characters.');
@@ -574,22 +678,71 @@
                 showError('');
                 btnCreateOrJoin.disabled = true;
 
-                const attemptJoin = () => {
-                    const roomCode = roomCodeInput.value.trim().toUpperCase();
+                connectAndRun(() => {
                     const savedPlayerId = sessionStorage.getItem(STORAGE_KEY);
                     network.joinRoom(roomCode, name, savedPlayerId);
-                };
+                });
+            }
 
-                if (network.isConnected) {
-                    attemptJoin();
-                } else {
-                    const priorOnOpen = network.onOpen;
-                    network.onOpen = () => {
-                        if (priorOnOpen) priorOnOpen();
-                        attemptJoin();
-                    };
-                    network.connect();
+            btnCreateOrJoin.addEventListener('click', () => {
+                joinWithCode(roomCodeInput.value.trim().toUpperCase());
+            });
+
+            function renderLobbyList(lobbies) {
+                openLobbyList.innerHTML = '';
+                noLobbiesText.style.display = (lobbies.length === 0) ? 'block' : 'none';
+
+                for (const lobby of lobbies) {
+                    const li = document.createElement('li');
+
+                    const info = document.createElement('div');
+                    info.className = 'lobbyInfo';
+                    const code = document.createElement('span');
+                    code.className = 'lobbyCode';
+                    code.textContent = lobby.roomCode;
+                    info.appendChild(code);
+                    const meta = document.createElement('span');
+                    meta.className = 'lobbyMeta';
+                    const hostPart = lobby.hostName ? `${lobby.hostName}'s lobby · ` : '';
+                    meta.textContent = `${hostPart}${lobby.playerCount}/${lobby.maxPlayers} players`;
+                    info.appendChild(meta);
+                    li.appendChild(info);
+
+                    const joinBtn = document.createElement('button');
+                    joinBtn.textContent = 'Join';
+                    joinBtn.addEventListener('click', () => {
+                        lobbyBrowserScreen.style.display = 'none';
+                        nameScreen.style.display = 'flex';
+                        joinWithCode(lobby.roomCode);
+                    });
+                    li.appendChild(joinBtn);
+
+                    openLobbyList.appendChild(li);
                 }
+            }
+
+            network.onLobbyList = (payload) => {
+                renderLobbyList((payload && payload.lobbies) || []);
+            };
+
+            function requestLobbyRefresh() {
+                connectAndRun(() => network.requestLobbyList());
+            }
+
+            btnBrowseLobbies.addEventListener('click', () => {
+                showError('');
+                nameScreen.style.display = 'none';
+                lobbyBrowserScreen.style.display = 'flex';
+                openLobbyList.innerHTML = '';
+                noLobbiesText.style.display = 'none';
+                requestLobbyRefresh();
+            });
+
+            btnRefreshLobbies.addEventListener('click', requestLobbyRefresh);
+
+            btnBackFromBrowser.addEventListener('click', () => {
+                lobbyBrowserScreen.style.display = 'none';
+                nameScreen.style.display = 'flex';
             });
 
             const priorOnSeatAssigned = network.onSeatAssigned;
@@ -694,9 +847,29 @@
                 sendHueUpdate(parseInt(colorSlider.value, 10));
             });
 
+            let suppressOpenLobbyChange = false;
+            function applyOpenLobbyState(settings, isHost) {
+                if (!settings || typeof settings.openLobby === 'undefined') return;
+                suppressOpenLobbyChange = true;
+                openLobbyCheckbox.checked = !!settings.openLobby;
+                suppressOpenLobbyChange = false;
+
+                openLobbyCheckbox.disabled = !isHost;
+                openLobbyRow.classList.toggle('readOnly', !isHost);
+                openLobbyStatus.textContent = isHost
+                    ? ''
+                    : (settings.openLobby ? 'This lobby is open — visible in the lobby browser.' : 'This lobby is closed — invite link only.');
+            }
+
+            openLobbyCheckbox.addEventListener('change', () => {
+                if (suppressOpenLobbyChange) return;
+                game.requestUpdateSettings({ openLobby: openLobbyCheckbox.checked ? 1 : 0 });
+            });
+
             game.onLobbyUpdate = (payload, isHost) => {
                 roomCodeValue.textContent = payload.roomCode;
                 updateUrlForRoom(payload.roomCode);
+                applyOpenLobbyState(payload.settings, isHost);
 
                 const mySeat = payload.seats.find(s => s.seatIndex === game.localSeatIndex);
                 if (mySeat && typeof mySeat.hue === 'number' && !draggingColorSlider) {
@@ -766,6 +939,7 @@
                 console.log(`[lobby] host is now seat ${hostSeatIndex}${isHost ? ' (you)' : ''}`);
                 btnStartMatch.style.display = isHost ? 'inline-block' : 'none';
                 waitingForHost.style.display = isHost ? 'none' : 'block';
+                applyOpenLobbyState(game.settings, isHost);
             };
 
             network.onClose = () => {
