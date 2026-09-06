@@ -1,0 +1,107 @@
+const PHASE = {
+    LOBBY: 'LOBBY',
+    LOADING: 'LOADING',
+    STAGE_SELECT: 'STAGE_SELECT',
+    PARTY_BOX: 'PARTY_BOX',
+    BUILD: 'BUILD',
+    RACE: 'RACE',
+    ROUND_RESULTS: 'ROUND_RESULTS',
+    FINAL_RESULTS: 'FINAL_RESULTS'
+};
+const CLIENT_MESSAGE_PHASES = {
+    JOIN_ROOM: [PHASE.LOBBY],
+    SET_COLOR_REQUEST: Object.values(PHASE),
+    START_MATCH_REQUEST: [PHASE.LOBBY],
+    CLIENT_READY: [PHASE.LOADING],
+    STAGE_CURSOR_MOVE: [PHASE.STAGE_SELECT],
+    STAGE_PICK_REQUEST: [PHASE.STAGE_SELECT],
+    PARTY_CURSOR_MOVE: [PHASE.PARTY_BOX],
+    PARTY_PICK_REQUEST: [PHASE.PARTY_BOX],
+    BUILD_CURSOR_MOVE: [PHASE.BUILD],
+    PLACE_PIECE_REQUEST: [PHASE.BUILD],
+    INPUT_FRAME: [PHASE.RACE],
+    POSITION_SNAPSHOT: [PHASE.RACE, PHASE.STAGE_SELECT],
+    TILE_UPDATE: [PHASE.RACE],
+    FINISH_OBSERVED: [PHASE.RACE],
+    ELIMINATION_OBSERVED: [PHASE.RACE],
+    RESPAWN_OBSERVED: [PHASE.RACE],
+    CONTINUE_REQUEST: [PHASE.ROUND_RESULTS],
+    CHAT_MESSAGE: Object.values(PHASE),
+    UPDATE_SETTINGS_REQUEST: [PHASE.LOBBY, PHASE.STAGE_SELECT],
+    KICK_REQUEST: Object.values(PHASE),
+    FORCE_STAGE_REQUEST: [PHASE.STAGE_SELECT],
+    LOGIN_REQUEST: Object.values(PHASE),
+    GIVE_REQUEST: Object.values(PHASE),
+    SET_REQUEST: Object.values(PHASE),
+    HOST_REQUEST: Object.values(PHASE),
+    KILL_REQUEST: Object.values(PHASE),
+    NEXT_REQUEST: Object.values(PHASE)
+};
+
+const TOTAL_ROUNDS = 10;
+
+const DEFAULT_SETTINGS = {
+    lives: 1,
+    pointsToWin: 15,
+    comebackPoints: 2,
+    firstPlacePoints: 1,
+    totalRounds: TOTAL_ROUNDS,
+    raceTimeLimit: 100,
+    openLobby: 1,
+    pieceChances: {}
+};
+
+const SETTINGS_LIMITS = {
+    lives: { min: 1, max: 10 },
+    pointsToWin: { min: 3, max: 100 },
+    comebackPoints: { min: 0, max: 10 },
+    firstPlacePoints: { min: 0, max: 10 },
+    totalRounds: { min: 1, max: 30 },
+    raceTimeLimit: { min: 15, max: 180 },
+    openLobby: { min: 0, max: 1 }
+};
+
+const PIECE_CHANCE_LIMITS = { min: 0, max: 20 };
+function getPartyBoxSlotCount(playerCount) {
+    return Math.ceil(1.5 * playerCount);
+}
+
+const STAGE_TIME_LIMIT = 12;
+const STAGE_VOTE_STAND_SECONDS = 3;
+const PARTY_TIME_LIMIT = 12;
+const BUILD_TIME_LIMIT = 20;
+const RACE_TIME_LIMIT = 60;
+const MIN_PLAYERS_TO_START = 1;
+const MAX_PLAYERS = 6;
+const FINISH_TICK_TOLERANCE = 2;
+const LOADING_BARRIER_TIMEOUT_MS = 15000;
+const ROUND_END_DELAY_MS = 3000;
+const CHAT_MESSAGE_MAX_LENGTH = 140;
+
+const ADMIN_PASSWORD = process.env.APPEL_ADMIN_PASSWORD || "e";
+const LOGIN_MAX_ATTEMPTS = 5;
+const LOGIN_ATTEMPT_WINDOW_MS = 30000;
+
+module.exports = {
+    PHASE,
+    CLIENT_MESSAGE_PHASES,
+    TOTAL_ROUNDS,
+    getPartyBoxSlotCount,
+    STAGE_TIME_LIMIT,
+    STAGE_VOTE_STAND_SECONDS,
+    PARTY_TIME_LIMIT,
+    BUILD_TIME_LIMIT,
+    RACE_TIME_LIMIT,
+    MIN_PLAYERS_TO_START,
+    MAX_PLAYERS,
+    FINISH_TICK_TOLERANCE,
+    LOADING_BARRIER_TIMEOUT_MS,
+    ROUND_END_DELAY_MS,
+    CHAT_MESSAGE_MAX_LENGTH,
+    DEFAULT_SETTINGS,
+    SETTINGS_LIMITS,
+    PIECE_CHANCE_LIMITS,
+    ADMIN_PASSWORD,
+    LOGIN_MAX_ATTEMPTS,
+    LOGIN_ATTEMPT_WINDOW_MS
+};

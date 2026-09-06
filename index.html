@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Appel</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/x-icon" href="/assets/logo.png">
+</head>
+<body>
+    <button id="fullscreenBtn" title="Toggle fullscreen (F)">⛶ Fullscreen</button>
+    <div id="canvasWrap">
+        <canvas id="gameCanvas"></canvas>
+        <button id="copyLevelCodeBtn">Copy Level Code</button>
+    </div>
+
+    <div id="nameScreen" class="overlay">
+        <h1>APPEL</h1>
+        <input id="displayNameInput" type="text" placeholder="Your name" maxlength="24" />
+        <div class="rowGroup">
+            <input id="roomCodeInput" type="text" placeholder="Room code (optional)" maxlength="5" style="text-transform:uppercase; width: 160px;" />
+        </div>
+        <div class="openLobbyRow" id="createOpenLobbyRow">
+            <input id="createOpenLobbyCheckbox" type="checkbox" checked />
+            <label for="createOpenLobbyCheckbox">Open lobby (visible in Browse Open Lobbies)</label>
+        </div>
+        <div class="rowGroup">
+            <button id="btnCreateOrJoin">Create / Join Room</button>
+        </div>
+        <button id="btnBrowseLobbies" class="secondary">Browse Open Lobbies</button>
+        <div id="errorText"></div>
+        <div id="wakingText"></div>
+        <button id="btnShowCredits" class="secondary">Credits</button>
+    </div>
+
+    <div id="lobbyBrowserScreen" class="overlay" style="display:none;">
+        <h1>Open Lobbies</h1>
+        <ul id="openLobbyList"></ul>
+        <div id="noLobbiesText" style="display:none;">No open lobbies right now. Create your own!</div>
+        <div class="rowGroup">
+            <button id="btnRefreshLobbies" class="secondary">Refresh</button>
+            <button id="btnBackFromBrowser" class="secondary">Back</button>
+        </div>
+    </div>
+
+    <div id="joinLobbyModal" class="overlay" style="display:none;">
+        <h1>Join Lobby</h1>
+        <div id="joinLobbyCode"></div>
+        <input id="joinLobbyNameInput" type="text" placeholder="Your name" maxlength="24" />
+        <div id="joinLobbyError"></div>
+        <div class="rowGroup">
+            <button id="btnConfirmJoinLobby">Join</button>
+            <button id="btnCancelJoinLobby" class="secondary">Cancel</button>
+        </div>
+    </div>
+
+    <div id="creditsScreen" class="overlay" style="display:none;">
+        <h1>Credits</h1>
+        <div id="creditsContent">
+            <div class="creditsSection">
+                <h2>Original Scratch Game</h2>
+                <ul>
+                    <li><span class="creditRole">Griffpatch</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Rebuild &amp; Development</h2>
+                <ul>
+                    <li>
+                        <span class="creditRole">programminguy</span>
+                        <span class="creditNote">Rebuilt the entire game from the ground up in JavaScript, rewriting every line of code from the original Scratch project</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Inspiration</h2>
+                <ul>
+                    <li><span class="creditRole">Ultimate Chicken Horse</span> &mdash; <span class="creditNames">Clever Endeavour Games</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Appel (Character)</h2>
+                <ul>
+                    <li><span class="creditRole">legobouwer9</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Music</h2>
+                <ul>
+                    <li><span class="creditNote">None yet</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>SFX</h2>
+                <ul>
+                    <li><span class="creditRole">freesound.org</span></li>
+                    <li><span class="creditNote">Some sounds created using sfxr.me</span></li>
+                    <li><span class="creditNote">Most from the original Scratch game</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Playtesters</h2>
+                <ul>
+                    <li><span class="creditRole">CheeseBagel</span></li>
+                    <li><span class="creditRole">KarJ5</span></li>
+                    <li><span class="creditRole">pi314</span></li>
+                    <li><span class="creditRole">TheGrassyGuys</span></li>
+                    <li><span class="creditRole">tyclev</span></li>
+                    <li><span class="creditRole">spiff</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Hub</h2>
+                <ul>
+                    <li><span class="creditRole">Created by</span> <span class="creditNames">programminguy, tyclev, pi314, and CheeseBagel</span></li>
+                </ul>
+            </div>
+            <div class="creditsSection">
+                <h2>Levels</h2>
+                <ul>
+                    <li><span class="creditRole">Building Blocks</span> &mdash; <span class="creditNames">pi314</span></li>
+                    <li><span class="creditRole">Construction</span> &mdash; <span class="creditNames">CheeseBagel</span></li>
+                    <li><span class="creditRole">Jungle Jumble</span> &mdash; <span class="creditNames">tyclev</span></li>
+                    <li><span class="creditRole">Meteorite Impact</span> &mdash; <span class="creditNames">CheeseBagel</span></li>
+                    <li><span class="creditRole">Monolith</span> &mdash; <span class="creditNames">tyclev</span></li>
+                    <li><span class="creditRole">Pillared Heights</span> &mdash; <span class="creditNames">TheGrassyGuys</span></li>
+                    <li><span class="creditRole">Pinball</span> &mdash; <span class="creditNames">programminguy</span></li>
+                    <li><span class="creditRole">Sumfink</span> &mdash; <span class="creditNames">KarJ5</span></li>
+                    <li><span class="creditRole">The Mountain</span> &mdash; <span class="creditNames">programminguy, pi314, and CheeseBagel</span></li>
+                    <li><span class="creditRole">Ultimate Chicken</span> &mdash; <span class="creditNames">pi314</span></li>
+                    <li><span class="creditRole">World's Eye</span> &mdash; <span class="creditNames">pi314</span></li>
+                </ul>
+            </div>
+        </div>
+        <button id="btnCloseCredits" class="secondary">Back</button>
+    </div>
+
+    <div id="lobbyScreen" class="overlay" style="display:none;">
+        <h1>Lobby</h1>
+        <div id="roomCodeLabel">Room code</div>
+        <div id="roomCodeValue">-----</div>
+        <button id="btnCopyInvite" class="secondary">Copy Invite Link</button>
+        <div id="colorPicker">
+            <canvas id="colorPreviewCanvas" width="48" height="64"></canvas>
+            <div id="colorSliderWrap">
+                <div class="colorSliderRow">
+                    <input id="colorSliderTop" type="range" min="0" max="199" value="0" />
+                    <div class="colorSliderLabel">Top color</div>
+                </div>
+                <div class="colorSliderRow">
+                    <input id="colorSliderBottom" type="range" min="0" max="199" value="0" />
+                    <div class="colorSliderLabel">Bottom color</div>
+                </div>
+            </div>
+        </div>
+        <ul id="playerList"></ul>
+
+        <div id="openLobbyRow" class="openLobbyRow">
+            <input id="openLobbyCheckbox" type="checkbox" checked />
+            <label for="openLobbyCheckbox">Open lobby (visible to lobby browser)</label>
+        </div>
+        <div id="openLobbyStatus"></div>
+
+        <div id="settingsHint">Match settings (lives, rounds, points, piece chances...) can be changed by the host with the <strong>M</strong> key once you're in-game.</div>
+
+        <button id="btnStartMatch" style="display:none;">Start</button>
+        <div id="waitingForHost" style="display:none;">Waiting for the host to start...</div>
+    </div>
+
+    <script src="touching.js"></script>
+    <script src="sfx.js"></script>
+    <script src="physics.js"></script>
+    <script src="levelRenderer.js"></script>
+    <script src="pieces.js"></script>
+    <script src="levelCode.js"></script>
+    <script src="network.js"></script>
+    <script src="game.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

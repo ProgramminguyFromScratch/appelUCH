@@ -1,0 +1,4 @@
+[
+    { "id": "1", "name": "Appel", "stand": "stand.png", "crouch": "crouch.png" },
+    { "id": "2", "name": "Goofy Appel", "stand": "stand2.png", "crouch": "crouch2.png" }
+]

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Appel</title>
+  <script>
+    // GitHub Pages has no server-side rewrites, so unknown paths (like /ABCDE)
+    // land here. Stash the real path/query and bounce to index.html, which
+    // restores it via history.replaceState before your app code runs.
+    sessionStorage.setItem('appel_redirect_path', location.pathname + location.search);
+    location.replace('/index.html');
+  </script>
+</head>
+<body>
+  Redirecting…
+</body>
+</html>
