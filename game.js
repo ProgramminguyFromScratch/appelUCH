@@ -75,6 +75,7 @@ const STAGE_VOTE_ZONE_DEPTH = 30;
 const STAGE_VOTE_MOVE_TOLERANCE = 0.6; 
 let LEVEL_POOL = [];
 let LEVEL_NAMES = [];
+let EMOJI_NAMES = [];
 fetch('levels.json')
     .then(res => res.json())
     .then(levels => {
@@ -82,6 +83,11 @@ fetch('levels.json')
         LEVEL_NAMES = levels.map(level => level.name);
     })
     .catch(err => console.error('[levels] failed to load levels.json:', err));
+
+fetch('/assets/emojis/emojis.json')
+    .then(res => res.json())
+    .then(names => { EMOJI_NAMES = Array.isArray(names) ? names.filter(Boolean) : []; })
+    .catch(err => console.error('[emojis] failed to load emojis.json:', err));
 
 class Profiler {
     constructor(windowSize = 60, fpsHistorySize = 300) {
@@ -198,6 +204,8 @@ class Game {
         this.network = network;
         this.roomCode = null;
         this.isHost = false;
+        this.hostSeatIndex = 0;
+        this.tabListOpen = false;
         this.isAdmin = false; 
         this.remotePositions = new Map();
         this.remoteSfxState = new Map();
@@ -323,6 +331,8 @@ class Game {
         this._chatMouseSelecting = false;
         this._chatCaretActivityAt = 0;   
         this._chatAutocompleteCycle = null;
+        this.EMOJI_SIZE = 24;
+        this.emojiImages = new Map();
 
         window.addEventListener('keydown', e => {
             const activeTag = document.activeElement && document.activeElement.tagName;
@@ -352,6 +362,11 @@ class Game {
             }
 
             this.keys[e.code] = true;
+
+            if (e.code === 'Tab' && this.gameState !== GameState.MENU) {
+                e.preventDefault();
+                this.tabListOpen = true;
+            }
 
             if (e.code === 'KeyP' && !e.repeat) {
                 e.preventDefault();
@@ -387,7 +402,7 @@ class Game {
 
             if (e.code === 'Digit2' && !e.repeat) {
                 this.showDebugMenu = !this.showDebugMenu;
-                if (this.showDebugMenu && this.network && this.network.isConnected) this.network.sendPing();
+                if (this.showDebugMenu && this.network && this.network.isConnected) this.network.sendPing(this.ping);
                 console.log(`[debug] menu ${this.showDebugMenu ? 'ON' : 'OFF'}`);
             }
 
@@ -405,6 +420,10 @@ class Game {
         });
         window.addEventListener('keyup', e => {
             this.keys[e.code] = false;
+            if (e.code === 'Tab') this.tabListOpen = false;
+        });
+        window.addEventListener('blur', () => {
+            this.tabListOpen = false;
         });
         window.addEventListener('wheel', e => {
             if (!this.chatOpen) return;
@@ -556,6 +575,7 @@ class Game {
         this.chatSelectionAnchor = null;
         this._chatCaretActivityAt = performance.now();
         this.keys = {}; 
+        this.tabListOpen = false;
     }
     getActiveSettingsMeta() {
         return this.settingsMenuTab === 'pieces' ? this.PIECE_CHANCE_META : this.SETTINGS_META;
@@ -1181,7 +1201,20 @@ class Game {
             return this._chatPlayerNameMatch('/kill ', m[1] || '');
         }
 
+        m = /^(.*):([a-zA-Z0-9_+-]{0,32})$/.exec(text);
+        if (m) {
+            return this._chatEmojiNameMatch(m[1] + ':', m[2]);
+        }
+
         return null;
+    }
+
+    _chatEmojiNameMatch(prefix, queryRaw) {
+        const query = queryRaw.toLowerCase();
+        const names = EMOJI_NAMES || [];
+        let matches = query ? names.filter(n => n.toLowerCase().startsWith(query)) : names;
+        if (query && matches.length === 0) matches = names.filter(n => n.toLowerCase().includes(query));
+        return { prefix, query: queryRaw, matches: matches.map(n => `${n}:`) };
     }
 
     _chatPlayerNameMatch(prefix, queryRaw) {
@@ -1732,6 +1765,8 @@ class Game {
                 hue2: THEME.playerHues[seatIndex],
                 controls: seatIndex === localSeatIndex ? LOCAL_PLAYER_CONTROLS : null,
                 isBot: seatIndex !== localSeatIndex,
+                connected: true,
+                ping: null,
                 physicsState: null,
                 stageCursor: -1, 
                 stageVoteLocked: false,
@@ -2548,13 +2583,14 @@ class Game {
                 this.profiler.endFrame(performance.now(), PROFILER_BUCKETS);
 
                 if (this.showDebugMenu) this.drawDebugMenu();
+                if (this.tabListOpen && this.gameState !== GameState.MENU) this.drawTabList();
             }
         }, 1);
 
         if (this.network) {
-            this.network.sendPing();
+            this.network.sendPing(this.ping);
             setInterval(() => {
-                if (this.network.isConnected) this.network.sendPing();
+                if (this.network.isConnected) this.network.sendPing(this.ping);
             }, 2000);
         }
     }
@@ -3246,42 +3282,138 @@ class Game {
             ctx.restore();
         }
     }
+    _getEmojiImage(name) {
+        let entry = this.emojiImages.get(name);
+        if (entry) return entry;
+        entry = { img: null, ready: false, failed: false };
+        this.emojiImages.set(name, entry);
+        const exts = ['png', 'svg', 'webp', 'gif', 'jpg', 'jpeg'];
+        const safeName = encodeURIComponent(name);
+        const tryExt = (i) => {
+            if (i >= exts.length) { entry.failed = true; return; }
+            const img = new Image();
+            img.onload = () => {
+                entry.img = img;
+                const ratio = (img.naturalWidth && img.naturalHeight) ? (img.naturalWidth / img.naturalHeight) : 1;
+                entry.width = this.EMOJI_SIZE * ratio;
+                entry.ready = true;
+            };
+            img.onerror = () => tryExt(i + 1);
+            img.src = `/assets/emojis/${safeName}.${exts[i]}`;
+        };
+        tryExt(0);
+        return entry;
+    }
+
+    _tokenizeChatWord(word) {
+        const tokens = [];
+        const re = /:([a-zA-Z0-9_+-]{1,32}):/g;
+        let lastIndex = 0;
+        let m;
+        while ((m = re.exec(word)) !== null) {
+            if (m.index > lastIndex) tokens.push({ type: 'text', value: word.slice(lastIndex, m.index) });
+            tokens.push({ type: 'emoji', name: m[1] });
+            lastIndex = re.lastIndex;
+        }
+        if (lastIndex < word.length || tokens.length === 0) {
+            tokens.push({ type: 'text', value: word.slice(lastIndex) });
+        }
+        return tokens;
+    }
+
+    _measureChatTokens(ctx, tokens) {
+        const size = this.EMOJI_SIZE;
+        let w = 0;
+        for (const tok of tokens) {
+            if (tok.type === 'emoji') {
+                const entry = this._getEmojiImage(tok.name);
+                w += entry.ready ? entry.width + 2 : ctx.measureText(`:${tok.name}:`).width;
+            } else {
+                w += ctx.measureText(tok.value).width;
+            }
+        }
+        return w;
+    }
+
+    _drawChatTokens(ctx, tokens, x, y) {
+        const size = this.EMOJI_SIZE;
+        let cx = x;
+        for (const tok of tokens) {
+            if (tok.type === 'emoji') {
+                const entry = this._getEmojiImage(tok.name);
+                if (entry.ready && entry.img) {
+                    ctx.drawImage(entry.img, cx, y - size + 4, entry.width, size);
+                    cx += entry.width + 2;
+                } else {
+                    const fallback = `:${tok.name}:`;
+                    ctx.fillText(fallback, cx, y);
+                    cx += ctx.measureText(fallback).width;
+                }
+            } else {
+                ctx.fillText(tok.value, cx, y);
+                cx += ctx.measureText(tok.value).width;
+            }
+        }
+    }
+
     _wrapChatMessage(ctx, nameWidth, bodyText, maxWidth) {
         const words = bodyText.split(' ');
         const lines = [];
-        let current = '';
+        let current = [];
+        let currentWidth = 0;
         let isFirst = true;
 
+        const limit = () => isFirst ? Math.max(20, maxWidth - nameWidth) : maxWidth;
+
         const pushLine = () => {
-            lines.push({ text: current, isFirst });
-            current = '';
+            lines.push({ tokens: current, isFirst });
+            current = [];
+            currentWidth = 0;
             isFirst = false;
         };
 
-        for (const word of words) {
-            let remainingWord = word;
-            while (remainingWord.length > 0) {
-                const limit = isFirst ? Math.max(20, maxWidth - nameWidth) : maxWidth;
-                const test = current ? `${current} ${remainingWord}` : remainingWord;
-                if (ctx.measureText(test).width <= limit) {
-                    current = test;
-                    remainingWord = '';
-                    break;
+        const placeOversizedTextToken = (value) => {
+            let remaining = value;
+            while (remaining.length > 0) {
+                let cut = remaining.length;
+                while (cut > 1 && ctx.measureText(remaining.slice(0, cut)).width > limit()) {
+                    cut -= 1;
                 }
-                if (!current) {
-                    let cut = remainingWord.length;
-                    while (cut > 1 && ctx.measureText(remainingWord.slice(0, cut)).width > limit) {
-                        cut -= 1;
-                    }
-                    current = remainingWord.slice(0, cut);
-                    remainingWord = remainingWord.slice(cut);
-                    pushLine();
-                } else {
-                    pushLine();
-                }
+                const piece = remaining.slice(0, cut);
+                remaining = remaining.slice(cut);
+                current = [{ type: 'text', value: piece }];
+                currentWidth = ctx.measureText(piece).width;
+                if (remaining.length > 0) pushLine();
             }
+        };
+
+        for (const word of words) {
+            const wordTokens = this._tokenizeChatWord(word);
+            const wordWidth = this._measureChatTokens(ctx, wordTokens);
+            const spaceWidth = current.length > 0 ? ctx.measureText(' ').width : 0;
+
+            if (current.length > 0 && currentWidth + spaceWidth + wordWidth > limit()) {
+                pushLine();
+            }
+
+            if (current.length === 0 && wordWidth > limit()) {
+                if (wordTokens.length === 1 && wordTokens[0].type === 'text') {
+                    placeOversizedTextToken(wordTokens[0].value);
+                } else {
+                    current = wordTokens;
+                    currentWidth = wordWidth;
+                }
+                continue;
+            }
+
+            if (current.length > 0) {
+                current.push({ type: 'text', value: ' ' });
+                currentWidth += spaceWidth;
+            }
+            current.push(...wordTokens);
+            currentWidth += wordWidth;
         }
-        lines.push({ text: current, isFirst });
+        lines.push({ tokens: current, isFirst });
         return lines;
     }
 
@@ -3290,7 +3422,7 @@ class Game {
         const now = performance.now();
 
         const padX = 20;
-        const lineHeight = 22;
+        const lineHeight = 26;
         const fadeWindow = 1000; 
         const inputBoxHeight = lineHeight + 6;
         const inputBoxGap = 13; 
@@ -3325,7 +3457,7 @@ class Game {
             for (let li = wrapped.length - 1; li >= 0; li--) {
                 const line = wrapped[li];
                 const lineX = padX + (line.isFirst ? nameWidth : 0);
-                const lineWidth = ctx.measureText(line.text).width;
+                const lineWidth = this._measureChatTokens(ctx, line.tokens);
                 const boxWidth = (line.isFirst ? nameWidth : 0) + lineWidth + padX;
                 const boxX = padX - 8;
 
@@ -3337,7 +3469,7 @@ class Game {
                     ctx.fillText(nameText, padX, y);
                 }
                 ctx.fillStyle = THEME.text;
-                ctx.fillText(line.text, lineX, y);
+                this._drawChatTokens(ctx, line.tokens, lineX, y);
 
                 y -= lineHeight;
             }
@@ -3437,6 +3569,168 @@ class Game {
         const cutoff = now - 1000;
         while (times.length && times[0] < cutoff) times.shift();
         this._fps = times.length;
+    }
+
+    _drawRoundedRectPath(ctx, x, y, w, h, r) {
+        const radius = Math.min(r, w / 2, h / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + w - radius, y);
+        ctx.arcTo(x + w, y, x + w, y + radius, radius);
+        ctx.lineTo(x + w, y + h - radius);
+        ctx.arcTo(x + w, y + h, x + w - radius, y + h, radius);
+        ctx.lineTo(x + radius, y + h);
+        ctx.arcTo(x, y + h, x, y + h - radius, radius);
+        ctx.lineTo(x, y + radius);
+        ctx.arcTo(x, y, x + radius, y, radius);
+        ctx.closePath();
+    }
+
+    _drawShadowedText(ctx, text, x, y, font, color) {
+        ctx.font = font;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillText(text, x + 1, y + 1);
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y);
+    }
+
+    _connectionQuality(ping) {
+        if (typeof ping !== 'number') return null;
+        if (ping <= 80) return { bars: 4, color: THEME.success };
+        if (ping <= 150) return { bars: 3, color: THEME.success };
+        if (ping <= 250) return { bars: 2, color: THEME.warning };
+        return { bars: 1, color: THEME.danger };
+    }
+
+    _drawConnectionBars(ctx, x, y, ping, connected) {
+        const barCount = 4;
+        const barWidth = 4;
+        const barGap = 2;
+        const maxHeight = 14;
+        const quality = connected ? this._connectionQuality(ping) : null;
+        for (let i = 0; i < barCount; i++) {
+            const barHeight = maxHeight * ((i + 1) / barCount);
+            const barX = x + i * (barWidth + barGap);
+            const barY = y + (maxHeight - barHeight);
+            const filled = quality && i < quality.bars;
+            ctx.fillStyle = filled ? quality.color : 'rgba(255, 255, 255, 0.15)';
+            ctx.fillRect(barX, barY, barWidth, barHeight);
+        }
+    }
+
+    drawTabList() {
+        const ctx = this.ctx;
+        const players = this.players
+            .filter(p => p)
+            .slice()
+            .sort((a, b) => (b.score || 0) - (a.score || 0) || a.seatIndex - b.seatIndex);
+
+        const rowHeight = 34;
+        const iconSize = 28;
+        const paddingX = 10;
+        const paddingY = 8;
+        const headerHeight = 22;
+        const nameColX = paddingX + iconSize + 10;
+        const connColWidth = 34;
+        const boxWidth = Math.min(420, this.canvas.width - 40);
+        const boxHeight = headerHeight + paddingY * 2 + rowHeight * players.length;
+        const boxX = (this.canvas.width - boxWidth) / 2;
+        const boxY = 30;
+
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+
+        ctx.fillStyle = 'rgba(30, 42, 66, 0.42)';
+        this._drawRoundedRectPath(ctx, boxX, boxY, boxWidth, boxHeight, 4);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+        ctx.lineWidth = 2;
+        this._drawRoundedRectPath(ctx, boxX, boxY, boxWidth, boxHeight, 4);
+        ctx.stroke();
+
+        ctx.textAlign = 'center';
+        this._drawShadowedText(
+            ctx,
+            `Room ${this.roomCode || '\u2014'}  \u00b7  ${players.filter(p => p.connected !== false).length}/${this.playerCount}`,
+            boxX + boxWidth / 2,
+            boxY + 16,
+            '11px ' + THEME.font,
+            '#c7d1e6'
+        );
+
+        players.forEach((player, i) => {
+            const rowY = boxY + headerHeight + paddingY + i * rowHeight;
+            const isDisconnected = player.connected === false;
+            const isLocal = player.seatIndex === this.localSeatIndex;
+            const isHostSeat = player.seatIndex === this.hostSeatIndex;
+
+            if (i % 2 === 0) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.16)';
+                ctx.fillRect(boxX + 2, rowY, boxWidth - 4, rowHeight);
+            }
+            if (isLocal) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+                ctx.fillRect(boxX + 2, rowY, boxWidth - 4, rowHeight);
+            }
+
+            const iconY = rowY + (rowHeight - iconSize) / 2;
+            const iconX = boxX + paddingX;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+            ctx.fillRect(iconX, iconY, iconSize, iconSize);
+            const sprite = (this.renderer && this.renderer.playerNormal && this.renderer.getHuedPlayerSprite)
+                ? this.renderer.getHuedPlayerSprite(player.hue, player.hue2)
+                : null;
+            const icon = sprite && sprite.normal;
+            if (icon) {
+                const iw = icon.width || 48;
+                const ih = icon.height || 64;
+                const drawH = iconSize - 4;
+                const drawW = drawH * (iw / ih);
+                ctx.save();
+                if (isDisconnected) ctx.globalAlpha = 0.35;
+                ctx.drawImage(icon, iconX + (iconSize - drawW) / 2, iconY + 2, drawW, drawH);
+                ctx.restore();
+            }
+
+            ctx.textAlign = 'left';
+            let label = player.name || `P${player.seatIndex + 1}`;
+            if (isHostSeat) label = `Host - ${label}`;
+            const nameColor = isDisconnected
+                ? '#8891a3'
+                : (player.color || hueShiftToHex(player.hue2 || 0));
+            this._drawShadowedText(
+                ctx,
+                label,
+                boxX + nameColX,
+                rowY + rowHeight / 2 - 5,
+                (isLocal ? 'bold ' : '') + '13px ' + THEME.font,
+                nameColor
+            );
+            const subLabel = isDisconnected ? 'Reconnecting\u2026' : `${player.score || 0} pts`;
+            this._drawShadowedText(
+                ctx,
+                subLabel,
+                boxX + nameColX,
+                rowY + rowHeight / 2 + 10,
+                '11px ' + THEME.font,
+                isDisconnected ? '#8891a3' : '#c7d1e6'
+            );
+
+            if (isDisconnected) {
+                ctx.textAlign = 'right';
+                this._drawShadowedText(ctx, '\u2013\u2013', boxX + boxWidth - paddingX, rowY + rowHeight / 2 + 4, '13px ' + THEME.font, '#8891a3');
+            } else {
+                this._drawConnectionBars(
+                    ctx,
+                    boxX + boxWidth - paddingX - connColWidth,
+                    rowY + rowHeight / 2 - 7,
+                    player.ping,
+                    true
+                );
+            }
+        });
+
+        ctx.restore();
     }
 
     drawDebugMenu() {
@@ -4513,6 +4807,11 @@ class Game {
                 this.ping = Math.max(0, Math.round(performance.now() - payload.t));
             }
         };
+        net.onPlayerPingUpdate = (payload) => {
+            if (!payload || typeof payload.seatIndex !== 'number') return;
+            const player = this.players[payload.seatIndex];
+            if (player) player.ping = typeof payload.ping === 'number' ? payload.ping : null;
+        };
         net.onChatMessage = (payload) => this.handleChatMessage(payload);
         net.onKickRejected = (payload) => {
             const name = payload && payload.name ? payload.name : 'that player';
@@ -4543,6 +4842,7 @@ class Game {
     handleRoomState(payload, phase) {
         this.roomCode = payload.roomCode;
         this.isHost = payload.hostSeatIndex === this.localSeatIndex;
+        if (typeof payload.hostSeatIndex === 'number') this.hostSeatIndex = payload.hostSeatIndex;
         if (payload.settings) {
             this.settings = { ...this.settings, ...payload.settings };
             this.totalRounds = this.settings.totalRounds;
@@ -4567,6 +4867,7 @@ class Game {
             player.name = seatInfo.name || player.name;
             player.isBot = !!seatInfo.isBot;
             player.connected = seatInfo.connected !== false;
+            player.ping = typeof seatInfo.ping === 'number' ? seatInfo.ping : null;
             if (typeof seatInfo.hue === 'number') {
                 player.hue = seatInfo.hue;
                 player.hue2 = typeof seatInfo.hue2 === 'number' ? seatInfo.hue2 : seatInfo.hue;
@@ -4574,6 +4875,7 @@ class Game {
             }
 
             const previous = previousByIndex.get(seatInfo.seatIndex);
+            if (!previous && typeof seatInfo.score === 'number') player.score = seatInfo.score;
             if (previous) {
                 player.score = previous.score;
                 player.piece = previous.piece;
@@ -4648,6 +4950,7 @@ class Game {
     applyHostSeatIndex(hostSeatIndex) {
         if (typeof hostSeatIndex !== 'number') return;
         const wasHost = this.isHost;
+        this.hostSeatIndex = hostSeatIndex;
         this.isHost = hostSeatIndex === this.localSeatIndex;
         if (this.isHost !== wasHost && this.onHostChanged) {
             this.onHostChanged(hostSeatIndex, this.isHost);

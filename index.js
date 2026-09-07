@@ -117,6 +117,11 @@ function handleMessage(ws, raw) {
 
     if (type === 'PING') {
         send(ws, { type: 'PONG', payload: { t: payload && payload.t, serverTime: Date.now() } });
+        if (ws.roomCode && payload && typeof payload.ping === 'number') {
+            const room = roomManager.getRoom(ws.roomCode);
+            const seat = room && room.seatFor(ws);
+            if (seat) room.setPing(seat, payload.ping);
+        }
         return;
     }
 

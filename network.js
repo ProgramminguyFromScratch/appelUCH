@@ -43,6 +43,7 @@ class NetworkClient {
         this.onKickRejected = null;      
         this.onHostUpdated = null;      
         this.onLobbyList = null;          
+        this.onPlayerPingUpdate = null;   
         this._GROUPED_MAP = {
             STAGE_SELECT_START: 'onStageState',
             STAGE_CURSOR_MOVE: 'onStageState',
@@ -102,6 +103,7 @@ class NetworkClient {
         this._DIRECT_MAP.KICK_REJECTED = 'onKickRejected';
         this._DIRECT_MAP.HOST_UPDATED = 'onHostUpdated';
         this._DIRECT_MAP.LOBBY_LIST = 'onLobbyList';
+        this._DIRECT_MAP.PLAYER_PING_UPDATE = 'onPlayerPingUpdate';
     }
 
     connect() {
@@ -294,8 +296,10 @@ class NetworkClient {
         this._send('NEXT_REQUEST', {});
     }
 
-    sendPing() {
-        this._send('PING', { t: performance.now() });
+    sendPing(lastPing = null) {
+        const payload = { t: performance.now() };
+        if (typeof lastPing === 'number' && isFinite(lastPing)) payload.ping = lastPing;
+        this._send('PING', payload);
     }
 }
 if (typeof module !== 'undefined' && module.exports) {
