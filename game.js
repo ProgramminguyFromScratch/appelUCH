@@ -983,7 +983,7 @@ class Game {
         ctx.save();
         ctx.font = '11px ' + THEME.font;
         ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         ctx.fillText('H: Controls', this.canvas.width / 2, this.canvas.height - 10);
         ctx.restore();
     }
