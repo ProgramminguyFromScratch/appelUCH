@@ -2479,11 +2479,21 @@ class Game {
         this.currentLevelCode = levelCode;
         this.levelData = LevelRenderer.getDataFromCode(levelCode);
 
+        // Build the spike correlation table once per session and hand the
+        // same instance to every AppelPhysics we create. Previously this
+        // was constructed fresh (re-fetch + re-decode ~58MB) on every
+        // single loadLevel() call, i.e. every round, which is what caused
+        // the game to get progressively laggier the longer a session ran.
+        if (!this._sharedTouching && typeof Touching !== 'undefined') {
+            this._sharedTouching = new Touching();
+        }
+
         this.physics = new AppelPhysics(
             this.levelData.map,
             this.levelData.rotations,
             this.levelData.MAP_DATA,
-            this.levelData.size_x
+            this.levelData.size_x,
+            this._sharedTouching
         );
         this.mapSnapshot = null;
         this.mapRotationSnapshot = null;

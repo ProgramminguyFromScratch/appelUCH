@@ -1,10 +1,13 @@
 class AppelPhysics {
-    constructor(mapData, mapRotations, MAP_DATA, LSX) {
+    constructor(mapData, mapRotations, MAP_DATA, LSX, sharedTouching = null) {
         this.MAP = Array.isArray(mapData) ? mapData : Array.from(mapData);
         this.MAP_R = Array.isArray(mapRotations) ? mapRotations : Array.from(mapRotations);
         this.MAP_DATA = MAP_DATA;
 
-        this.touching = (typeof Touching !== 'undefined') ? new Touching() : null;
+        // Reuse a shared Touching instance (and its already-decoded
+        // ~58MB correlation table) across rounds instead of rebuilding
+        // it from scratch every time a level loads.
+        this.touching = sharedTouching || (typeof Touching !== 'undefined' ? new Touching() : null);
 
         let maskStrings = [
             '          ', '          ', '5555   1h', '5555   1h',
