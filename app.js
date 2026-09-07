@@ -284,7 +284,7 @@ wireCopyLevelCodeButton(game);
             const meta = document.createElement('span');
             meta.className = 'lobbyMeta';
             const hostPart = lobby.hostName ? `${lobby.hostName}'s lobby · ` : '';
-            const statusPart = lobby.inHub ? ' · in hub' : '';
+            const statusPart = lobby.inProgress ? ' · match in progress' : (lobby.inHub ? ' · in hub' : '');
             meta.textContent = `${hostPart}${lobby.playerCount}/${lobby.maxPlayers} players${statusPart}`;
             info.appendChild(meta);
             li.appendChild(info);
@@ -336,7 +336,7 @@ wireCopyLevelCodeButton(game);
     network.onJoinRejected = (payload) => {
         const message =
             payload.reason === 'room_full' ? 'That room is full.' :
-            payload.reason === 'match_in_progress' ? 'That room already started a match.' :
+            payload.reason === 'match_in_progress' ? 'That room is loading into a match right now - try again in a moment.' :
             payload.reason === 'name_taken' ? 'That name is already taken in this room.' :
             payload.reason === 'invalid_name' ? 'Enter a name using standard keyboard characters.' :
             'Could not join that room.';

@@ -37,7 +37,7 @@ function handleJoinRoom(ws, payload = {}) {
         }
     }
 
-    if (room.phase !== PHASE.LOBBY && room.phase !== PHASE.STAGE_SELECT) {
+    if (room.phase === PHASE.LOADING) {
         send(ws, { type: 'JOIN_REJECTED', phase: room.phase, payload: { reason: 'match_in_progress' } });
         return;
     }

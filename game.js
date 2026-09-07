@@ -4682,8 +4682,10 @@ class Game {
                 break;
             }
             case 'STAGE_LOCKED': {
-                if (typeof playSfx === 'function') playSfx('select');
-                this.loadLevel(payload.levelCode);
+                this._runWhenAssetsReady(() => {
+                    if (typeof playSfx === 'function') playSfx('select');
+                    this.loadLevel(payload.levelCode);
+                });
                 break;
             }
         }
@@ -4692,10 +4694,12 @@ class Game {
     handlePartyNetworkEvent(payload, type) {
         switch (type) {
             case 'PARTY_BOX_START':
-                this.partySlots = (payload.slots || []).map(s => (s ? getPieceById(s.pieceId) : null));
-                this.players.forEach(p => { p.partyCursor = 0; p.piece = null; });
-                this.partyTimeRemaining = payload.timeLimit || this.PARTY_TIME_LIMIT;
-                this.gameState = GameState.PARTY_BOX;
+                this._runWhenAssetsReady(() => {
+                    this.partySlots = (payload.slots || []).map(s => (s ? getPieceById(s.pieceId) : null));
+                    this.players.forEach(p => { p.partyCursor = 0; p.piece = null; });
+                    this.partyTimeRemaining = payload.timeLimit || this.PARTY_TIME_LIMIT;
+                    this.gameState = GameState.PARTY_BOX;
+                });
                 break;
             case 'PARTY_CURSOR_MOVE': {
                 const player = this.players[payload.seatIndex];
@@ -4726,43 +4730,47 @@ class Game {
     handleBuildNetworkEvent(payload, type) {
         switch (type) {
             case 'BUILD_START': {
-                this.buildTimeRemaining = payload.timeLimit || this.BUILD_TIME_LIMIT;
-                if (this.physics && this.mapSnapshot) {
-                    for (let i = 0; i < this.mapSnapshot.length; i++) {
-                        this.physics.MAP[i] = this.mapSnapshot[i];
-                        this.physics.MAP_R[i] = this.mapRotationSnapshot[i];
+                this._runWhenAssetsReady(() => {
+                    this.buildTimeRemaining = payload.timeLimit || this.BUILD_TIME_LIMIT;
+                    if (this.physics && this.mapSnapshot) {
+                        for (let i = 0; i < this.mapSnapshot.length; i++) {
+                            this.physics.MAP[i] = this.mapSnapshot[i];
+                            this.physics.MAP_R[i] = this.mapRotationSnapshot[i];
+                        }
+                        this.physics.worldActiveIdx.length = 0;
+                        this.physics.worldActiveTyp.length = 0;
+                        this.physics.worldActiveFrame.length = 0;
+                        this.physics.worldActiveSpawn.length = 0;
+                        this.physics.tileUpdates.length = 0;
                     }
-                    this.physics.worldActiveIdx.length = 0;
-                    this.physics.worldActiveTyp.length = 0;
-                    this.physics.worldActiveFrame.length = 0;
-                    this.physics.worldActiveSpawn.length = 0;
-                    this.physics.tileUpdates.length = 0;
-                }
 
-                const startCells = payload.startCells || [];
-                for (const sc of startCells) {
-                    const player = this.players[sc.seatIndex];
-                    if (!player) continue;
-                    player.buildRotation = 0;
-                    player.buildPlaced = false;
-                    player.buildCursor = { col: sc.col, row: sc.row };
-                    player.buildMoveHold = { up: 0, down: 0, left: 0, right: 0 };
-                }
-                this.gameState = GameState.BUILD;
+                    const startCells = payload.startCells || [];
+                    for (const sc of startCells) {
+                        const player = this.players[sc.seatIndex];
+                        if (!player) continue;
+                        player.buildRotation = 0;
+                        player.buildPlaced = false;
+                        player.buildCursor = { col: sc.col, row: sc.row };
+                        player.buildMoveHold = { up: 0, down: 0, left: 0, right: 0 };
+                    }
+                    this.gameState = GameState.BUILD;
+                });
                 break;
             }
             case 'BUILD_RESYNC': {
-                this.buildTimeRemaining = payload.timeLimit || this.BUILD_TIME_LIMIT;
-                this.applyMapPatch(payload.mapPatch);
-                const player = this.players[payload.seatIndex];
-                if (player) {
-                    player.piece = payload.pieceId ? getPieceById(payload.pieceId) : null;
-                    player.buildPlaced = !!payload.buildPlaced;
-                    player.buildRotation = payload.rotation || 0;
-                    player.buildCursor = { col: payload.col, row: payload.row };
-                    if (!player.buildMoveHold) player.buildMoveHold = { up: 0, down: 0, left: 0, right: 0 };
-                }
-                this.gameState = GameState.BUILD;
+                this._runWhenAssetsReady(() => {
+                    this.buildTimeRemaining = payload.timeLimit || this.BUILD_TIME_LIMIT;
+                    this.applyMapPatch(payload.mapPatch);
+                    const player = this.players[payload.seatIndex];
+                    if (player) {
+                        player.piece = payload.pieceId ? getPieceById(payload.pieceId) : null;
+                        player.buildPlaced = !!payload.buildPlaced;
+                        player.buildRotation = payload.rotation || 0;
+                        player.buildCursor = { col: payload.col, row: payload.row };
+                        if (!player.buildMoveHold) player.buildMoveHold = { up: 0, down: 0, left: 0, right: 0 };
+                    }
+                    this.gameState = GameState.BUILD;
+                });
                 break;
             }
             case 'BUILD_CURSOR_MOVE': {
@@ -4788,13 +4796,15 @@ class Game {
                 break;
             }
             case 'BUILD_COMPLETE':
-                this.applyMapPatch(payload.mapPatch);
-                this.snapshotBuiltMap();
-                if (payload.levelCode) {
-                    this.lastBuiltLevelCode = payload.levelCode;
-                    console.log('[levelCode] built level saved:', payload.levelCode);
-                    if (this.onLevelCodeSaved) this.onLevelCodeSaved(payload.levelCode);
-                }
+                this._runWhenAssetsReady(() => {
+                    this.applyMapPatch(payload.mapPatch);
+                    this.snapshotBuiltMap();
+                    if (payload.levelCode) {
+                        this.lastBuiltLevelCode = payload.levelCode;
+                        console.log('[levelCode] built level saved:', payload.levelCode);
+                        if (this.onLevelCodeSaved) this.onLevelCodeSaved(payload.levelCode);
+                    }
+                });
                 break;
         }
     }
@@ -4809,14 +4819,16 @@ class Game {
     handleRaceNetworkEvent(payload, type) {
         switch (type) {
             case 'RACE_START':
-                this.tick = payload.tick || 0;
-                if (typeof payload.timeLimit === 'number') this.RACE_TIME_LIMIT = payload.timeLimit;
-                if (typeof payload.lives === 'number') this.settings.lives = payload.lives;
-                this.remotePositions.clear();
-                this.gameState = GameState.RACE;
-                this.resetRoundState();
-                this.cameraLookahead.x = 0;
-                this.cameraLookahead.y = 0;
+                this._runWhenAssetsReady(() => {
+                    this.tick = payload.tick || 0;
+                    if (typeof payload.timeLimit === 'number') this.RACE_TIME_LIMIT = payload.timeLimit;
+                    if (typeof payload.lives === 'number') this.settings.lives = payload.lives;
+                    this.remotePositions.clear();
+                    this.gameState = GameState.RACE;
+                    this.resetRoundState();
+                    this.cameraLookahead.x = 0;
+                    this.cameraLookahead.y = 0;
+                });
                 break;
             case 'RACE_TIMER_EXPIRED':
                 this.raceTimeRemaining = 0;
