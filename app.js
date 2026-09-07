@@ -532,6 +532,7 @@ wireCopyLevelCodeButton(game);
     network.onMatchStarting = (payload, type) => {
         if (priorOnMatchStarting) priorOnMatchStarting(payload, type);
         lobbyScreen.style.display = 'none';
+        creditsScreen.style.display = 'none';
         game.startGameNetworked();
     };
 
