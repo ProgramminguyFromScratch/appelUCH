@@ -246,7 +246,10 @@ class Game {
             { key: 'hue', label: 'Top color', min: 0, max: 199, step: 8 },
             { key: 'hue2', label: 'Bottom color', min: 0, max: 199, step: 8 },
             { key: 'sfx', label: 'Sound effects', min: 0, max: 100, step: 5, suffix: '%' },
-            { key: 'music', label: 'Music', min: 0, max: 100, step: 5, suffix: '%' }
+            { key: 'music', label: 'Music', min: 0, max: 100, step: 5, suffix: '%' },
+            { key: 'inputDisplay', label: 'Input display', min: 0, max: 1, step: 1, toggle: true, toggleLabels: ['Off', 'On'] },
+            { key: 'stageHint', label: 'Stage hint', min: 0, max: 1, step: 1, toggle: true, toggleLabels: ['Hidden', 'Shown'] },
+            { key: 'cameraMode', label: 'Camera mode', min: 0, max: 2, step: 1, toggle: true, toggleLabels: ['Auto', 'Overview', 'Follow'] }
         ];
         this._loadUserSettings();
         this.RESPAWN_DELAY_FRAMES = 30; 
@@ -377,11 +380,6 @@ class Game {
                 return;
             }
 
-            if (e.code === 'KeyV' && !e.repeat && this.gameState !== GameState.MENU) {
-                e.preventDefault();
-                this.stageHintHidden = !this.stageHintHidden;
-            }
-
             if (e.code === 'KeyF' && !e.repeat) {
                 e.preventDefault();
                 this.toggleFullscreen();
@@ -391,10 +389,6 @@ class Game {
                 this.showDebugMenu = !this.showDebugMenu;
                 if (this.showDebugMenu && this.network && this.network.isConnected) this.network.sendPing();
                 console.log(`[debug] menu ${this.showDebugMenu ? 'ON' : 'OFF'}`);
-            }
-
-            if (e.code === 'Digit3' && !e.repeat) {
-                this.showInputDisplay = !this.showInputDisplay;
             }
 
             if (this.gameState === GameState.PARTY_BOX) {
@@ -722,6 +716,9 @@ class Game {
             const saved = JSON.parse(sessionStorage.getItem(this.USER_SETTINGS_STORAGE_KEY) || '{}');
             if (typeof saved.sfx === 'number') this.sfxVolume = saved.sfx;
             if (typeof saved.music === 'number') this.musicVolume = saved.music;
+            if (typeof saved.inputDisplay === 'boolean') this.showInputDisplay = saved.inputDisplay;
+            if (typeof saved.stageHintHidden === 'boolean') this.stageHintHidden = saved.stageHintHidden;
+            if (typeof saved.cameraMode === 'number') this.cameraMode = saved.cameraMode;
             const player = this.players[this.localSeatIndex];
             if (typeof saved.hue === 'number' && player) {
                 player.hue = saved.hue;
@@ -739,7 +736,8 @@ class Game {
             const hue = player ? (player.hue || 0) : 0;
             const hue2 = player ? (typeof player.hue2 === 'number' ? player.hue2 : hue) : 0;
             sessionStorage.setItem(this.USER_SETTINGS_STORAGE_KEY, JSON.stringify({
-                hue, hue2, sfx: this.sfxVolume, music: this.musicVolume
+                hue, hue2, sfx: this.sfxVolume, music: this.musicVolume,
+                inputDisplay: this.showInputDisplay, stageHintHidden: this.stageHintHidden, cameraMode: this.cameraMode
             }));
         } catch (e) {}
     }
@@ -756,6 +754,9 @@ class Game {
         }
         if (meta.key === 'sfx') return this.sfxVolume;
         if (meta.key === 'music') return this.musicVolume;
+        if (meta.key === 'inputDisplay') return this.showInputDisplay ? 1 : 0;
+        if (meta.key === 'stageHint') return this.stageHintHidden ? 0 : 1;
+        if (meta.key === 'cameraMode') return this.cameraMode;
         return 0;
     }
 
@@ -770,6 +771,12 @@ class Game {
         } else if (meta.key === 'music') {
             this.musicVolume = value;
             if (typeof setMusicVolume === 'function') setMusicVolume(value / 100);
+        } else if (meta.key === 'inputDisplay') {
+            this.showInputDisplay = !!value;
+        } else if (meta.key === 'stageHint') {
+            this.stageHintHidden = !value;
+        } else if (meta.key === 'cameraMode') {
+            this.cameraMode = value;
         }
         this._persistUserSettings();
     }
@@ -869,7 +876,8 @@ class Game {
             } else {
                 ctx.textAlign = 'right';
                 ctx.fillStyle = selected ? THEME.accent : THEME.textMuted;
-                ctx.fillText(value + (meta.suffix || ''), x + width - paddingX, rowY + rowHeight / 2 - 3);
+                const displayValue = meta.toggle ? meta.toggleLabels[value] : (value + (meta.suffix || ''));
+                ctx.fillText(displayValue, x + width - paddingX, rowY + rowHeight / 2 - 3);
             }
         });
 
@@ -976,7 +984,7 @@ class Game {
         ctx.font = '11px ' + THEME.font;
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.fillText('H: Controls   V: ' + (this.stageHintHidden ? 'Show hint' : 'Hide hint'), this.canvas.width / 2, this.canvas.height - 10);
+        ctx.fillText('H: Controls', this.canvas.width / 2, this.canvas.height - 10);
         ctx.restore();
     }
 
@@ -1008,8 +1016,7 @@ class Game {
                 title: 'Race',
                 rows: [
                     ['Hold to give up', 'Shift or Enter (hold)'],
-                    ['Cycle camera mode', '1'],
-                    ['Toggle input display', '3']
+                    ['Cycle camera mode', '1']
                 ]
             },
             {
