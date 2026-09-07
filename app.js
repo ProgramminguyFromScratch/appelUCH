@@ -97,7 +97,7 @@ document.addEventListener('fullscreenchange', () => {
 });
 
 // const serverUrl = params.get('server') || `ws://${window.location.hostname || 'localhost'}:8080`;
-const serverUrl = params.get('server') || `wss://appel-multiplayer-server.carterwatson99.workers.dev/`;
+const serverUrl = params.get('server') || `wss://spacecaliber.net`;
 
 const network = new NetworkClient(serverUrl);
 const game = new Game('gameCanvas', playerCount, network);

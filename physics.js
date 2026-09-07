@@ -79,7 +79,7 @@ class AppelPhysics {
         const idx = sx + sy * this.LSX;
 
         const tile = this.MAP[idx];
-        const mask = this.MASK[tile];
+        const mask = this.MASK[tile] ?? this.MASK[0];
 
         const rx = x - sx * 60;
         const ry = y - sy * 60;
