@@ -339,6 +339,7 @@ wireCopyLevelCodeButton(game);
             payload.reason === 'match_in_progress' ? 'That room is loading into a match right now - try again in a moment.' :
             payload.reason === 'name_taken' ? 'That name is already taken in this room.' :
             payload.reason === 'invalid_name' ? 'Enter a name using standard keyboard characters.' :
+            payload.reason === 'banned_from_room' ? 'You have been banned from this room.' :
             'Could not join that room.';
 
         if (pendingJoinRoomCode) {

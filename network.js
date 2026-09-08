@@ -41,6 +41,7 @@ class NetworkClient {
         this.onLoginResult = null;       
         this.onLivesAdjusted = null;     
         this.onKickRejected = null;      
+        this.onBanRejected = null;       
         this.onHostUpdated = null;      
         this.onLobbyList = null;          
         this.onPlayerPingUpdate = null;   
@@ -101,6 +102,7 @@ class NetworkClient {
         this._DIRECT_MAP.LOGIN_RESULT = 'onLoginResult';
         this._DIRECT_MAP.LIVES_ADJUSTED = 'onLivesAdjusted';
         this._DIRECT_MAP.KICK_REJECTED = 'onKickRejected';
+        this._DIRECT_MAP.BAN_REJECTED = 'onBanRejected';
         this._DIRECT_MAP.HOST_UPDATED = 'onHostUpdated';
         this._DIRECT_MAP.LOBBY_LIST = 'onLobbyList';
         this._DIRECT_MAP.PLAYER_PING_UPDATE = 'onPlayerPingUpdate';
@@ -266,6 +268,10 @@ class NetworkClient {
 
     sendKickRequest(name) {
         this._send('KICK_REQUEST', { name });
+    }
+
+    sendBanRequest(name) {
+        this._send('BAN_REQUEST', { name });
     }
 
     sendForceStageRequest(levelCode) {

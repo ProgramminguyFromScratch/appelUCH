@@ -1171,6 +1171,12 @@ class Game {
             return this._chatPlayerNameMatch('/kick ', m[1] || '');
         }
 
+        m = /^\/ban(?:\s+(\S*))?\s*$/i.exec(text);
+        if (m) {
+            if (!canPrivileged) return null;
+            return this._chatPlayerNameMatch('/ban ', m[1] || '');
+        }
+
         m = /^\/forcestage(?:\s+(.*))?$/i.exec(text);
         if (m) {
             if (!canPrivileged) return null;
@@ -1497,6 +1503,23 @@ class Game {
             return;
         }
 
+        if (cmd === '/ban') {
+            if (!this.isHost && !this.isAdmin) {
+                this.pushSystemMessage('Only the host (or an admin) can ban players.');
+                return;
+            }
+            if (!arg) {
+                this.pushSystemMessage('Usage: /ban <username> (Tab to autocomplete)');
+                return;
+            }
+            if (this.network && this.network.isConnected) {
+                this.network.sendBanRequest(arg);
+            } else {
+                this.pushSystemMessage('Not connected to a server.');
+            }
+            return;
+        }
+
         if (cmd === '/color' || cmd === '/color2') {
             const hue = Math.round(Number(arg));
             if (!arg || !Number.isFinite(hue) || hue < 0 || hue > 199) {
@@ -1650,6 +1673,7 @@ class Game {
 
             if (this.isHost || this.isAdmin) {
                 lines.push('/kick <username> - remove a player from the room');
+                lines.push('/ban <username> - remove a player and block their IP from rejoining this room');
                 lines.push('/forcestage <stage name> - force the stage during stage select');
             }
 
@@ -1741,11 +1765,15 @@ class Game {
     handleChatMessage(payload) {
         if (!payload) return;
         const player = this.players[payload.seatIndex];
-        const color = (player && player.color) || hueShiftToHex(payload.hue2 || payload.hue || 0);
+        const isServerMsg = payload.seatIndex === -1 && payload.name === 'Server';
+        const color = isServerMsg
+            ? '#ffdd57'
+            : ((player && player.color) || hueShiftToHex(payload.hue2 || payload.hue || 0));
         this.chatMessages.push({
             seatIndex: payload.seatIndex,
             name: payload.name || (player ? player.name : '???'),
             color,
+            fullColor: isServerMsg,
             text: payload.text || '',
             expiresAt: performance.now() + this.CHAT_MESSAGE_DURATION_MS
         });
@@ -3468,7 +3496,7 @@ class Game {
                     ctx.fillStyle = msg.color || THEME.text;
                     ctx.fillText(nameText, padX, y);
                 }
-                ctx.fillStyle = THEME.text;
+                ctx.fillStyle = msg.fullColor ? (msg.color || THEME.text) : THEME.text;
                 this._drawChatTokens(ctx, line.tokens, lineX, y);
 
                 y -= lineHeight;
@@ -3621,7 +3649,7 @@ class Game {
     drawTabList() {
         const ctx = this.ctx;
         const players = this.players
-            .filter(p => p)
+            .filter(p => p && p.connected !== false)
             .slice()
             .sort((a, b) => (b.score || 0) - (a.score || 0) || a.seatIndex - b.seatIndex);
 
@@ -4816,6 +4844,15 @@ class Game {
         net.onKickRejected = (payload) => {
             const name = payload && payload.name ? payload.name : 'that player';
             this.pushSystemMessage(`Can't kick ${name} - admins are protected from being kicked.`);
+        };
+        net.onBanRejected = (payload) => {
+            const name = payload && payload.name ? payload.name : 'that player';
+            const reason = payload && payload.reason;
+            if (reason === 'no_ip') {
+                this.pushSystemMessage(`Couldn't ban ${name} - no IP address on record.`);
+            } else {
+                this.pushSystemMessage(`Can't ban ${name} - admins are protected from being banned.`);
+            }
         };
         net.onHostUpdated = (payload) => {
             if (payload && typeof payload.hostSeatIndex === 'number') this.applyHostSeatIndex(payload.hostSeatIndex);
