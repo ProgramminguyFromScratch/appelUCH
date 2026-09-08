@@ -7,6 +7,23 @@ class LevelRenderer {
         this.wallCache = new Map();
         this.backgroundVariants = new Map();
         this.playerSpriteCache = new Map();
+
+        // Bounds on the caches above. Without a cap, every distinct hue a
+        // level/background/player ever uses over a long session accumulates
+        // its own full set of recolored canvases forever. Besides the memory
+        // growth itself, in Safari every one of those canvases is produced
+        // via getImageData/putImageData (see applyColorEffect below), which
+        // permanently kicks a canvas out of GPU-accelerated compositing.
+        // The more of those pile up, the more of every frame's paint has to
+        // be composited in software - JS-side timings stay flat because the
+        // slowdown happens in WebKit's compositor, after our code has
+        // already returned, so it never shows up as extra ms/frame; it just
+        // shows up as dropped frames. Capping + evicting keeps the steady
+        // state bounded regardless of how many rounds/levels are played.
+        this._maxTilesetCacheEntries = 6;
+        this._maxWallCacheEntries = 6;
+        this._maxBackgroundVariants = 6;
+        this._maxPlayerSpriteEntries = 24;
         
         this.tiles = [];
         this.wallTiles = [];
@@ -16,6 +33,16 @@ class LevelRenderer {
 
         this._rotationCache = new WeakMap();
 
+        // Single reusable off-DOM canvas used only as scratch space for
+        // pixel-level math (getImageData/putImageData). This canvas is
+        // expected to run in software mode in Safari - that's fine, it's
+        // never drawn to the screen itself. `willReadFrequently` tells
+        // browsers up front that this canvas will be read back a lot, so
+        // they can skip pointlessly allocating (and then tearing down) a
+        // GPU-backed surface for it.
+        this._scratchCanvas = document.createElement('canvas');
+        this._scratchCtx = this._scratchCanvas.getContext('2d', { willReadFrequently: true });
+
         this.needsHue = [..."01111110010010001101100000000001100000000111000001111111101000000001000001001111111001"]
             .flatMap((c, i) => c === "1" ? [i] : []);
 
@@ -23,6 +50,63 @@ class LevelRenderer {
         this.isFullBlock = new Set(
             this.isFullBlockList.flatMap((c, i) => c === "1" ? [i] : [])
         );
+    }
+
+    // --- Bounded LRU cache helpers -----------------------------------
+    // `map` is assumed to be a Map; Map preserves insertion order, so we
+    // use "delete then re-set" to bump an entry to most-recently-used, and
+    // evict from the front (oldest) once we're over the limit. `disposer`
+    // (if given) is called on evicted values so their canvas backing
+    // stores can be released immediately instead of waiting on GC - Safari
+    // in particular is slow to reclaim canvas/GPU memory otherwise.
+    _cacheGet(map, key) {
+        if (!map.has(key)) return undefined;
+        const value = map.get(key);
+        map.delete(key);
+        map.set(key, value);
+        return value;
+    }
+
+    _cacheSet(map, key, value, maxEntries, disposer) {
+        if (map.has(key)) map.delete(key);
+        map.set(key, value);
+        while (map.size > maxEntries) {
+            const oldestKey = map.keys().next().value;
+            const oldestValue = map.get(oldestKey);
+            map.delete(oldestKey);
+            if (disposer) disposer(oldestValue);
+        }
+    }
+
+    // Frees a canvas's backing store immediately. No-op for anything that
+    // isn't a canvas we own (e.g. the original loaded Image assets, which
+    // are shared and must never be torn down).
+    _disposeCanvas(value) {
+        if (value instanceof HTMLCanvasElement) {
+            value.width = 0;
+            value.height = 0;
+        }
+    }
+
+    _disposeCanvasArray(arr) {
+        if (!Array.isArray(arr)) return;
+        for (const item of arr) this._disposeCanvas(item);
+    }
+
+    _disposeSprite(sprite) {
+        if (!sprite) return;
+        this._disposeCanvas(sprite.normal);
+        this._disposeCanvas(sprite.crouch);
+    }
+
+    // Grabs the shared scratch canvas, sized for this call, cleared and
+    // ready to draw into. Only ever used as intermediate workspace for
+    // pixel manipulation - never cached, never drawn to the screen.
+    _getScratch(w, h) {
+        if (this._scratchCanvas.width !== w) this._scratchCanvas.width = w;
+        if (this._scratchCanvas.height !== h) this._scratchCanvas.height = h;
+        else this._scratchCtx.clearRect(0, 0, w, h);
+        return this._scratchCtx;
     }
 
     isTileFullBlock(rawTileVal) {
@@ -171,13 +255,15 @@ class LevelRenderer {
         if (!topHue && !bottomHue) return { normal: this.playerNormal, crouch: this.playerCrouch };
 
         const cacheKey = topHue + '_' + bottomHue;
-        if (this.playerSpriteCache.has(cacheKey)) return this.playerSpriteCache.get(cacheKey);
+        const cached = this._cacheGet(this.playerSpriteCache, cacheKey);
+        if (cached) return cached;
 
         const sprite = {
             normal: this.applyPlayerHueEffect(this.playerNormal, topHue, bottomHue),
             crouch: this.applyPlayerHueEffect(this.playerCrouch, topHue, bottomHue)
         };
-        this.playerSpriteCache.set(cacheKey, sprite);
+        this._cacheSet(this.playerSpriteCache, cacheKey, sprite, this._maxPlayerSpriteEntries,
+            (evicted) => this._disposeSprite(evicted));
         return sprite;
     }
 
@@ -187,23 +273,27 @@ class LevelRenderer {
     // the two regions can be tinted independently.
     applyPlayerHueEffect(source, hueTop, hueBottom) {
         const TOP_REGION_HUE_THRESHOLD = 100;
-        const canvas = document.createElement('canvas');
-        canvas.width = source.width || 60;
-        canvas.height = source.height || 60;
+        const w = source.width || 60;
+        const h = source.height || 60;
 
-        const ctx = canvas.getContext('2d');
+        // Do the pixel math on the shared scratch canvas. Calling
+        // getImageData/putImageData taints whatever canvas it's called on
+        // in Safari (permanently drops it out of GPU compositing) - by
+        // confining that to the scratch canvas, which is never itself
+        // drawn to the screen or cached, the taint stays contained there.
+        const ctx = this._getScratch(w, h);
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(source, 0, 0, w, h);
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, w, h);
         const data = imageData.data;
 
         for (let i = 0; i < data.length; i += 4) {
             if (data[i + 3] === 0) continue;
 
-            const [h, s, v] = this.rgbToHsv(data[i], data[i + 1], data[i + 2]);
-            const shift = h >= TOP_REGION_HUE_THRESHOLD ? hueTop : hueBottom;
-            const hNorm = (h / 360 + (shift % 200) / 200) % 1.0;
+            const [hue, s, v] = this.rgbToHsv(data[i], data[i + 1], data[i + 2]);
+            const shift = hue >= TOP_REGION_HUE_THRESHOLD ? hueTop : hueBottom;
+            const hNorm = (hue / 360 + (shift % 200) / 200) % 1.0;
             const [r, g, b] = this.hsvToRgb(hNorm * 360, s, v);
             data[i] = r;
             data[i + 1] = g;
@@ -211,7 +301,18 @@ class LevelRenderer {
         }
 
         ctx.putImageData(imageData, 0, 0);
-        return canvas;
+
+        // Copy the finished pixels into a brand-new, clean canvas. This
+        // canvas never has getImageData/putImageData called on it, so
+        // Safari has no reason to demote it out of GPU-accelerated
+        // compositing - it's this canvas we cache and draw every frame.
+        const result = document.createElement('canvas');
+        result.width = w;
+        result.height = h;
+        const resultCtx = result.getContext('2d');
+        resultCtx.imageSmoothingEnabled = false;
+        resultCtx.drawImage(this._scratchCanvas, 0, 0);
+        return result;
     }
 
     renderPlayer(playerPos, camera, hue = 0, hue2 = 0, name = "", color = "#ffffff", status = null, alpha = 1) {
@@ -333,7 +434,8 @@ class LevelRenderer {
 
     getHuedTileset(hue) {
         if (hue === 0) return this.tiles;
-        if (this.tilesetCache.has(hue)) return this.tilesetCache.get(hue);
+        const cached = this._cacheGet(this.tilesetCache, hue);
+        if (cached) return cached;
 
         const huedSet = this.tiles.map((tile, i) => {
             if (!tile) return null;
@@ -342,19 +444,22 @@ class LevelRenderer {
                 : tile;
         });
 
-        this.tilesetCache.set(hue, huedSet);
+        this._cacheSet(this.tilesetCache, hue, huedSet, this._maxTilesetCacheEntries,
+            (evicted) => this._disposeCanvasArray(evicted));
         return huedSet;
     }
 
     getHuedWalls(hue) {
         if (hue === 0) return this.wallTiles;
-        if (this.wallCache.has(hue)) return this.wallCache.get(hue);
+        const cached = this._cacheGet(this.wallCache, hue);
+        if (cached) return cached;
 
         const huedWalls = this.wallTiles.map(tile =>
             tile ? this.applyColorEffect(tile, hue) : null
         );
 
-        this.wallCache.set(hue, huedWalls);
+        this._cacheSet(this.wallCache, hue, huedWalls, this._maxWallCacheEntries,
+            (evicted) => this._disposeCanvasArray(evicted));
         return huedWalls;
     }
 
@@ -391,15 +496,16 @@ class LevelRenderer {
 	}
 
     applyColorEffect(source, hueShift) {
-        const canvas = document.createElement('canvas');
-        canvas.width = source.width || 60;
-        canvas.height = source.height || 60;
+        const w = source.width || 60;
+        const h = source.height || 60;
 
-        const ctx = canvas.getContext('2d');
+        // See applyPlayerHueEffect above: do the readback/write on the
+        // shared scratch canvas, never on the canvas we're about to cache.
+        const ctx = this._getScratch(w, h);
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(source, 0, 0, w, h);
 
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, w, h);
         const data = imageData.data;
 
         for (let i = 0; i < data.length; i += 4) {
@@ -411,8 +517,8 @@ class LevelRenderer {
                 data[i + 1] = gray;
                 data[i + 2] = gray;
             } else {
-                const [h, s, v] = this.rgbToHsv(data[i], data[i+1], data[i+2]);
-                let hNorm = (h / 360 + (hueShift % 200) / 200) % 1.0;
+                const [hue, s, v] = this.rgbToHsv(data[i], data[i+1], data[i+2]);
+                let hNorm = (hue / 360 + (hueShift % 200) / 200) % 1.0;
                 const [r, g, b] = this.hsvToRgb(hNorm * 360, s, v);
                 data[i] = r;
                 data[i+1] = g;
@@ -421,7 +527,17 @@ class LevelRenderer {
         }
 
         ctx.putImageData(imageData, 0, 0);
-        return canvas;
+
+        // Copy into a fresh canvas that never has getImageData/putImageData
+        // called on it directly, so it stays eligible for GPU compositing
+        // in Safari. This is the canvas that actually gets cached/drawn.
+        const result = document.createElement('canvas');
+        result.width = w;
+        result.height = h;
+        const resultCtx = result.getContext('2d');
+        resultCtx.imageSmoothingEnabled = false;
+        resultCtx.drawImage(this._scratchCanvas, 0, 0);
+        return result;
     }
 
     fixHue(hueShift) {
@@ -569,10 +685,12 @@ class LevelRenderer {
         if (camera.y < minCamY) camera.y = minCamY;
 
         const bgKey = `bg_${hue2}`;
-        if (!this.backgroundVariants.has(bgKey)) {
-            this.backgroundVariants.set(bgKey, this.applyColorEffect(this.background, hue2));
+        let bg = this._cacheGet(this.backgroundVariants, bgKey);
+        if (!bg) {
+            bg = this.applyColorEffect(this.background, hue2);
+            this._cacheSet(this.backgroundVariants, bgKey, bg, this._maxBackgroundVariants,
+                (evicted) => this._disposeCanvas(evicted));
         }
-        const bg = this.backgroundVariants.get(bgKey);
 
         const bgW = 560 * camera.zoom;
         const bgH = 440 * camera.zoom;

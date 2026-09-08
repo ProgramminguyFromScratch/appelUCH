@@ -2588,14 +2588,23 @@ class Game {
 
         const fps = 30;
         const frameDuration = 1000 / fps;
-        let lastFrameTime = performance.now(); 
+        let lastFrameTime = performance.now();
 
-        setInterval(() => {
-            const now = performance.now();
-            const delta = now - lastFrameTime;
-            if (delta >= frameDuration - 1) {
+        // Driven by requestAnimationFrame instead of a 1ms setInterval
+        // busy-poll. rAF is paced to the display's actual vsync/compositor
+        // schedule (and is auto-throttled/paused in background tabs), so
+        // frame timing here reflects what the browser can really deliver
+        // instead of a timer that keeps firing regardless of whether a
+        // paint is even due. We still step game logic at a fixed ~30fps by
+        // accumulating elapsed time and running as many steps as needed
+        // (usually one) each rAF callback, so behavior matches the old
+        // interval-gated version.
+        const tick = (now) => {
+            let delta = now - lastFrameTime;
+
+            while (delta >= frameDuration - 1) {
                 this.profiler.recordFrameTime(delta);
-                lastFrameTime = now;
+                lastFrameTime += frameDuration;
                 this.recordFrame(now);
                 this.profiler.beginFrame(now);
 
@@ -2612,8 +2621,20 @@ class Game {
 
                 if (this.showDebugMenu) this.drawDebugMenu();
                 if (this.tabListOpen && this.gameState !== GameState.MENU) this.drawTabList();
+
+                delta = now - lastFrameTime;
+                // Don't try to "catch up" indefinitely after e.g. the tab
+                // was backgrounded for a while - resync instead of running
+                // a burst of stale steps.
+                if (delta > frameDuration * 5) {
+                    lastFrameTime = now;
+                    break;
+                }
             }
-        }, 1);
+
+            requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
 
         if (this.network) {
             this.network.sendPing(this.ping);
