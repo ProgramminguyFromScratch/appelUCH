@@ -1656,8 +1656,8 @@ class Game {
         }
 
         if (cmd === '/next') {
-            if (!this.isHost) {
-                this.pushSystemMessage('Only the host can use /next.');
+            if (!this.isHost && !this.isAdmin) {
+                this.pushSystemMessage('Only the host (or an admin) can use /next.');
                 return;
             }
             if (this.network && this.network.isConnected) {
@@ -3038,22 +3038,28 @@ class Game {
         const vxs = active.map(p => p.physicsState.PLAYER_SX || 0);
         const vys = active.map(p => p.physicsState.PLAYER_SY || 0);
 
-        const avgX = xs.reduce((a, b) => a + b, 0) / xs.length;
-        const avgY = ys.reduce((a, b) => a + b, 0) / ys.length;
         const avgVX = vxs.reduce((a, b) => a + b, 0) / vxs.length;
         const avgVY = vys.reduce((a, b) => a + b, 0) / vys.length;
         const lookahead = this.updateCameraLookahead(avgVX, avgVY);
-
-        const targetCameraX = avgX + lookahead.x;
-        const targetCameraY = avgY + lookahead.y;
 
         const minX = Math.min(...xs), maxX = Math.max(...xs);
         const minY = Math.min(...ys), maxY = Math.max(...ys);
         const PADDING_X = 160; 
         const PADDING_Y = 80;  
-        
-        const boxW = Math.max(maxX - minX, 1);
-        const boxH = Math.max(maxY - minY, 1);
+
+        // Center on the bounding box (not the average player position) so the
+        // zoom level, which is sized to fit this exact box, is guaranteed to
+        // actually keep everyone on screen. Using the mean position instead
+        // could drift off-center when players are spread unevenly, clipping
+        // outliers even though the zoom was "correct" for the box.
+        const targetCameraX = (minX + maxX) / 2 + lookahead.x;
+        const targetCameraY = (minY + maxY) / 2 + lookahead.y;
+
+        // Grow the box by the lookahead offset (doubled, since shifting the
+        // camera by `lookahead` moves the viewport that much) so the fit
+        // calculation still accounts for the shifted center.
+        const boxW = Math.max(maxX - minX, 1) + Math.abs(lookahead.x) * 2;
+        const boxH = Math.max(maxY - minY, 1) + Math.abs(lookahead.y) * 2;
         
         const zoomToFitX = Math.max(0, this.canvas.width - PADDING_X * 2) / boxW;
         const zoomToFitY = Math.max(0, this.canvas.height - PADDING_Y * 2) / boxH;
@@ -3066,7 +3072,7 @@ class Game {
         this.camera.y += ((targetCameraY - this.camera.y) + 8) * 0.15;
         
         const ZOOM_OUT_EASE = 0.6;
-        const ZOOM_IN_EASE = 0.1;
+        const ZOOM_IN_EASE = 0.015;
         const ZOOM_REVEAL_EASE = 0.06;
         const zoomEase = roundWrappingUp
             ? ZOOM_REVEAL_EASE
