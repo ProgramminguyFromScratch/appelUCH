@@ -215,8 +215,8 @@ class Game {
         }
         this.roundEndFrames = 0;
         this.ROUND_END_DELAY_FRAMES = 30;
-        this.RACE_TIME_LIMIT = 60; 
-        this.raceTimeRemaining = this.RACE_TIME_LIMIT;
+        this.LAVA_RISE_TIME = 60; 
+        this.lavaRiseRemaining = this.LAVA_RISE_TIME;
 
         this.loadingBgImage = new Image();
         this.loadingBgReady = false;
@@ -229,12 +229,12 @@ class Game {
         this.totalRounds = 10;
         this.POINTS_TO_WIN = 15;
         this.settings = {
-            lives: 1,
+            lives: 3,
             pointsToWin: 15,
             comebackPoints: 2,
             firstPlacePoints: 1,
             totalRounds: 10,
-            raceTimeLimit: 60,
+            lavaRiseTime: 60,
             openLobby: 1,
             pieceChances: {}
         };
@@ -267,7 +267,7 @@ class Game {
             { key: 'comebackPoints', label: 'Comeback points', min: 0, max: 10, step: 1 },
             { key: 'firstPlacePoints', label: 'First place points', min: 0, max: 10, step: 1 },
             { key: 'totalRounds', label: 'Rounds', min: 1, max: 30, step: 1 },
-            { key: 'raceTimeLimit', label: 'Race time limit (s)', min: 15, max: 180, step: 5 },
+            { key: 'lavaRiseTime', label: 'Lava rise time (s)', min: 15, max: 180, step: 5 },
             { key: 'openLobby', label: 'Open Lobby', min: 0, max: 1, step: 1, toggle: true, toggleLabels: ['Closed', 'Open'] }
         ];
         this.PIECE_CHANCE_META = (typeof PIECE_POOL !== 'undefined' ? PIECE_POOL : []).map(piece => ({
@@ -1017,7 +1017,7 @@ class Game {
         ctx.save();
         ctx.font = '11px ' + THEME.font;
         ctx.textAlign = 'center';
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
         ctx.fillText('H: Controls', this.canvas.width / 2, this.canvas.height - 10);
         ctx.restore();
     }
@@ -1765,7 +1765,7 @@ class Game {
     handleChatMessage(payload) {
         if (!payload) return;
         const player = this.players[payload.seatIndex];
-        const isServerMsg = payload.seatIndex === -1 && payload.name === 'Server';
+        const isServerMsg = payload.seatIndex === -1;
         const color = isServerMsg
             ? '#ffdd57'
             : ((player && player.color) || hueShiftToHex(payload.hue2 || payload.hue || 0));
@@ -2419,8 +2419,9 @@ class Game {
     }
     resetRoundState() {
         this.roundEndFrames = 0;
-        this.raceTimeRemaining = this.RACE_TIME_LIMIT;
+        this.lavaRiseRemaining = this.LAVA_RISE_TIME;
         if (this.physics && this.mapSnapshot) {
+            this.physics.lavaLevel = -30;
             for (let i = 0; i < this.mapSnapshot.length; i++) {
                 this.physics.MAP[i] = this.mapSnapshot[i];
                 this.physics.MAP_R[i] = this.mapRotationSnapshot[i];
@@ -2918,14 +2919,17 @@ class Game {
             const localPlayer = this.players[this.localSeatIndex];
             if (localPlayer && localPlayer.physicsState) {
                 if (localPlayer.physicsState.PLAYER_DEATH && !localPlayer.hasFinished && !localPlayer.eliminated && !localPlayer.reportedElimination && !(localPlayer.respawnPendingFrames > 0)) {
-                    if ((localPlayer.livesRemaining || 1) > 1) {
+                    const isLavaDeath = !!localPlayer.physicsState.PLAYER_DEATH_LAVA;
+                    if (!isLavaDeath && (localPlayer.livesRemaining || 1) > 1) {
                         localPlayer.livesRemaining -= 1;
                         localPlayer.respawnPendingFrames = this.RESPAWN_DELAY_FRAMES;
                         if (typeof playSfx === 'function') playSfx('boom');
                         this.network.sendRespawnObserved(this.tick);
                     } else {
+                        if (isLavaDeath) localPlayer.livesRemaining = 0;
                         localPlayer.reportedElimination = true;
-                        this.network.sendEliminationObserved(this.localSeatIndex, this.tick, 'death');
+                        if (typeof playSfx === 'function') playSfx('boom');
+                        this.network.sendEliminationObserved(this.localSeatIndex, this.tick, isLavaDeath ? 'lava' : 'death');
                     }
                 }
             }
@@ -2942,23 +2946,21 @@ class Game {
         }
         for (const player of this.players) {
             if (player.physicsState.PLAYER_DEATH && !player.hasFinished && !player.eliminated && !(player.respawnPendingFrames > 0)) {
-                if ((player.livesRemaining || 1) > 1) {
+                const isLavaDeath = !!player.physicsState.PLAYER_DEATH_LAVA;
+                if (!isLavaDeath && (player.livesRemaining || 1) > 1) {
                     player.livesRemaining -= 1;
                     player.respawnPendingFrames = this.RESPAWN_DELAY_FRAMES;
                     if (typeof playSfx === 'function') playSfx('boom', this.getDistanceVolume(player.physicsState.PLAYER_X, player.physicsState.PLAYER_Y));
                 } else {
-                    console.log(`${player.name} died!`);
+                    if (isLavaDeath) {
+                        player.livesRemaining = 0;
+                        console.log(`${player.name} was swallowed by the lava!`);
+                        player.dnf = true;
+                    } else {
+                        console.log(`${player.name} died!`);
+                    }
                     if (typeof playSfx === 'function') playSfx('boom', this.getDistanceVolume(player.physicsState.PLAYER_X, player.physicsState.PLAYER_Y));
                     player.eliminated = true;
-                }
-            }
-        }
-        if (this.raceTimeRemaining <= 0) {
-            for (const player of this.players) {
-                if (!player.hasFinished && !player.eliminated) {
-                    console.log(`${player.name} ran out of time!`);
-                    player.eliminated = true;
-                    player.dnf = true;
                 }
             }
         }
@@ -3527,7 +3529,7 @@ class Game {
         ctx.globalAlpha = 1;
 
         if (!this.chatOpen) {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
             ctx.font = `12px ${THEME.font}`;
             ctx.fillText('Press T to chat', padX, this.canvas.height - 6);
             ctx.font = `bold 15px ${THEME.font}`;
@@ -3974,7 +3976,10 @@ class Game {
 
     raceLoop() {
         if (this.gameState === GameState.RACE) {
-            this.raceTimeRemaining = Math.max(0, this.raceTimeRemaining - (1 / 30));
+            // Allowed to go negative: past 0 it tracks how long the lava has
+            // been rising at its fixed speed, not just a countdown to 0.
+            this.lavaRiseRemaining -= 1 / 30;
+            this.updateLavaLevel();
         }
 
         this.profiler.time('physics', () => {
@@ -3994,7 +3999,7 @@ class Game {
         this.profiler.time('players', () => this.drawEntities());
 
         this.profiler.time('ui', () => {
-            this.drawRaceTimer();
+            this.drawLava();
             this.drawLivesIndicator();
             this.drawGiveUpRing();
             this.drawInputDisplay();
@@ -4013,7 +4018,7 @@ class Game {
             this.giveUpHoldFrames = 0;
             return;
         }
-        const raceElapsedSeconds = this.RACE_TIME_LIMIT - this.raceTimeRemaining;
+        const raceElapsedSeconds = this.LAVA_RISE_TIME - this.lavaRiseRemaining;
         if (raceElapsedSeconds < this.GIVE_UP_LOCKOUT_SECONDS) {
             this.giveUpHoldFrames = 0;
             return;
@@ -4125,8 +4130,100 @@ class Game {
         ctx.restore();
     }
 
-    drawRaceTimer() {
-        this.drawCountdownRing(this.raceTimeRemaining, this.RACE_TIME_LIMIT, "#000000");
+    getLavaTopY() {
+        if (!this.physics || !this.levelData || !this.levelData.size_x) return 600;
+        const rows = Math.ceil(this.physics.MAP.length / this.levelData.size_x);
+        // Same -30 margin the original void boundary used, mirrored at the top
+        // of the map so the flood can fully cover the level's playable area.
+        return rows * 60 - 30;
+    }
+
+    updateLavaLevel() {
+        if (!this.physics) return;
+        // LAVA_RISE_TIME is a delay before the lava starts moving at all.
+        // Once that delay elapses, it climbs at a fixed speed (not scaled to
+        // the delay length) until it covers the whole level.
+        const LAVA_RISE_SPEED_PX_PER_SEC = 30;
+        const elapsed = this.LAVA_RISE_TIME - this.lavaRiseRemaining;
+        const floorY = -30;
+        const topY = this.getLavaTopY();
+        if (elapsed <= this.LAVA_RISE_TIME) {
+            this.physics.lavaLevel = floorY;
+            return;
+        }
+        const risingFor = elapsed - this.LAVA_RISE_TIME;
+        const climbed = risingFor * LAVA_RISE_SPEED_PX_PER_SEC;
+        this.physics.lavaLevel = Math.min(topY, floorY + climbed);
+    }
+
+    drawLava() {
+        if (!this.physics) return;
+        const ctx = this.ctx;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+
+        // Where the lava's surface actually sits in the level, converted to
+        // screen space through the same camera transform as everything else,
+        // so it rises against the level geometry instead of the screen.
+        const baseScreenY = this.worldToScreen(0, this.physics.lavaLevel).y;
+        if (baseScreenY > h + 60) return; // still well below the visible area
+
+        const remaining = this.lavaRiseRemaining;
+        // Pulsing warning starts 5s before the lava begins rising, and then
+        // stays on for as long as the lava is actually up and moving.
+        const urgent = remaining <= 5;
+        const wobble = urgent ? Math.sin(this.tick * 0.35) * 6 : 0;
+        const t = this.tick * 0.05;
+
+        ctx.save();
+
+        if (urgent) {
+            const pulse = (Math.sin(this.tick * 0.3) + 1) / 2;
+            ctx.fillStyle = `rgba(255, 90, 0, ${(0.08 + pulse * 0.10).toFixed(3)})`;
+            ctx.fillRect(0, 0, w, h);
+        }
+
+        const surfaceY = (x) => baseScreenY + wobble + Math.sin(t + x * 0.02) * 6 + Math.sin(t * 1.7 + x * 0.05) * 3;
+
+        // Base lava body.
+        ctx.beginPath();
+        ctx.moveTo(0, h);
+        ctx.lineTo(0, surfaceY(0));
+        for (let x = 0; x <= w; x += 20) ctx.lineTo(x, surfaceY(x));
+        ctx.lineTo(w, h);
+        ctx.closePath();
+        const grad = ctx.createLinearGradient(0, baseScreenY - 20, 0, h);
+        grad.addColorStop(0, '#ff8a00');
+        grad.addColorStop(0.35, '#e8460c');
+        grad.addColorStop(1, '#7a1300');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Lighter wavy highlight band riding the surface (same layered-wave
+        // look as the water reference art, recolored orange).
+        ctx.beginPath();
+        ctx.moveTo(0, surfaceY(0) + 14);
+        for (let x = 0; x <= w; x += 16) {
+            ctx.lineTo(x, baseScreenY + wobble + 14 + Math.sin(t * 1.3 + x * 0.035) * 5);
+        }
+        for (let x = w; x >= 0; x -= 16) {
+            ctx.lineTo(x, baseScreenY + wobble + 26 + Math.sin(t * 1.3 + x * 0.035 + 1.4) * 4);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(255, 200, 90, 0.55)';
+        ctx.fill();
+
+        // Bright crest line right at the surface.
+        ctx.beginPath();
+        for (let x = 0; x <= w; x += 12) {
+            if (x === 0) ctx.moveTo(x, surfaceY(x));
+            else ctx.lineTo(x, surfaceY(x));
+        }
+        ctx.strokeStyle = 'rgba(255, 235, 160, 0.85)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.restore();
     }
     drawLivesIndicator() {
         if (this.gameState !== GameState.RACE) return;
@@ -4731,7 +4828,7 @@ class Game {
             const anyPostmortem = activePlayers.some(p => p.hasFinished && (p.eliminated || p.finishedPostmortem));
 
             if (totalCleared === 0 && !anyPostmortem) {
-                globalSplashText = "NO POINTS - TOO HARD!";
+                globalSplashText = "NO WINNERS NO POINTS";
             } else if (totalCleared === activePlayers.length) {
                 globalSplashText = (totalCleared > 1)
                     ? "TOO EASY - FIRST PLACE ONLY!"
@@ -4789,7 +4886,7 @@ class Game {
             }
             this.totalRounds = this.settings.totalRounds;
             this.POINTS_TO_WIN = this.settings.pointsToWin;
-            this.RACE_TIME_LIMIT = this.settings.raceTimeLimit;
+            this.LAVA_RISE_TIME = this.settings.lavaRiseTime;
             this.MAX_POSSIBLE_SCORE = this.totalRounds * 3;
         };
         net.onAllClientsReady = () => {
@@ -4800,7 +4897,7 @@ class Game {
             }
             this.totalRounds = this.settings.totalRounds;
             this.POINTS_TO_WIN = this.settings.pointsToWin;
-            this.RACE_TIME_LIMIT = this.settings.raceTimeLimit;
+            this.LAVA_RISE_TIME = this.settings.lavaRiseTime;
             this.MAX_POSSIBLE_SCORE = this.totalRounds * 3;
             if (this.onSettingsUpdated) this.onSettingsUpdated(this.settings, this.isHost || this.isAdmin);
         };
@@ -4849,7 +4946,7 @@ class Game {
             if (remaining === null) return;
             if (phase === GameState.PARTY_BOX) this.partyTimeRemaining = remaining;
             else if (phase === GameState.BUILD) this.buildTimeRemaining = remaining;
-            else if (phase === GameState.RACE) this.raceTimeRemaining = remaining;
+            else if (phase === GameState.RACE) this.lavaRiseRemaining = remaining;
         };
         net.onPong = (payload) => {
             if (payload && typeof payload.t === 'number') {
@@ -4905,7 +5002,7 @@ class Game {
             this.settings = { ...this.settings, ...payload.settings };
             this.totalRounds = this.settings.totalRounds;
             this.POINTS_TO_WIN = this.settings.pointsToWin;
-            this.RACE_TIME_LIMIT = this.settings.raceTimeLimit;
+            this.LAVA_RISE_TIME = this.settings.lavaRiseTime;
             this.MAX_POSSIBLE_SCORE = this.totalRounds * 3;
         }
 
@@ -5139,12 +5236,16 @@ class Game {
                 this._runWhenAssetsReady(() => {
                     this.buildTimeRemaining = payload.timeLimit || this.BUILD_TIME_LIMIT;
                     this.applyMapPatch(payload.mapPatch);
-                    const player = this.players[payload.seatIndex];
-                    if (player) {
-                        player.piece = payload.pieceId ? getPieceById(payload.pieceId) : null;
-                        player.buildPlaced = !!payload.buildPlaced;
-                        player.buildRotation = payload.rotation || 0;
-                        player.buildCursor = { col: payload.col, row: payload.row };
+                    const seatUpdates = Array.isArray(payload.seats) && payload.seats.length
+                        ? payload.seats
+                        : [{ seatIndex: payload.seatIndex, pieceId: payload.pieceId, buildPlaced: payload.buildPlaced, col: payload.col, row: payload.row, rotation: payload.rotation }];
+                    for (const s of seatUpdates) {
+                        const player = this.players[s.seatIndex];
+                        if (!player) continue;
+                        player.piece = s.pieceId ? getPieceById(s.pieceId) : null;
+                        player.buildPlaced = !!s.buildPlaced;
+                        player.buildRotation = s.rotation || 0;
+                        player.buildCursor = { col: s.col, row: s.row };
                         if (!player.buildMoveHold) player.buildMoveHold = { up: 0, down: 0, left: 0, right: 0 };
                     }
                     this.gameState = GameState.BUILD;
@@ -5199,17 +5300,34 @@ class Game {
             case 'RACE_START':
                 this._runWhenAssetsReady(() => {
                     this.tick = payload.tick || 0;
-                    if (typeof payload.timeLimit === 'number') this.RACE_TIME_LIMIT = payload.timeLimit;
+                    if (typeof payload.lavaRiseTime === 'number') this.LAVA_RISE_TIME = payload.lavaRiseTime;
                     if (typeof payload.lives === 'number') this.settings.lives = payload.lives;
                     this.remotePositions.clear();
                     this.gameState = GameState.RACE;
-                    this.resetRoundState();
+                    if (payload.resync) {
+                        // Late join / reconnect catch-up, not a real race start:
+                        // don't wipe everyone's elimination/finish status, just
+                        // make sure physics exist and restore this seat's own
+                        // true status so a dead player can't reload their way
+                        // back into contention.
+                        this.ensurePlayerPhysicsStates();
+                        const me = this.players[this.localSeatIndex];
+                        if (me) {
+                            me.eliminated = !!payload.eliminated;
+                            me.dnf = !!payload.dnf;
+                            me.hasFinished = !!payload.hasFinished;
+                            me.finishTick = typeof payload.finishTick === 'number' ? payload.finishTick : null;
+                            me.finishedPostmortem = !!payload.finishedPostmortem;
+                        }
+                    } else {
+                        this.resetRoundState();
+                    }
                     this.cameraLookahead.x = 0;
                     this.cameraLookahead.y = 0;
                 });
                 break;
-            case 'RACE_TIMER_EXPIRED':
-                this.raceTimeRemaining = 0;
+            case 'LAVA_HAS_RISEN':
+                this.lavaRiseRemaining = 0;
                 break;
         }
     }
@@ -5237,7 +5355,7 @@ class Game {
         const player = this.players[payload.seatIndex];
         if (!player) return;
         player.eliminated = true;
-        player.dnf = payload.cause === 'dnf';
+        player.dnf = payload.cause === 'lava';
         if (typeof playSfx === 'function') playSfx('boom', this.getVolumeForSeat(payload.seatIndex));
     }
     handleRespawnSync(payload) {
@@ -5249,36 +5367,38 @@ class Game {
     }
 
     handleRoundResult(payload) {
-        this.players.forEach(p => { p.scoreBeforeRound = p.score; p.breakdownBeforeRound = { ...p.scoreBreakdown }; p.historyBeforeRound = [...p.pointHistory]; p.lastRoundEntries = []; });
-        for (const result of (payload.results || [])) {
-            const player = this.players[result.seatIndex];
-            if (!player) continue;
-            player.hasFinished = result.hasFinished;
-            player.dnf = result.dnf;
-            player.eliminated = result.eliminated;
-            player.finishTick = result.finishTick;
-            player.lastRoundPoints = result.roundPoints;
-            player.lastRoundBreakdown = result.pointBreakdown || { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
-            player.finishedPostmortem = (player.lastRoundBreakdown.postmortem || 0) > 0;
-            player.scoreBreakdown.goal += player.lastRoundBreakdown.goal || 0;
-            player.scoreBreakdown.firstPlace += player.lastRoundBreakdown.firstPlace || 0;
-            player.scoreBreakdown.comeback += player.lastRoundBreakdown.comeback || 0;
-            player.scoreBreakdown.solo += player.lastRoundBreakdown.solo || 0;
-            player.scoreBreakdown.postmortem = (player.scoreBreakdown.postmortem || 0) + (player.lastRoundBreakdown.postmortem || 0);
-            player.score = result.totalScore;
-            this.pushPointHistoryEntries(player, player.lastRoundBreakdown);
-        }
-        this.currentRound = payload.round;
-        this.roundResultsAnimFrames = 0;
-        this.gameState = GameState.ROUND_RESULTS;
-        this.localContinueConfirmed = false;
-        this.continueConfirmedSeats = [];
-        this.continueTotalConnected = this.players.filter(p => p && p.connected !== false).length;
+        this._runWhenAssetsReady(() => {
+            this.players.forEach(p => { p.scoreBeforeRound = p.score; p.breakdownBeforeRound = { ...p.scoreBreakdown }; p.historyBeforeRound = [...p.pointHistory]; p.lastRoundEntries = []; });
+            for (const result of (payload.results || [])) {
+                const player = this.players[result.seatIndex];
+                if (!player) continue;
+                player.hasFinished = result.hasFinished;
+                player.dnf = result.dnf;
+                player.eliminated = result.eliminated;
+                player.finishTick = result.finishTick;
+                player.lastRoundPoints = result.roundPoints;
+                player.lastRoundBreakdown = result.pointBreakdown || { goal: 0, firstPlace: 0, comeback: 0, solo: 0, postmortem: 0 };
+                player.finishedPostmortem = (player.lastRoundBreakdown.postmortem || 0) > 0;
+                player.scoreBreakdown.goal += player.lastRoundBreakdown.goal || 0;
+                player.scoreBreakdown.firstPlace += player.lastRoundBreakdown.firstPlace || 0;
+                player.scoreBreakdown.comeback += player.lastRoundBreakdown.comeback || 0;
+                player.scoreBreakdown.solo += player.lastRoundBreakdown.solo || 0;
+                player.scoreBreakdown.postmortem = (player.scoreBreakdown.postmortem || 0) + (player.lastRoundBreakdown.postmortem || 0);
+                player.score = result.totalScore;
+                this.pushPointHistoryEntries(player, player.lastRoundBreakdown);
+            }
+            this.currentRound = payload.round;
+            this.roundResultsAnimFrames = 0;
+            this.gameState = GameState.ROUND_RESULTS;
+            this.localContinueConfirmed = false;
+            this.continueConfirmedSeats = [];
+            this.continueTotalConnected = this.players.filter(p => p && p.connected !== false).length;
 
-        const someoneWon = this.players.some(p => p && p.score >= this.POINTS_TO_WIN);
-        if ((someoneWon || this.currentRound >= this.totalRounds) && this.onFinalResults) {
-            this.onFinalResults(this.lastBuiltLevelCode);
-        }
+            const someoneWon = this.players.some(p => p && p.score >= this.POINTS_TO_WIN);
+            if ((someoneWon || this.currentRound >= this.totalRounds) && this.onFinalResults) {
+                this.onFinalResults(this.lastBuiltLevelCode);
+            }
+        });
     }
 
     handleMatchEnd(payload) {

@@ -46,6 +46,10 @@ class AppelPhysics {
 
         this.PSZ = [0, 17, 13, 17, 13];
         this.LSX = LSX;
+        // World Y below which players die. Starts at the level's original
+        // void boundary and is raised by the game loop over the race
+        // timer, like the water level rising in a flooding room.
+        this.lavaLevel = -30;
         this.toverlap = 0;
         this.mask_char = 0;
         this.overlap = 0;
@@ -757,8 +761,9 @@ class AppelPhysics {
     }
 
     check_dangers(playerState) {
-        if (playerState.PLAYER_Y < -30) {
+        if (playerState.PLAYER_Y < this.lavaLevel) {
             playerState.PLAYER_DEATH = true;
+            playerState.PLAYER_DEATH_LAVA = true;
             return;
         }
         if (!this.touching){console.error("spikes not loaded")}
@@ -1336,6 +1341,7 @@ class AppelPhysics {
             PLAYER_SX: 0.0,
             PLAYER_SY: 0.0,
             PLAYER_DEATH: false,
+            PLAYER_DEATH_LAVA: false,
             PSZ: [0, 17, 13, 17, 13],
             is_jumping: 0,
             is_falling: 999,

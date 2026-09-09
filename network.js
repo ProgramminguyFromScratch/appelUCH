@@ -66,9 +66,10 @@ class NetworkClient {
             FORCE_PLACE: 'onBuildState',
             BUILD_TIMER_EXPIRED: 'onBuildState',
             BUILD_COMPLETE: 'onBuildState',
+            BUILD_RESYNC: 'onBuildState',
 
             RACE_START: 'onRaceState',
-            RACE_TIMER_EXPIRED: 'onRaceState'
+            LAVA_HAS_RISEN: 'onRaceState'
         };
 
         this._DIRECT_MAP = {
