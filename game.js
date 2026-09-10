@@ -3033,8 +3033,25 @@ class Game {
         }
         if (active.length === 0) return;
 
-        const xs = active.map(p => p.physicsState.PLAYER_X);
-        const ys = active.map(p => p.physicsState.PLAYER_Y);
+        // Clamp each player's position (only for the purposes of the camera
+        // fit box) to a generous margin around the level's own bounds. A
+        // player who has fallen through the floor or been launched way off
+        // the level (about to die, but not eliminated yet this frame) would
+        // otherwise blow the bounding box up hugely and zoom the camera out
+        // to near-nothing for a few frames. Clamping keeps that one runaway
+        // player from dragging everyone else's view out to space, while
+        // still nudging the camera toward the edge of the level in their
+        // direction.
+        const LEVEL_MARGIN = 400;
+        const levelMinX = -LEVEL_MARGIN;
+        const levelMaxX = (this.levelData.size_x || 0) * TILE_SIZE + LEVEL_MARGIN;
+        const levelRows = this.levelData.size_x ? Math.ceil(this.physics.MAP.length / this.levelData.size_x) : 0;
+        const levelMinY = -LEVEL_MARGIN;
+        const levelMaxY = levelRows * TILE_SIZE + LEVEL_MARGIN;
+        const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+        const xs = active.map(p => clamp(p.physicsState.PLAYER_X, levelMinX, levelMaxX));
+        const ys = active.map(p => clamp(p.physicsState.PLAYER_Y, levelMinY, levelMaxY));
         const vxs = active.map(p => p.physicsState.PLAYER_SX || 0);
         const vys = active.map(p => p.physicsState.PLAYER_SY || 0);
 
@@ -3042,8 +3059,11 @@ class Game {
         const avgVY = vys.reduce((a, b) => a + b, 0) / vys.length;
         const lookahead = this.updateCameraLookahead(avgVX, avgVY);
 
-        const minX = Math.min(...xs), maxX = Math.max(...xs);
-        const minY = Math.min(...ys), maxY = Math.max(...ys);
+        // Include a per-player buffer around each position so a player's
+        // sprite (not just its center point) stays clear of the screen edge.
+        const PLAYER_BUFFER = 40;
+        const minX = Math.min(...xs) - PLAYER_BUFFER, maxX = Math.max(...xs) + PLAYER_BUFFER;
+        const minY = Math.min(...ys) - PLAYER_BUFFER, maxY = Math.max(...ys) + PLAYER_BUFFER;
         const PADDING_X = 160; 
         const PADDING_Y = 80;  
 
@@ -3068,16 +3088,49 @@ class Game {
         const MAX_ZOOM = 1;
         const ZOOM_EPSILON = 0.05;
         const targetZoom = Math.max(ZOOM_EPSILON, Math.min(MAX_ZOOM, fitZoom));
+
         this.camera.x += (targetCameraX - this.camera.x) * 0.15;
-        this.camera.y += ((targetCameraY - this.camera.y) + 8) * 0.15;
-        
-        const ZOOM_OUT_EASE = 0.6;
-        const ZOOM_IN_EASE = 0.015;
-        const ZOOM_REVEAL_EASE = 0.06;
+        // Players fall faster than they jump, so bias the frame to show more
+        // space below them than above — keeps a falling player in view
+        // longer before the camera has to scramble to catch up. (Screen Y
+        // grows downward, and world Y shrinks downward here, so a negative
+        // offset on camera.y shifts the player up toward the top of frame.)
+        const VERTICAL_BIAS = -70;
+        this.camera.y += ((targetCameraY - this.camera.y) + VERTICAL_BIAS) * 0.15;
+
+        // Zooming out (revealing more of the map) reacts quickly so a sudden
+        // spread never gets clipped; zooming in (getting closer) happens
+        // slowly and smoothly, which reads as more deliberate/professional.
+        const ZOOM_OUT_EASE = 0.35;
+        const ZOOM_IN_EASE = 0.02;
+        const ZOOM_REVEAL_EASE = 0.05;
         const zoomEase = roundWrappingUp
             ? ZOOM_REVEAL_EASE
             : (targetZoom < this.camera.zoom ? ZOOM_OUT_EASE : ZOOM_IN_EASE);
         this.camera.zoom += (targetZoom - this.camera.zoom) * zoomEase;
+
+        // Final hard guarantee: after easing, if any active player would
+        // still end up outside the visible frame (minus a small margin),
+        // snap the zoom out immediately rather than waiting for the next
+        // few eased frames to catch up. This never triggers in normal play
+        // since the safety net above already keeps targetZoom conservative;
+        // it only fires as a last-resort correction.
+        const halfW = (this.canvas.width / 2) / this.camera.zoom;
+        const halfH = (this.canvas.height / 2) / this.camera.zoom;
+        const EDGE_MARGIN = 24;
+        let worstOverflow = 1;
+        // Use the same level-clamped positions as the rest of this function
+        // (xs/ys), not the raw physics position, so a player who is actually
+        // off in the void doesn't blow this check up the same way it used
+        // to blow up the box calculation.
+        for (let i = 0; i < xs.length; i++) {
+            const dx = Math.abs(xs[i] - this.camera.x) + PLAYER_BUFFER + EDGE_MARGIN;
+            const dy = Math.abs(ys[i] - this.camera.y) + PLAYER_BUFFER + EDGE_MARGIN;
+            worstOverflow = Math.max(worstOverflow, dx / halfW, dy / halfH);
+        }
+        if (worstOverflow > 1) {
+            this.camera.zoom = Math.max(ZOOM_EPSILON, this.camera.zoom / worstOverflow);
+        }
     }
 
     updateRaceCameraFitStartFinish() {
@@ -3146,8 +3199,11 @@ class Game {
         const targetCameraY = localPlayer.physicsState.PLAYER_Y + lookahead.y;
         const targetZoom = 1.25;
 
+        // Same fall-faster-than-jump bias as the fit-all camera — see the
+        // comment in updateRaceCamera for why the sign is negative here.
+        const VERTICAL_BIAS = -70;
         this.camera.x += (targetCameraX - this.camera.x) * 0.15;
-        this.camera.y += ((targetCameraY - this.camera.y) + 8) * 0.15;
+        this.camera.y += ((targetCameraY - this.camera.y) + VERTICAL_BIAS) * 0.15;
         this.camera.zoom += (targetZoom - this.camera.zoom) * 0.1;
     }
 
@@ -4007,6 +4063,7 @@ class Game {
 
         this.profiler.time('ui', () => {
             this.drawLava();
+            this.drawLavaTimer();
             this.drawLivesIndicator();
             this.drawGiveUpRing();
             this.drawInputDisplay();
@@ -4164,10 +4221,11 @@ class Game {
     }
 
     drawLava() {
-        if (!this.physics) return;
+        if (!this.physics || !this.camera || !this.camera.zoom) return;
         const ctx = this.ctx;
         const w = this.canvas.width;
         const h = this.canvas.height;
+        const zoom = this.camera.zoom;
 
         // Where the lava's surface actually sits in the level, converted to
         // screen space through the same camera transform as everything else,
@@ -4179,18 +4237,36 @@ class Game {
         // Pulsing warning starts 5s before the lava begins rising, and then
         // stays on for as long as the lava is actually up and moving.
         const urgent = remaining <= 5;
-        const wobble = urgent ? Math.sin(this.tick * 0.35) * 6 : 0;
+        // Ease the warning in instead of snapping straight to full strength
+        // the instant it turns on: ramp from 0 to 1 over the first
+        // FADE_IN_SECONDS after urgent becomes true.
+        const FADE_IN_SECONDS = 1.5;
+        const fadeIn = urgent ? Math.min(1, Math.max(0, (5 - remaining) / FADE_IN_SECONDS)) : 0;
+        // Wave amplitudes/offsets below are all defined in world units and
+        // scaled by zoom when drawn, so the waves actually shrink on screen
+        // as the camera zooms out, instead of staying a fixed pixel size.
+        const wobble = (urgent ? Math.sin(this.tick * 0.35) * 6 * fadeIn : 0) * zoom;
         const t = this.tick * 0.05;
+
+        // Screen x -> world x, so the wave's spatial frequency is anchored to
+        // the level geometry (same wavelength in world space) rather than to
+        // the screen, which is what let it look wrong when zoomed.
+        const worldXAt = (screenX) => this.camera.x + (screenX - w / 2) / zoom;
 
         ctx.save();
 
         if (urgent) {
             const pulse = (Math.sin(this.tick * 0.3) + 1) / 2;
-            ctx.fillStyle = `rgba(255, 90, 0, ${(0.08 + pulse * 0.10).toFixed(3)})`;
+            ctx.fillStyle = `rgba(255, 90, 0, ${((0.08 + pulse * 0.10) * fadeIn).toFixed(3)})`;
             ctx.fillRect(0, 0, w, h);
         }
 
-        const surfaceY = (x) => baseScreenY + wobble + Math.sin(t + x * 0.02) * 6 + Math.sin(t * 1.7 + x * 0.05) * 3;
+        const surfaceY = (screenX) => {
+            const wx = worldXAt(screenX);
+            return baseScreenY + wobble
+                + Math.sin(t + wx * 0.02) * 6 * zoom
+                + Math.sin(t * 1.7 + wx * 0.05) * 3 * zoom;
+        };
 
         // Base lava body.
         ctx.beginPath();
@@ -4199,7 +4275,7 @@ class Game {
         for (let x = 0; x <= w; x += 20) ctx.lineTo(x, surfaceY(x));
         ctx.lineTo(w, h);
         ctx.closePath();
-        const grad = ctx.createLinearGradient(0, baseScreenY - 20, 0, h);
+        const grad = ctx.createLinearGradient(0, baseScreenY - 20 * zoom, 0, h);
         grad.addColorStop(0, '#ff8a00');
         grad.addColorStop(0.35, '#e8460c');
         grad.addColorStop(1, '#7a1300');
@@ -4209,12 +4285,14 @@ class Game {
         // Lighter wavy highlight band riding the surface (same layered-wave
         // look as the water reference art, recolored orange).
         ctx.beginPath();
-        ctx.moveTo(0, surfaceY(0) + 14);
+        ctx.moveTo(0, surfaceY(0) + 14 * zoom);
         for (let x = 0; x <= w; x += 16) {
-            ctx.lineTo(x, baseScreenY + wobble + 14 + Math.sin(t * 1.3 + x * 0.035) * 5);
+            const wx = worldXAt(x);
+            ctx.lineTo(x, baseScreenY + wobble + 14 * zoom + Math.sin(t * 1.3 + wx * 0.035) * 5 * zoom);
         }
         for (let x = w; x >= 0; x -= 16) {
-            ctx.lineTo(x, baseScreenY + wobble + 26 + Math.sin(t * 1.3 + x * 0.035 + 1.4) * 4);
+            const wx = worldXAt(x);
+            ctx.lineTo(x, baseScreenY + wobble + 26 * zoom + Math.sin(t * 1.3 + wx * 0.035 + 1.4) * 4 * zoom);
         }
         ctx.closePath();
         ctx.fillStyle = 'rgba(255, 200, 90, 0.55)';
@@ -4227,11 +4305,81 @@ class Game {
             else ctx.lineTo(x, surfaceY(x));
         }
         ctx.strokeStyle = 'rgba(255, 235, 160, 0.85)';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3 * zoom;
         ctx.stroke();
 
         ctx.restore();
     }
+
+    drawLavaTimer() {
+        if (this.gameState !== GameState.RACE) return;
+
+        const remaining = this.lavaRiseRemaining;
+        const total = this.LAVA_RISE_TIME || 1;
+        // Once the lava is actually rising, the countdown-to-start no longer
+        // means anything, so fade the ring out instead of showing a
+        // meaningless negative/zero fraction.
+        const risingAlready = remaining <= 0;
+
+        const radius = 22;
+        const cx = this.canvas.width - 24 - radius;
+        const cy = 24 + radius;
+
+        const urgent = remaining <= 5 && !risingAlready;
+        const pulse = urgent ? (Math.sin(this.tick * 0.3) + 1) / 2 : 0;
+        const alpha = risingAlready ? Math.max(0, 1 - (-remaining) / 2) : 1;
+        if (alpha <= 0) return;
+
+        const fraction = Math.max(0, Math.min(1, remaining / total));
+
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        // Backing disc.
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.stroke();
+
+        // Depleting wedge counting down to the moment the lava starts to rise.
+        if (!risingAlready) {
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + fraction * Math.PI * 2);
+            ctx.closePath();
+            const wedgeColor = urgent
+                ? `rgba(255, ${Math.round(60 + pulse * 60)}, 20, 1)`
+                : '#ff8a00';
+            ctx.fillStyle = wedgeColor;
+            ctx.fill();
+        } else {
+            // Lava's already rising: show a full, pulsing warning disc instead
+            // of a countdown that no longer applies.
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 60, 20, ${(0.5 + Math.sin(this.tick * 0.3) * 0.3).toFixed(3)})`;
+            ctx.fill();
+        }
+
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Seconds-remaining label below the ring.
+        ctx.font = 'bold 11px ' + THEME.font;
+        ctx.fillStyle = '#000000';
+        const label = risingAlready ? 'LAVA' : `LAVA ${Math.max(0, Math.ceil(remaining))}s`;
+        ctx.fillText(label, cx, cy + radius + 14);
+
+        ctx.restore();
+    }
+
     drawLivesIndicator() {
         if (this.gameState !== GameState.RACE) return;
         if ((this.settings.lives || 1) <= 1) return;
@@ -5335,6 +5483,14 @@ class Game {
                 break;
             case 'LAVA_HAS_RISEN':
                 this.lavaRiseRemaining = 0;
+                break;
+            case 'TILE_RESYNC':
+                // Periodic self-healing full-map resync (see Room.js
+                // enterRace) — corrects any tile this client may have
+                // silently missed via a dropped TILE_UPDATE broadcast
+                // (crumbling platforms, etc.) within a few seconds, instead
+                // of the mismatch persisting for the whole race.
+                this.applyMapPatch(payload.mapPatch);
                 break;
         }
     }

@@ -69,7 +69,8 @@ class NetworkClient {
             BUILD_RESYNC: 'onBuildState',
 
             RACE_START: 'onRaceState',
-            LAVA_HAS_RISEN: 'onRaceState'
+            LAVA_HAS_RISEN: 'onRaceState',
+            TILE_RESYNC: 'onRaceState'
         };
 
         this._DIRECT_MAP = {
