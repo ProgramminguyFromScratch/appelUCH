@@ -61,6 +61,16 @@ canvas {
 .overlay button.secondary.copied {
     background: #22c55e;
 }
+#discordLink {
+    font-size: 14px;
+    color: #8ea1ff;
+    text-decoration: none;
+    padding: 6px 4px;
+}
+#discordLink:hover {
+    color: #b3c0ff;
+    text-decoration: underline;
+}
 .overlay input {
     font-size: 16px;
     padding: 10px 14px;
