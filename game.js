@@ -74,6 +74,13 @@ const STAGE_VOTE_ZONE_WIDTH = 200;
 const STAGE_VOTE_ZONE_DEPTH = 30;
 const STAGE_VOTE_MOVE_TOLERANCE = 0.6; 
 const RANDOM_STAGE_CODE = '__RANDOM__';
+
+function pickRandomLevelExcluding(pool, excludeCode) {
+    const choices = (pool.length > 1 && excludeCode != null)
+        ? pool.filter(code => code !== excludeCode)
+        : pool;
+    return choices[Math.floor(Math.random() * choices.length)];
+}
 const RANDOM_STAGE_FLICKER_MS = 350;
 let LEVEL_POOL = [];
 let LEVEL_NAMES = [];
@@ -1274,6 +1281,7 @@ class Game {
             { name: 'kick', level: 'privileged' },
             { name: 'ban', level: 'privileged' },
             { name: 'next', level: 'privileged' },
+            { name: 'end', level: 'privileged' },
             { name: 'give', level: 'admin' },
             { name: 'set', level: 'admin' },
             { name: 'host', level: 'admin' },
@@ -1766,6 +1774,28 @@ class Game {
             return;
         }
 
+        if (cmd === '/end') {
+            if (!this.isHost && !this.isAdmin) {
+                this.pushSystemMessage('Only the host (or an admin) can use /end.');
+                return;
+            }
+            if (this.gameState === GameState.MENU || this.gameState === GameState.LOBBY) {
+                this.pushSystemMessage('Not in a match.');
+                return;
+            }
+            if (this.network && this.network.isConnected) {
+                this.network.sendEndRequest();
+            } else {
+                this.players.forEach(p => { if (p) p.score = Math.max(p.score, this.POINTS_TO_WIN); });
+                this.currentRound = this.totalRounds;
+                this.roundResultsAnimFrames = 0;
+                this.localContinueConfirmed = false;
+                this.gameState = GameState.ROUND_RESULTS;
+                if (this.onFinalResults) this.onFinalResults(this.lastBuiltLevelCode);
+            }
+            return;
+        }
+
         if (cmd === '/help') {
             const lines = ['Available commands:'];
             lines.push('/color <0-199> - change your color');
@@ -1782,6 +1812,10 @@ class Game {
                 lines.push('/host [username] - become host, or hand host to a player');
                 lines.push('/kill <username> - force-eliminate a player mid-race');
                 lines.push('/next - skip waiting for everyone on the round-results screen');
+            }
+
+            if (this.isHost || this.isAdmin) {
+                lines.push('/end - skip straight to the final results screen (from any phase) so you can head back to the lobby');
             }
 
             lines.push('/help - show this list');
@@ -2214,7 +2248,7 @@ class Game {
         if (this.gameState !== GameState.STAGE_SELECT) return;
         let chosenCode = this.stageCandidates[index];
         if (chosenCode === RANDOM_STAGE_CODE) {
-            chosenCode = LEVEL_POOL[Math.floor(Math.random() * LEVEL_POOL.length)];
+            chosenCode = pickRandomLevelExcluding(LEVEL_POOL, this.currentLevelCode);
         }
         this.loadLevel(chosenCode);
         this.enterPartyBox();

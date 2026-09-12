@@ -304,6 +304,10 @@ class NetworkClient {
         this._send('NEXT_REQUEST', {});
     }
 
+    sendEndRequest() {
+        this._send('END_REQUEST', {});
+    }
+
     sendPing(lastPing = null) {
         const payload = { t: performance.now() };
         if (typeof lastPing === 'number' && isFinite(lastPing)) payload.ping = lastPing;
