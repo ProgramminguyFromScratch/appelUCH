@@ -50,6 +50,11 @@ class AppelPhysics {
         // void boundary and is raised by the game loop over the race
         // timer, like the water level rising in a flooding room.
         this.lavaLevel = -30;
+        // True only once the actual rising lava has started climbing.
+        // Before that, `lavaLevel` still marks the level's original void
+        // boundary, and falling past it should be an ordinary death that
+        // costs a life like any other, not an instant all-lives kill.
+        this.lavaActive = false;
         this.toverlap = 0;
         this.mask_char = 0;
         this.overlap = 0;
@@ -763,7 +768,13 @@ class AppelPhysics {
     check_dangers(playerState) {
         if (playerState.PLAYER_Y < this.lavaLevel) {
             playerState.PLAYER_DEATH = true;
-            playerState.PLAYER_DEATH_LAVA = true;
+            // Only treat this as a lava death (which skips the lives system
+            // and eliminates immediately) once the lava has actually started
+            // rising. Simply falling below the map before then is a normal
+            // death and should just cost a life like spikes do.
+            if (this.lavaActive) {
+                playerState.PLAYER_DEATH_LAVA = true;
+            }
             return;
         }
         if (!this.touching){console.error("spikes not loaded")}

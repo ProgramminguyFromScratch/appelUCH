@@ -24,7 +24,11 @@ const MUSIC_LOOP_START = 13.1; // seconds — where playback jumps back to on lo
 let musicNode = null;
 let musicVolume = 0.5;
 
+const LEVEL_SELECT_MUSIC_FILE = '/assets/music/level_select.mp3';
+let levelSelectMusicNode = null;
+
 function playMusic(volume = musicVolume) {
+    stopLevelSelectMusic();
     musicVolume = Math.max(0, Math.min(1, volume));
     if (musicNode) {
         musicNode.volume = musicVolume;
@@ -48,13 +52,35 @@ function stopMusic() {
     musicNode.currentTime = 0;
 }
 
+function playLevelSelectMusic(volume = musicVolume) {
+    stopMusic();
+    musicVolume = Math.max(0, Math.min(1, volume));
+    if (levelSelectMusicNode) {
+        levelSelectMusicNode.volume = musicVolume;
+        if (levelSelectMusicNode.paused) levelSelectMusicNode.play().catch(() => {});
+        return;
+    }
+    levelSelectMusicNode = new Audio(LEVEL_SELECT_MUSIC_FILE);
+    levelSelectMusicNode.loop = true;
+    levelSelectMusicNode.preload = 'auto';
+    levelSelectMusicNode.volume = musicVolume;
+    levelSelectMusicNode.play().catch(() => {});
+}
+
+function stopLevelSelectMusic() {
+    if (!levelSelectMusicNode) return;
+    levelSelectMusicNode.pause();
+    levelSelectMusicNode.currentTime = 0;
+}
+
 function setMusicVolume(volume) {
     musicVolume = Math.max(0, Math.min(1, volume));
     if (musicNode) musicNode.volume = musicVolume;
+    if (levelSelectMusicNode) levelSelectMusicNode.volume = musicVolume;
 }
 
 function isMusicPlaying() {
-    return !!musicNode && !musicNode.paused;
+    return (!!musicNode && !musicNode.paused) || (!!levelSelectMusicNode && !levelSelectMusicNode.paused);
 }
 
 let sfxVolume = 1;

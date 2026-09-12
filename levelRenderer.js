@@ -20,8 +20,12 @@ class LevelRenderer {
         // already returned, so it never shows up as extra ms/frame; it just
         // shows up as dropped frames. Capping + evicting keeps the steady
         // state bounded regardless of how many rounds/levels are played.
-        this._maxTilesetCacheEntries = 6;
-        this._maxWallCacheEntries = 6;
+        // Sized to comfortably hold a distinct hue per level in LEVEL_POOL
+        // (14 levels as of writing) so that baking every level's thumbnail
+        // up front - e.g. for the stage-select "Random" flicker - doesn't
+        // evict and force re-generation of hues still in use elsewhere.
+        this._maxTilesetCacheEntries = 20;
+        this._maxWallCacheEntries = 20;
         this._maxBackgroundVariants = 6;
         this._maxPlayerSpriteEntries = 24;
         
