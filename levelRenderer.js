@@ -420,6 +420,7 @@ class LevelRenderer {
         this.ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
         this.ctx.scale(camera.zoom, camera.zoom);
         this.ctx.translate(-camera.x, camera.y);
+        const dynBucket = this._scaleBucket(this.ctx.getTransform().a);
 
         for (let item of OBJ) {
 
@@ -430,8 +431,11 @@ class LevelRenderer {
             const angle = item.direction + 90 || 0; 
             this.ctx.rotate(angle * Math.PI / 180);
 
-            const image = this.dynamicImages[0];
-            this.ctx.drawImage(image, -image.width/2, -image.height/2);
+            const image = this._scaled(this.dynamicImages[0], dynBucket);
+            if (image) {
+                const iw = image._lw || image.width, ih = image._lh || image.height;
+                this.ctx.drawImage(image, -iw/2, -ih/2, iw, ih);
+            }
 
             this.ctx.restore(); 
         }
@@ -439,13 +443,50 @@ class LevelRenderer {
         this.ctx.restore();
     }
     
+    // ---- Pre-rasterized SVG bitmaps ---------------------------------------
+    // Safari re-rasterizes a vector SVG on every canvas drawImage() call
+    // (Chrome/Firefox cache the bitmap), which with hundreds of tile draws per
+    // frame is what makes it laggy. So each SVG image is rasterized once, lazily,
+    // into a plain canvas at a bucketed on-screen scale, and the canvas is what
+    // gets drawn every frame. Canvases carry their logical (unscaled) size in
+    // _lw/_lh so callers keep laying things out in the SVG's own units.
+    _scaleBucket(sc) {
+        const target = (sc || 1) / 1.1;
+        for (const b of LevelRenderer.SCALE_BUCKETS) if (b >= target) return b;
+        return LevelRenderer.SCALE_BUCKETS[LevelRenderer.SCALE_BUCKETS.length - 1];
+    }
+
+    _scaled(img, bucket) {
+        if (!img) return img;
+        const cache = img._rc;
+        if (cache) {
+            const hit = cache[bucket];
+            if (hit) return hit;
+        }
+        const w = img.naturalWidth || img.width;
+        const h = img.naturalHeight || img.height;
+        if (!w || !h || img.complete === false || typeof img.getContext === 'function') return img;
+        // Cap per-bitmap pixel count (big wall SVGs) so memory stays bounded.
+        const sc = Math.max(0.5, Math.min(bucket, Math.sqrt(LevelRenderer.MAX_RASTER_PIXELS / (w * h))));
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.ceil(w * sc));
+        c.height = Math.max(1, Math.ceil(h * sc));
+        const cctx = c.getContext('2d');
+        cctx.imageSmoothingEnabled = true;
+        cctx.drawImage(img, 0, 0, c.width, c.height);
+        c._lw = w;
+        c._lh = h;
+        (img._rc || (img._rc = {}))[bucket] = c;
+        return c;
+    }
+
     // Draws `tile` centred on (cx, cy), rotated by (rotation - 1) quarter
     // turns. Rotation is applied on the canvas transform instead of baking a
     // rotated bitmap copy, so SVG tiles are rasterized at the real on-screen
     // size and stay sharp when zoomed (and there are no cached canvases).
     _drawTile(ctx, tile, rotation, cx, cy) {
-        const w = tile.width;
-        const h = tile.height;
+        const w = tile._lw || tile.width;
+        const h = tile._lh || tile.height;
         if (rotation === 1 || !w || !h) {
             ctx.drawImage(tile, cx - w / 2, cy - h / 2, w, h);
             return;
@@ -753,6 +794,7 @@ class LevelRenderer {
         ctx.scale(camera.zoom, camera.zoom);
         ctx.translate(-camera.x, camera.y);
         ctx.globalAlpha = alpha;
+        const bucket = this._scaleBucket(ctx.getTransform().a);
 
         for (const cell of cells) {
             const tileX = cell.col * 60 + 30;
@@ -768,7 +810,7 @@ class LevelRenderer {
             for (let isForeground = 0; isForeground <= 1; isForeground++) {
                 const offset = isForeground * 86;
                 const tileIndex = cell.tile - 1 + offset;
-                const tile = activeTileset[tileIndex];
+                const tile = this._scaled(activeTileset[tileIndex], bucket);
                 if (!tile) continue;
 
                 this._drawTile(ctx, tile, rotation, tileX, tileY);
@@ -797,6 +839,7 @@ class LevelRenderer {
         ctx.save();
         ctx.translate(cx, cy);
         ctx.scale(scale, scale);
+        const bucket = this._scaleBucket(ctx.getTransform().a);
 
         for (const cell of cells) {
             if (!cell.tile) continue;
@@ -806,10 +849,11 @@ class LevelRenderer {
             for (let isForeground = 0; isForeground <= 1; isForeground++) {
                 const offset = isForeground * 86;
                 const tileIndex = cell.tile - 1 + offset;
-                const tile = activeTileset[tileIndex];
+                const tile = this._scaled(activeTileset[tileIndex], bucket);
                 if (!tile) continue;
 
-                ctx.drawImage(tile, tileX - tile.width / 2, tileY - tile.height / 2, tile.width, tile.height);
+                const tw = tile._lw || tile.width, th = tile._lh || tile.height;
+                ctx.drawImage(tile, tileX - tw / 2, tileY - th / 2, tw, th);
             }
         }
 
@@ -836,10 +880,12 @@ class LevelRenderer {
         const minCamY = this.canvas.height/camera.zoom/2;
         if (camera.y < minCamY) camera.y = minCamY;
 
-        const bg = this.getHuedBackground(hue2);
+        const bgRaw = this.getHuedBackground(hue2);
 
         const bgW = 560 * camera.zoom;
         const bgH = 440 * camera.zoom;
+        const baseScale = ctx.getTransform().a;
+        const bg = this._scaled(bgRaw, this._scaleBucket(baseScale * bgW / 560));
         const bgOffsetX = this.betterModBcJsIsWeird(-camera.x * 0.5 * camera.zoom, bgW) - bgW;
         const bgOffsetY = this.betterModBcJsIsWeird(camera.y * 0.5 * camera.zoom, bgH) - bgH;
 
@@ -854,6 +900,7 @@ class LevelRenderer {
         ctx.translate(width / 2, height / 2);
         ctx.scale(camera.zoom, camera.zoom);
         ctx.translate(-camera.x, camera.y); 
+        const bucket = this._scaleBucket(ctx.getTransform().a);
 
         const viewHalfW = (width / 2) / camera.zoom;
         const viewHalfH = (height / 2) / camera.zoom;
@@ -863,16 +910,18 @@ class LevelRenderer {
 
         for (let x = wallStartX; x < wallEndX; x++) {
             const wallIdx = this.betterModBcJsIsWeird(parseInt(levelData.wall[x * 2 + 1]) + 20, 24);
-            const tile = activeWalls[wallIdx];
+            const tile = this._scaled(activeWalls[wallIdx], bucket);
             if (!tile) continue;
 
             const wallX = (x - 1) * 60 + camera.x * 0.25 - 30;
             let wallY = -(levelData.wall[x * 2]) * 30 - 151 - camera.y * 0.25 - 20;
 
-            const tileHeight = tile.height/2;
+            const tw = tile._lw || tile.width;
+            const th = tile._lh || tile.height;
+            const tileHeight = th/2;
 
             for (let y = wallY; y < camera.y + this.canvas.height; y += tileHeight) {
-                ctx.drawImage(tile, wallX, y);
+                ctx.drawImage(tile, wallX, y, tw, th);
             }
         }
 
@@ -905,7 +954,7 @@ class LevelRenderer {
                     }
 
                     const tileIndex = rawTileVal - 1 + offset;
-                    const tile = activeTileset[tileIndex];
+                    const tile = this._scaled(activeTileset[tileIndex], bucket);
                     if (!tile) continue;
 
                     const rotation = levelData.rotations[idx] % 4;
@@ -925,3 +974,6 @@ class LevelRenderer {
         };
     }
 }
+
+LevelRenderer.SCALE_BUCKETS = [1, 1.5, 2, 3, 4];
+LevelRenderer.MAX_RASTER_PIXELS = 1600 * 1600;
