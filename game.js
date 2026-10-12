@@ -2055,6 +2055,11 @@ class Game {
 
         const levelData = LevelRenderer.getDataFromCode(levelCode);
         if (!levelData) return null;
+        // Hue-shifted SVGs load asynchronously; callers retry next frame on null.
+        if (!this.renderer.isLevelReady(levelData)) {
+            this.renderer.prewarmLevel(levelData);
+            return null;
+        }
 
         const cols = levelData.size_x;
         const rows = Math.floor(levelData.map.length / cols);
@@ -2712,6 +2717,7 @@ class Game {
     loadLevel(levelCode) {
         this.currentLevelCode = levelCode;
         this.levelData = LevelRenderer.getDataFromCode(levelCode);
+        if (this.renderer && this.renderer.assetsLoaded) this.renderer.prewarmLevel(this.levelData);
 
         // Build the spike correlation table once per session and hand the
         // same instance to every AppelPhysics we create. Previously this
@@ -2753,6 +2759,8 @@ class Game {
 
         this.renderer.loadAssets(() => {
             this.assetsLoadedCount++;
+        }).then(() => {
+            if (this.levelData) this.renderer.prewarmLevel(this.levelData);
         });
         if (this._loopStarted) return;
         this._loopStarted = true;

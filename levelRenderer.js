@@ -35,8 +35,6 @@ class LevelRenderer {
         this.assetsLoaded = false;
         this.tileSize = 60;
 
-        this._rotationCache = new WeakMap();
-
         // Single reusable off-DOM canvas used only as scratch space for
         // pixel-level math (getImageData/putImageData). This canvas is
         // expected to run in software mode in Safari - that's fine, it's
@@ -47,8 +45,15 @@ class LevelRenderer {
         this._scratchCanvas = document.createElement('canvas');
         this._scratchCtx = this._scratchCanvas.getContext('2d', { willReadFrequently: true });
 
-        this.needsHue = [..."01111110010010001101100000000001100000000111000001111111101000000001000001001111111001"]
-            .flatMap((c, i) => c === "1" ? [i] : []);
+        this.needsHue = new Set([..."01111110010010001101100000000001100000000111000001111111101000000001000001001111111001"]
+            .flatMap((c, i) => c === "1" ? [i] : []));
+
+        // Raw SVG source text, kept so hue-shifted variants can be produced by
+        // rewriting the colors in the SVG itself (stays vector, no rasterizing).
+        this.tileSvgText = [];
+        this.wallSvgText = [];
+        this.backgroundSvgText = null;
+        this._svgColorCache = new Map();
 
         this.isFullBlockList = [..."011000000100000011011000000000001000000000000000011111111000000000010000000000111"];
         this.isFullBlock = new Set(
@@ -225,6 +230,8 @@ class LevelRenderer {
             dynamicPromises.push(loadImage(`assets/dynamic/${i}.svg`));
         }
         this.dynamicImages = await Promise.all(dynamicPromises);
+
+        await this._loadSvgSources();
 
         this.playerNormal = await loadImage('assets/player/stand.png');
         this.playerCrouch = await loadImage('assets/player/crouch.png');
@@ -424,60 +431,187 @@ class LevelRenderer {
         this.ctx.restore();
     }
     
-    getRotatedTile(tile, rotation) {
-        if (rotation === 1) return tile;
-        if (!tile.width || !tile.height) return tile;
-
-        let byRotation = this._rotationCache.get(tile);
-        if (!byRotation) {
-            byRotation = new Map();
-            this._rotationCache.set(tile, byRotation);
+    // Draws `tile` centred on (cx, cy), rotated by (rotation - 1) quarter
+    // turns. Rotation is applied on the canvas transform instead of baking a
+    // rotated bitmap copy, so SVG tiles are rasterized at the real on-screen
+    // size and stay sharp when zoomed (and there are no cached canvases).
+    _drawTile(ctx, tile, rotation, cx, cy) {
+        const w = tile.width;
+        const h = tile.height;
+        if (rotation === 1 || !w || !h) {
+            ctx.drawImage(tile, cx - w / 2, cy - h / 2, w, h);
+            return;
         }
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate((rotation - 1) * Math.PI / 2);
+        ctx.drawImage(tile, -w / 2, -h / 2, w, h);
+        ctx.restore();
+    }
 
-        let rotated = byRotation.get(rotation);
-        if (rotated) return rotated;
+    // ---- SVG recoloring ------------------------------------------------
+    async _loadSvgSources() {
+        const fetchText = async (src) => {
+            try {
+                const res = await fetch(src);
+                if (!res.ok) return null;
+                return await res.text();
+            } catch (e) {
+                return null;
+            }
+        };
+        const tileJobs = this.tiles.map((_, i) =>
+            this.needsHue.has(i % 86) ? fetchText(`assets/tiles/${i + 1}.svg`) : null);
+        const wallJobs = this.wallTiles.map((_, i) => fetchText(`assets/wall/${i + 1}.svg`));
+        const [tileTexts, wallTexts, bgText] = await Promise.all([
+            Promise.all(tileJobs),
+            Promise.all(wallJobs),
+            fetchText('assets/bg.svg')
+        ]);
+        this.tileSvgText = tileTexts;
+        this.wallSvgText = wallTexts;
+        this.backgroundSvgText = bgText;
+    }
 
-        rotated = document.createElement('canvas');
-        rotated.width = tile.width;
-        rotated.height = tile.height;
-        const rctx = rotated.getContext('2d');
-        rctx.translate(rotated.width / 2, rotated.height / 2);
-        rctx.rotate((rotation - 1) * Math.PI / 2);
-        rctx.drawImage(tile, -tile.width / 2, -tile.height / 2, tile.width, tile.height);
+    // Same math the old per-pixel code used (HSV hue rotation, gray for >=1000),
+    // applied to a single hex color instead of every pixel.
+    _shiftHex(hex, hueShift) {
+        const key = hueShift + '|' + hex;
+        const hit = this._svgColorCache.get(key);
+        if (hit) return hit;
 
-        byRotation.set(rotation, rotated);
-        return rotated;
+        let h6 = hex.slice(1);
+        if (h6.length === 3) h6 = h6[0] + h6[0] + h6[1] + h6[1] + h6[2] + h6[2];
+        const r = parseInt(h6.slice(0, 2), 16);
+        const g = parseInt(h6.slice(2, 4), 16);
+        const b = parseInt(h6.slice(4, 6), 16);
+
+        let out;
+        if (hueShift >= 1000) {
+            out = [r, r, r];
+        } else {
+            const [hue, sat, val] = this.rgbToHsv(r, g, b);
+            let hNorm = (hue / 360 + (hueShift % 200) / 200) % 1.0;
+            if (hNorm < 0) hNorm += 1;
+            out = this.hsvToRgb(hNorm * 360, sat, val);
+        }
+        const toHex = v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+        const result = '#' + toHex(out[0]) + toHex(out[1]) + toHex(out[2]);
+        if (this._svgColorCache.size > 20000) this._svgColorCache.clear();
+        this._svgColorCache.set(key, result);
+        return result;
+    }
+
+    _shiftSvgText(text, hueShift) {
+        return text.replace(/(["':\s(])(#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3}))(?=["';\s)])/g,
+            (m, pre, hex) => pre + this._shiftHex(hex, hueShift));
+    }
+
+    // Builds an Image from recolored SVG text. Calls onDone(img|null) when decoded.
+    _makeHuedSvgImage(text, hueShift, onDone) {
+        const img = new Image();
+        img.onload = () => onDone(img);
+        img.onerror = () => onDone(null);
+        img.src = 'data:image/svg+xml;charset=utf-8,' +
+            encodeURIComponent(this._shiftSvgText(text, hueShift));
+        return img;
+    }
+
+    // Builds a set of hued images. `list` starts as the un-hued originals and
+    // each slot is swapped for its recolored SVG as soon as it has loaded, so
+    // drawing never blocks and never draws a missing image. `ready` flips once
+    // every slot is done.
+    _buildHuedSet(baseList, texts, hueShift) {
+        const entry = { list: baseList.slice(), ready: false, promise: null };
+        let pending = 0;
+        entry.promise = new Promise(resolve => {
+            const finish = () => { entry.ready = true; resolve(entry); };
+            baseList.forEach((base, i) => {
+                const text = texts[i];
+                if (!base || !text) return;
+                pending++;
+                this._makeHuedSvgImage(text, hueShift, img => {
+                    if (img) entry.list[i] = img;
+                    if (--pending === 0) finish();
+                });
+            });
+            if (pending === 0) finish();
+        });
+        return entry;
+    }
+
+    _tilesetEntry(hue) {
+        let entry = this._cacheGet(this.tilesetCache, hue);
+        if (!entry) {
+            entry = this._buildHuedSet(this.tiles, this.tileSvgText, hue);
+            this._cacheSet(this.tilesetCache, hue, entry, this._maxTilesetCacheEntries);
+        }
+        return entry;
+    }
+
+    _wallsEntry(hue) {
+        let entry = this._cacheGet(this.wallCache, hue);
+        if (!entry) {
+            entry = this._buildHuedSet(this.wallTiles, this.wallSvgText, hue);
+            this._cacheSet(this.wallCache, hue, entry, this._maxWallCacheEntries);
+        }
+        return entry;
+    }
+
+    _backgroundEntry(hue) {
+        let entry = this._cacheGet(this.backgroundVariants, hue);
+        if (!entry) {
+            entry = this._buildHuedSet([this.background], [this.backgroundSvgText], hue);
+            this._cacheSet(this.backgroundVariants, hue, entry, this._maxBackgroundVariants);
+        }
+        return entry;
+    }
+
+    _safeHue(h) {
+        return Number.isFinite(h) ? h : 0;
     }
 
     getHuedTileset(hue) {
+        hue = this._safeHue(hue);
         if (hue === 0) return this.tiles;
-        const cached = this._cacheGet(this.tilesetCache, hue);
-        if (cached) return cached;
-
-        const huedSet = this.tiles.map((tile, i) => {
-            if (!tile) return null;
-            return this.needsHue.includes(i % 86)
-                ? this.applyColorEffect(tile, hue)
-                : tile;
-        });
-
-        this._cacheSet(this.tilesetCache, hue, huedSet, this._maxTilesetCacheEntries,
-            (evicted) => this._disposeCanvasArray(evicted));
-        return huedSet;
+        return this._tilesetEntry(hue).list;
     }
 
     getHuedWalls(hue) {
+        hue = this._safeHue(hue);
         if (hue === 0) return this.wallTiles;
-        const cached = this._cacheGet(this.wallCache, hue);
-        if (cached) return cached;
+        return this._wallsEntry(hue).list;
+    }
 
-        const huedWalls = this.wallTiles.map(tile =>
-            tile ? this.applyColorEffect(tile, hue) : null
-        );
+    getHuedBackground(hue) {
+        hue = this._safeHue(hue);
+        if (hue === 0) return this.background;
+        return this._backgroundEntry(hue).list[0];
+    }
 
-        this._cacheSet(this.wallCache, hue, huedWalls, this._maxWallCacheEntries,
-            (evicted) => this._disposeCanvasArray(evicted));
-        return huedWalls;
+    // Starts recoloring everything a level needs. Resolves when all of it is ready.
+    prewarmLevel(levelData) {
+        if (!this.assetsLoaded || !levelData) return Promise.resolve();
+        const hue = this._safeHue(this.fixHue(levelData.hue));
+        const hue2 = this._safeHue(this.fixHue(levelData.hue2));
+        const jobs = [];
+        if (hue !== 0) jobs.push(this._tilesetEntry(hue).promise);
+        if (hue2 + 15 !== 0) jobs.push(this._wallsEntry(hue2 + 15).promise);
+        if (hue2 !== 0) jobs.push(this._backgroundEntry(hue2).promise);
+        return Promise.all(jobs);
+    }
+
+    // Sync check used by code that bakes the level into a bitmap (thumbnails).
+    isLevelReady(levelData) {
+        if (!this.assetsLoaded || !levelData) return false;
+        const hue = this._safeHue(this.fixHue(levelData.hue));
+        const hue2 = this._safeHue(this.fixHue(levelData.hue2));
+        const ready = (entry) => entry.ready;
+        let ok = true;
+        if (hue !== 0 && !ready(this._tilesetEntry(hue))) ok = false;
+        if (hue2 + 15 !== 0 && !ready(this._wallsEntry(hue2 + 15))) ok = false;
+        if (hue2 !== 0 && !ready(this._backgroundEntry(hue2))) ok = false;
+        return ok;
     }
 
 	rgbToHsv(r, g, b) {
@@ -629,14 +763,7 @@ class LevelRenderer {
                 const tile = activeTileset[tileIndex];
                 if (!tile) continue;
 
-                const drawTile = this.getRotatedTile(tile, rotation);
-                ctx.drawImage(
-                    drawTile,
-                    tileX - drawTile.width / 2,
-                    tileY - drawTile.height / 2,
-                    drawTile.width,
-                    drawTile.height
-                );
+                this._drawTile(ctx, tile, rotation, tileX, tileY);
             }
         }
 
@@ -701,13 +828,7 @@ class LevelRenderer {
         const minCamY = this.canvas.height/camera.zoom/2;
         if (camera.y < minCamY) camera.y = minCamY;
 
-        const bgKey = `bg_${hue2}`;
-        let bg = this._cacheGet(this.backgroundVariants, bgKey);
-        if (!bg) {
-            bg = this.applyColorEffect(this.background, hue2);
-            this._cacheSet(this.backgroundVariants, bgKey, bg, this._maxBackgroundVariants,
-                (evicted) => this._disposeCanvas(evicted));
-        }
+        const bg = this.getHuedBackground(hue2);
 
         const bgW = 560 * camera.zoom;
         const bgH = 440 * camera.zoom;
@@ -783,15 +904,7 @@ class LevelRenderer {
                     const tileX = col * 60 + 30;
                     const tileY = -row * 60 - 30;
 
-                    const drawTile = this.getRotatedTile(tile, rotation);
-
-                    ctx.drawImage(
-                        drawTile,
-                        tileX - drawTile.width / 2,
-                        tileY - drawTile.height / 2,
-                        drawTile.width,
-                        drawTile.height
-                    );
+                    this._drawTile(ctx, tile, rotation, tileX, tileY);
                 }
             }
         }
