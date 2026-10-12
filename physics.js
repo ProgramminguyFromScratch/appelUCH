@@ -647,8 +647,16 @@ class AppelPhysics {
         this.movePlayerX(playerState);
     }
 
+    // Movement/death events for achievements. The game drains this list for
+    // the local player only; capped so remote players' lists can't grow.
+    emitEvent(playerState, kind) {
+        if (!playerState.pendingEvents) playerState.pendingEvents = [];
+        if (playerState.pendingEvents.length < 16) playerState.pendingEvents.push(kind);
+    }
+
     start_wall_jump(playerState) {
         if (typeof playSfx === 'function') playSfx('wall_jump');
+        this.emitEvent(playerState, 'walljump');
 
         playerState.is_jumping = 101;
         playerState.player_state = 3;
@@ -691,6 +699,14 @@ class AppelPhysics {
                         if (this.overlap === 0 && playerState.PLAYER_SY < 16) {
                             if (typeof playSfx === 'function') {
                                 playSfx(is_jumping > 100 ? 'sidejump' : 'jump');
+                            }
+                            if (is_jumping > 100) {
+                                this.emitEvent(playerState, 'sidejump');
+                                // Two sidejumps within 3 frames of each other.
+                                if (playerState.sjRecent > 0) this.emitEvent(playerState, 'double_sidejump');
+                                playerState.sjRecent = 4;
+                            } else {
+                                this.emitEvent(playerState, 'jump');
                             }
                             playerState.KEY_UP = 2;
                             playerState.is_jumping = is_jumping + 1;
@@ -774,6 +790,8 @@ class AppelPhysics {
             // death and should just cost a life like spikes do.
             if (this.lavaActive) {
                 playerState.PLAYER_DEATH_LAVA = true;
+            } else {
+                playerState.PLAYER_DEATH_VOID = true;
             }
             return;
         }
@@ -1281,6 +1299,7 @@ class AppelPhysics {
         }
 
         playerState.KEY_DOWN = (keys & 4) ? 1 : 0;       
+        if (playerState.sjRecent > 0) playerState.sjRecent--;
 
         if (keys & 2) {
             if (playerState.KEY_LEFT < 1){
@@ -1353,6 +1372,9 @@ class AppelPhysics {
             PLAYER_SY: 0.0,
             PLAYER_DEATH: false,
             PLAYER_DEATH_LAVA: false,
+            PLAYER_DEATH_VOID: false,
+            pendingEvents: [],
+            sjRecent: 0,
             PSZ: [0, 17, 13, 17, 13],
             is_jumping: 0,
             is_falling: 999,

@@ -100,8 +100,10 @@ document.addEventListener('fullscreenchange', () => {
 const serverUrl = params.get('server') || `wss://spacecaliber.net`;
 
 const network = new NetworkClient(serverUrl);
+const accounts = initAccounts(serverUrl, network);
 const game = new Game('gameCanvas', playerCount, network);
 wireCopyLevelCodeButton(game);
+game.accounts = accounts;
 
 {
 
@@ -334,12 +336,15 @@ wireCopyLevelCodeButton(game);
     };
 
     network.onJoinRejected = (payload) => {
+        if (payload.reason === 'invalid_session') accounts.clearSession();
         const message =
             payload.reason === 'room_full' ? 'That room is full.' :
             payload.reason === 'match_in_progress' ? 'That room is loading into a match right now - try again in a moment.' :
             payload.reason === 'name_taken' ? 'That name is already taken in this room.' :
             payload.reason === 'invalid_name' ? 'Enter a name using standard keyboard characters.' :
             payload.reason === 'banned_from_room' ? 'You have been banned from this room.' :
+            payload.reason === 'name_reserved' ? 'That name belongs to a registered account. Pick another name or log in.' :
+            payload.reason === 'invalid_session' ? 'Your login expired. Please log in again.' :
             'Could not join that room.';
 
         if (pendingJoinRoomCode) {
@@ -409,13 +414,29 @@ wireCopyLevelCodeButton(game);
         return canvas;
     }
 
+    // Preview sprite follows the selected skin.
     let playerPreviewSprite = null;
-    const playerPreviewImg = new Image();
-    playerPreviewImg.onload = () => {
-        playerPreviewSprite = playerPreviewImg;
-        drawColorPreview(parseInt(colorSliderTop.value, 10), parseInt(colorSliderBottom.value, 10));
-    };
-    playerPreviewImg.src = 'assets/player/stand.png';
+    let currentSkin = '1';
+    const previewImgs = new Map();
+    function loadPreviewSprite(skin) {
+        currentSkin = skin;
+        const cached = previewImgs.get(skin);
+        if (cached) {
+            playerPreviewSprite = cached;
+            drawColorPreview(parseInt(colorSliderTop.value, 10), parseInt(colorSliderBottom.value, 10));
+            return;
+        }
+        const img = new Image();
+        img.onload = () => {
+            previewImgs.set(skin, img);
+            if (currentSkin === skin) {
+                playerPreviewSprite = img;
+                drawColorPreview(parseInt(colorSliderTop.value, 10), parseInt(colorSliderBottom.value, 10));
+            }
+        };
+        img.src = AppelSkins.standPath(skin);
+    }
+    loadPreviewSprite('1');
 
     function drawColorPreview(hueTop, hueBottom) {
         previewCtx.clearRect(0, 0, colorPreviewCanvas.width, colorPreviewCanvas.height);
@@ -423,6 +444,38 @@ wireCopyLevelCodeButton(game);
         const tinted = applyDualHueShift(playerPreviewSprite, hueTop, hueBottom);
         previewCtx.drawImage(tinted, 0, 0, colorPreviewCanvas.width, colorPreviewCanvas.height);
     }
+
+    // ---- skin picker (lobby) ----
+    const skinPicker = document.getElementById('skinPicker');
+    let unlockedSkins = ['1'];
+    function renderSkinPicker() {
+        skinPicker.textContent = '';
+        for (const sk of AppelSkins.list) {
+            const open = unlockedSkins.includes(sk.id);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'skinBtn secondary' + (sk.id === currentSkin ? ' on' : '') + (open ? '' : ' locked');
+            btn.disabled = !open;
+            btn.title = open ? sk.name : (sk.hint || 'Locked');
+            const img = document.createElement('img');
+            img.src = AppelSkins.standPath(sk.id);
+            img.alt = '';
+            const label = document.createElement('span');
+            label.textContent = open ? sk.name : sk.name + ' (locked)';
+            btn.append(img, label);
+            if (open) btn.addEventListener('click', () => {
+                if (sk.id === currentSkin) return;
+                game.requestSetSkin(sk.id);
+                loadPreviewSprite(sk.id);
+                renderSkinPicker();
+            });
+            skinPicker.append(btn);
+        }
+        // Only worth showing once there's more than one skin to choose from.
+        skinPicker.style.display = AppelSkins.list.length > 1 ? 'flex' : 'none';
+    }
+    AppelSkins.ready.then(renderSkinPicker);
+    game.onSkinsState = (list) => { unlockedSkins = list; renderSkinPicker(); };
 
     let draggingColorSlider = false;
     let lastSentHueTop = null;
@@ -474,6 +527,10 @@ wireCopyLevelCodeButton(game);
         applyOpenLobbyState(payload.settings, isHost);
 
         const mySeat = payload.seats.find(s => s.seatIndex === game.localSeatIndex);
+        if (mySeat && typeof mySeat.skin === 'string' && mySeat.skin !== currentSkin) {
+            loadPreviewSprite(mySeat.skin);
+            renderSkinPicker();
+        }
         if (mySeat && typeof mySeat.hue === 'number' && !draggingColorSlider) {
             const hueBottom = typeof mySeat.hue2 === 'number' ? mySeat.hue2 : mySeat.hue;
             colorSliderTop.value = mySeat.hue;

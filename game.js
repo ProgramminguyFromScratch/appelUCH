@@ -3,6 +3,7 @@ const GameState = {
     LOBBY: 'LOBBY',
     LOADING: 'LOADING',
     STAGE_SELECT: 'STAGE_SELECT',
+    SPEEDRUN: 'SPEEDRUN',
     PARTY_BOX: 'PARTY_BOX',
     BUILD: 'BUILD',
     RACE: 'RACE',
@@ -251,18 +252,19 @@ class Game {
         this.onSettingsUpdated = null; 
 
         this.settingsMenuOpen = false;
-        this.settingsMenuIndex = 0;
-        this.settingsMenuTab = 'match';
         this.colorPickerOpen = false;
         this.helpMenuOpen = false;
         this.userSettingsOpen = false;
         this.userSettingsMenuIndex = 0;
+        this.userMenuTab = 'player'; // 'player' | 'match' | 'pieces'
+        this.unlockedSkins = ['1'];
         this.sfxVolume = 100;
         this.musicVolume = 50;
         this.USER_SETTINGS_STORAGE_KEY = 'appel_user_settings';
         this.USER_SETTINGS_META = [
             { key: 'hue', label: 'Top color', min: 0, max: 199, step: 8 },
             { key: 'hue2', label: 'Bottom color', min: 0, max: 199, step: 8 },
+            { key: 'skin', label: 'Skin', skin: true },
             { key: 'sfx', label: 'Sound effects', min: 0, max: 100, step: 5, suffix: '%' },
             { key: 'music', label: 'Music', min: 0, max: 100, step: 5, suffix: '%' },
             { key: 'inputDisplay', label: 'Input display', min: 0, max: 1, step: 1, toggle: true, toggleLabels: ['Off', 'On'] },
@@ -295,6 +297,8 @@ class Game {
         this.ROUND_RESULTS_ANIM_FRAMES = 15;
         this.stageCandidates = [];
         this.stageThumbnails = new Map();
+        this.accounts = null; // set by app.js (used by speedrun.js)
+        this.speedrun = null;
         // Pre-baked, in-order list of thumbnail canvases for the "Random"
         // tile's flicker animation. Built once (lazily) instead of being
         // re-derived every frame, so the flicker just indexes into a plain
@@ -364,10 +368,6 @@ class Game {
                 this.handleChatKeydown(e);
                 return;
             }
-            if (this.settingsMenuOpen) {
-                this.handleSettingsMenuKeydown(e);
-                return;
-            }
             if (this.colorPickerOpen) {
                 this.handleColorPickerKeydown(e);
                 return;
@@ -381,6 +381,9 @@ class Game {
                 return;
             }
 
+            // Speedrun mode / leaderboard keys (speedrun.js)
+            if (this.handleSpeedrunKey && this.handleSpeedrunKey(e)) return;
+
             this.keys[e.code] = true;
 
             if (e.code === 'Tab' && this.gameState !== GameState.MENU) {
@@ -391,6 +394,8 @@ class Game {
             if (e.code === 'KeyP' && !e.repeat) {
                 e.preventDefault();
                 this.userSettingsOpen = true;
+                this.userMenuTab = 'player';
+                this.userSettingsMenuIndex = 0;
                 this.keys = {};
                 return;
             }
@@ -408,9 +413,12 @@ class Game {
                 return;
             }
 
-            if (e.code === 'KeyM' && !e.repeat && this.gameState === GameState.STAGE_SELECT) {
+            if (e.code === 'KeyM' && !e.repeat && this.gameState !== GameState.MENU) {
                 e.preventDefault();
-                this.settingsMenuOpen = true;
+                // Match settings now live in the P menu (Match tab).
+                this.userSettingsOpen = true;
+                this.userMenuTab = 'match';
+                this.userSettingsMenuIndex = 0;
                 this.keys = {};
                 return;
             }
@@ -431,7 +439,7 @@ class Game {
             } else if (this.gameState === GameState.BUILD) {
                 this.handleBuildInput(e.code);
             }
-            if (e.code === 'Digit1' && !e.repeat && (this.gameState === GameState.RACE || this.gameState === GameState.STAGE_SELECT)) {
+            if (e.code === 'Digit1' && !e.repeat && (this.gameState === GameState.RACE || this.gameState === GameState.STAGE_SELECT || this.gameState === GameState.SPEEDRUN)) {
                 this.cameraMode = (this.cameraMode + 1) % 3;
             }
             if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
@@ -599,10 +607,6 @@ class Game {
         this.keys = {}; 
         this.tabListOpen = false;
     }
-    getActiveSettingsMeta() {
-        return this.settingsMenuTab === 'pieces' ? this.PIECE_CHANCE_META : this.SETTINGS_META;
-    }
-
     getSettingsMenuValue(meta) {
         if (meta.pieceId) {
             const overrides = (this.settings && this.settings.pieceChances) || {};
@@ -622,137 +626,6 @@ class Game {
         }
     }
 
-    handleSettingsMenuKeydown(e) {
-        const closeKeys = ['KeyM', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
-        if (closeKeys.includes(e.code)) {
-            if (!e.repeat) {
-                e.preventDefault();
-                this.settingsMenuOpen = false;
-            }
-            return;
-        }
-        if (e.repeat) return;
-
-        if (LOCAL_PLAYER_CONTROLS.rotateCCW.includes(e.code) || LOCAL_PLAYER_CONTROLS.rotateCW.includes(e.code)) {
-            e.preventDefault();
-            this.settingsMenuTab = this.settingsMenuTab === 'match' ? 'pieces' : 'match';
-            this.settingsMenuIndex = 0;
-            if (typeof playSfx === 'function') playSfx('select');
-            return;
-        }
-
-        const meta_list = this.getActiveSettingsMeta();
-        if (meta_list.length === 0) return;
-
-        if (LOCAL_PLAYER_CONTROLS.up.includes(e.code)) {
-            e.preventDefault();
-            this.settingsMenuIndex = (this.settingsMenuIndex - 1 + meta_list.length) % meta_list.length;
-            if (typeof playSfx === 'function') playSfx('select');
-            return;
-        }
-        if (LOCAL_PLAYER_CONTROLS.down.includes(e.code)) {
-            e.preventDefault();
-            this.settingsMenuIndex = (this.settingsMenuIndex + 1) % meta_list.length;
-            if (typeof playSfx === 'function') playSfx('select');
-            return;
-        }
-
-        if (!this.isHost && !this.isAdmin) return; 
-
-        const goingRight = LOCAL_PLAYER_CONTROLS.right.includes(e.code);
-        const goingLeft = LOCAL_PLAYER_CONTROLS.left.includes(e.code);
-        if (!goingRight && !goingLeft) return;
-        e.preventDefault();
-
-        const meta = meta_list[this.settingsMenuIndex];
-        const current = this.getSettingsMenuValue(meta);
-        const dir = goingRight ? 1 : -1;
-        const next = Math.max(meta.min, Math.min(meta.max, current + dir * meta.step));
-        if (next === current) return;
-
-        if (typeof playSfx === 'function') playSfx('select');
-        this.setSettingsMenuValue(meta, next);
-    }
-
-    drawSettingsMenu() {
-        if (!this.settingsMenuOpen) return;
-        const ctx = this.ctx;
-        const rowHeight = 26;
-        const paddingX = 20;
-        const paddingY = 16;
-        const titleHeight = 26;
-        const tabHeight = 24;
-        const footerHeight = 22;
-        const width = 320;
-        const metaList = this.getActiveSettingsMeta();
-        const maxVisibleRows = 15;
-        const visibleCount = Math.min(metaList.length, maxVisibleRows);
-        const height = paddingY * 2 + titleHeight + tabHeight + rowHeight * visibleCount + footerHeight;
-        const x = (this.canvas.width - width) / 2;
-        const y = (this.canvas.height - height) / 2;
-
-        let scrollOffset = 0;
-        if (metaList.length > maxVisibleRows) {
-            scrollOffset = Math.max(0, Math.min(this.settingsMenuIndex - maxVisibleRows + 1, metaList.length - maxVisibleRows));
-            if (this.settingsMenuIndex < scrollOffset) scrollOffset = this.settingsMenuIndex;
-        }
-
-        ctx.save();
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
-        ctx.fillRect(x, y, width, height);
-        ctx.strokeStyle = THEME.panelBorderActive;
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(x, y, width, height);
-
-        ctx.textAlign = 'center';
-        ctx.fillStyle = THEME.text;
-        ctx.font = 'bold 16px ' + THEME.font;
-        ctx.fillText('Match Settings', x + width / 2, y + paddingY + 12);
-
-        const tabY = y + paddingY + titleHeight;
-        const tabs = [{ id: 'match', label: 'Match' }, { id: 'pieces', label: 'Piece Chances' }];
-        const tabWidth = width / tabs.length;
-        ctx.font = '12px ' + THEME.font;
-        tabs.forEach((tab, i) => {
-            const active = this.settingsMenuTab === tab.id;
-            const tabX = x + i * tabWidth;
-            if (active) {
-                ctx.fillStyle = 'rgba(58, 160, 255, 0.18)';
-                ctx.fillRect(tabX + 4, tabY, tabWidth - 8, tabHeight - 4);
-            }
-            ctx.fillStyle = active ? THEME.accent : THEME.textMuted;
-            ctx.fillText(tab.label, tabX + tabWidth / 2, tabY + tabHeight / 2 + 3);
-        });
-
-        ctx.font = '13px ' + THEME.font;
-        metaList.slice(scrollOffset, scrollOffset + visibleCount).forEach((meta, visibleI) => {
-            const i = scrollOffset + visibleI;
-            const rowY = y + paddingY + titleHeight + tabHeight + visibleI * rowHeight;
-            const selected = i === this.settingsMenuIndex;
-            if (selected) {
-                ctx.fillStyle = 'rgba(58, 160, 255, 0.18)';
-                ctx.fillRect(x + 8, rowY, width - 16, rowHeight - 4);
-            }
-            ctx.textAlign = 'left';
-            ctx.fillStyle = selected ? THEME.accent : THEME.text;
-            ctx.fillText(meta.label, x + paddingX, rowY + rowHeight / 2 - 3);
-
-            ctx.textAlign = 'right';
-            const value = this.getSettingsMenuValue(meta);
-            const displayValue = meta.toggle ? meta.toggleLabels[value ? 1 : 0] : String(value);
-            ctx.fillStyle = selected ? THEME.accent : THEME.textMuted;
-            ctx.fillText(displayValue, x + width - paddingX, rowY + rowHeight / 2 - 3);
-        });
-
-        ctx.textAlign = 'center';
-        ctx.font = '11px ' + THEME.font;
-        ctx.fillStyle = THEME.textMuted;
-        const hint = (this.isHost || this.isAdmin)
-            ? 'W/S select   A/D change   Q/E switch tab   Enter/Shift/M close'
-            : 'Only the host (or an admin) can change settings   Enter/Shift/M close';
-        ctx.fillText(hint, x + width / 2, y + height - 8);
-        ctx.restore();
-    }
     _loadUserSettings() {
         try {
             const saved = JSON.parse(sessionStorage.getItem(this.USER_SETTINGS_STORAGE_KEY) || '{}');
@@ -796,6 +669,10 @@ class Game {
             if (!player) return 0;
             return typeof player.hue2 === 'number' ? player.hue2 : (player.hue || 0);
         }
+        if (meta.key === 'skin') {
+            const player = this.players[this.localSeatIndex];
+            return (player && player.skin) || '1';
+        }
         if (meta.key === 'sfx') return this.sfxVolume;
         if (meta.key === 'music') return this.musicVolume;
         if (meta.key === 'inputDisplay') return this.showInputDisplay ? 1 : 0;
@@ -831,8 +708,43 @@ class Game {
         this._persistUserSettings();
     }
 
+    // The P menu has three tabs: the player's own settings, the match
+    // settings and the piece chances (the last two used to be the M menu).
+    getUserMenuTabs() {
+        return [
+            { id: 'player', label: 'Player' },
+            { id: 'match', label: 'Match' },
+            { id: 'pieces', label: 'Piece Chances' }
+        ];
+    }
+
+    getUserMenuMeta() {
+        if (this.userMenuTab === 'match') return this.SETTINGS_META;
+        if (this.userMenuTab === 'pieces') return this.PIECE_CHANCE_META;
+        return this.USER_SETTINGS_META;
+    }
+
+    // Match settings can only be sent by the host/an admin, and the server
+    // only accepts them in the lobby and at stage select.
+    canEditMatchSettings() {
+        return (this.isHost || this.isAdmin) && this.gameState === GameState.STAGE_SELECT;
+    }
+
+    // Steps through the skins this player has unlocked.
+    cycleSkin(dir) {
+        const player = this.players[this.localSeatIndex];
+        if (!player || typeof AppelSkins === 'undefined') return;
+        const owned = this.unlockedSkins || ['1'];
+        const ids = AppelSkins.list.map(s => s.id).filter(id => owned.includes(id));
+        if (ids.length < 2) return;
+        let i = ids.indexOf(player.skin || '1');
+        if (i < 0) i = 0;
+        this.requestSetSkin(ids[(i + dir + ids.length) % ids.length]);
+        if (typeof playSfx === 'function') playSfx('select');
+    }
+
     handleUserSettingsKeydown(e) {
-        const closeKeys = ['KeyP', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
+        const closeKeys = ['KeyP', 'KeyM', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
         if (closeKeys.includes(e.code)) {
             if (!e.repeat) {
                 e.preventDefault();
@@ -842,7 +754,20 @@ class Game {
         }
         if (e.repeat) return;
 
-        const metaList = this.USER_SETTINGS_META;
+        const tabs = this.getUserMenuTabs();
+        const tabDir = LOCAL_PLAYER_CONTROLS.rotateCW.includes(e.code) ? 1
+            : LOCAL_PLAYER_CONTROLS.rotateCCW.includes(e.code) ? -1 : 0;
+        if (tabDir) {
+            e.preventDefault();
+            const cur = tabs.findIndex(t => t.id === this.userMenuTab);
+            this.userMenuTab = tabs[(cur + tabDir + tabs.length) % tabs.length].id;
+            this.userSettingsMenuIndex = 0;
+            if (typeof playSfx === 'function') playSfx('select');
+            return;
+        }
+
+        const metaList = this.getUserMenuMeta();
+        if (metaList.length === 0) return;
 
         if (LOCAL_PLAYER_CONTROLS.up.includes(e.code)) {
             e.preventDefault();
@@ -861,10 +786,26 @@ class Game {
         const goingLeft = LOCAL_PLAYER_CONTROLS.left.includes(e.code);
         if (!goingRight && !goingLeft) return;
         e.preventDefault();
-
-        const meta = metaList[this.userSettingsMenuIndex];
-        const current = this.getUserSettingValue(meta);
         const dir = goingRight ? 1 : -1;
+        const meta = metaList[this.userSettingsMenuIndex];
+
+        // Match / piece settings (host or admin, stage select only).
+        if (this.userMenuTab !== 'player') {
+            if (!this.canEditMatchSettings()) return;
+            const current = this.getSettingsMenuValue(meta);
+            const next = Math.max(meta.min, Math.min(meta.max, current + dir * meta.step));
+            if (next === current) return;
+            if (typeof playSfx === 'function') playSfx('select');
+            this.setSettingsMenuValue(meta, next);
+            return;
+        }
+
+        if (meta.key === 'skin') {
+            this.cycleSkin(dir);
+            return;
+        }
+
+        const current = this.getUserSettingValue(meta);
         let next = current + dir * meta.step;
         if (meta.key === 'hue' || meta.key === 'hue2') {
             const span = meta.max + 1;
@@ -885,12 +826,24 @@ class Game {
         const paddingX = 20;
         const paddingY = 16;
         const titleHeight = 26;
+        const tabHeight = 24;
         const footerHeight = 22;
-        const width = 300;
-        const metaList = this.USER_SETTINGS_META;
-        const height = paddingY * 2 + titleHeight + rowHeight * metaList.length + footerHeight;
+        const width = 340;
+        const tabs = this.getUserMenuTabs();
+        const metaList = this.getUserMenuMeta();
+        const maxVisibleRows = 15;
+        const visibleCount = Math.min(metaList.length, maxVisibleRows);
+        const height = paddingY * 2 + titleHeight + tabHeight + rowHeight * visibleCount + footerHeight;
         const x = (this.canvas.width - width) / 2;
         const y = (this.canvas.height - height) / 2;
+        const isPlayerTab = this.userMenuTab === 'player';
+        const canEdit = isPlayerTab || this.canEditMatchSettings();
+
+        let scrollOffset = 0;
+        if (metaList.length > maxVisibleRows) {
+            scrollOffset = Math.max(0, Math.min(this.userSettingsMenuIndex - maxVisibleRows + 1, metaList.length - maxVisibleRows));
+            if (this.userSettingsMenuIndex < scrollOffset) scrollOffset = this.userSettingsMenuIndex;
+        }
 
         ctx.save();
         ctx.fillStyle = 'rgba(0, 0, 0, 0.82)';
@@ -904,20 +857,35 @@ class Game {
         ctx.font = 'bold 16px ' + THEME.font;
         ctx.fillText('Settings', x + width / 2, y + paddingY + 12);
 
+        const tabY = y + paddingY + titleHeight;
+        const tabWidth = width / tabs.length;
+        ctx.font = '12px ' + THEME.font;
+        tabs.forEach((tab, i) => {
+            const active = this.userMenuTab === tab.id;
+            const tabX = x + i * tabWidth;
+            if (active) {
+                ctx.fillStyle = 'rgba(58, 160, 255, 0.18)';
+                ctx.fillRect(tabX + 4, tabY, tabWidth - 8, tabHeight - 4);
+            }
+            ctx.fillStyle = active ? THEME.accent : THEME.textMuted;
+            ctx.fillText(tab.label, tabX + tabWidth / 2, tabY + tabHeight / 2 + 3);
+        });
+
         ctx.font = '13px ' + THEME.font;
-        metaList.forEach((meta, i) => {
-            const rowY = y + paddingY + titleHeight + i * rowHeight;
+        metaList.slice(scrollOffset, scrollOffset + visibleCount).forEach((meta, visibleI) => {
+            const i = scrollOffset + visibleI;
+            const rowY = y + paddingY + titleHeight + tabHeight + visibleI * rowHeight;
             const selected = i === this.userSettingsMenuIndex;
             if (selected) {
                 ctx.fillStyle = 'rgba(58, 160, 255, 0.18)';
                 ctx.fillRect(x + 8, rowY, width - 16, rowHeight - 4);
             }
             ctx.textAlign = 'left';
-            ctx.fillStyle = selected ? THEME.accent : THEME.text;
+            ctx.fillStyle = selected ? THEME.accent : (canEdit ? THEME.text : THEME.textMuted);
             ctx.fillText(meta.label, x + paddingX, rowY + rowHeight / 2 - 3);
 
-            const value = this.getUserSettingValue(meta);
-            if (meta.key === 'hue' || meta.key === 'hue2') {
+            const value = isPlayerTab ? this.getUserSettingValue(meta) : this.getSettingsMenuValue(meta);
+            if (isPlayerTab && (meta.key === 'hue' || meta.key === 'hue2')) {
                 ctx.fillStyle = hueShiftToHex(value);
                 ctx.fillRect(x + width - paddingX - 34, rowY + 4, 34, rowHeight - 12);
                 ctx.strokeStyle = 'rgba(255,255,255,0.4)';
@@ -926,7 +894,14 @@ class Game {
             } else {
                 ctx.textAlign = 'right';
                 ctx.fillStyle = selected ? THEME.accent : THEME.textMuted;
-                const displayValue = meta.toggle ? meta.toggleLabels[value] : (value + (meta.suffix || ''));
+                let displayValue;
+                if (isPlayerTab && meta.key === 'skin') {
+                    displayValue = (typeof AppelSkins !== 'undefined') ? AppelSkins.get(value).name : 'Appel';
+                } else if (meta.toggle) {
+                    displayValue = meta.toggleLabels[value ? 1 : 0];
+                } else {
+                    displayValue = String(value) + (meta.suffix || '');
+                }
                 ctx.fillText(displayValue, x + width - paddingX, rowY + rowHeight / 2 - 3);
             }
         });
@@ -934,7 +909,13 @@ class Game {
         ctx.textAlign = 'center';
         ctx.font = '11px ' + THEME.font;
         ctx.fillStyle = THEME.textMuted;
-        ctx.fillText('W/S select   A/D change   P/Enter/Shift close', x + width / 2, y + height - 8);
+        let hint = 'W/S select   A/D change   Q/E switch tab   P/Enter/Shift close';
+        if (!isPlayerTab && !canEdit) {
+            hint = (this.isHost || this.isAdmin)
+                ? 'Match settings can be changed at stage select   Q/E tab   P close'
+                : 'Only the host (or an admin) can change match settings   Q/E tab   P close';
+        }
+        ctx.fillText(hint, x + width / 2, y + height - 8);
         ctx.restore();
     }
 
@@ -1034,13 +1015,14 @@ class Game {
         ctx.font = '11px ' + THEME.font;
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillText('H: Controls', this.canvas.width / 2, this.canvas.height - 10);
+        const speedrunHint = this.getSpeedrunHubHint ? this.getSpeedrunHubHint() + '   |   ' : '';
+        ctx.fillText(speedrunHint + 'H: Controls', this.canvas.width / 2, this.canvas.height - 10);
         ctx.restore();
     }
 
     drawGlobalHints() {
         if (this.gameState === GameState.MENU) return;
-        if (this.gameState === GameState.STAGE_SELECT) return;
+        if (this.gameState === GameState.STAGE_SELECT || this.gameState === GameState.SPEEDRUN) return;
         if (this.settingsMenuOpen || this.colorPickerOpen || this.chatOpen || this.helpMenuOpen || this.userSettingsOpen) return;
         if (this.stageHintHidden) return;
         const ctx = this.ctx;
@@ -1067,6 +1049,14 @@ class Game {
                 rows: [
                     ['Hold to give up', 'Shift or Enter (hold)'],
                     ['Cycle camera mode', '1']
+                ]
+            },
+            {
+                title: 'Speedrun (stage select)',
+                rows: [
+                    ['Speedrun the stage you stand on / reset', 'R'],
+                    ['Leaderboards', 'B'],
+                    ['Back to the hub', 'Esc']
                 ]
             },
             {
@@ -1113,16 +1103,25 @@ class Game {
         const paddingX = 24;
         const paddingY = 18;
         const titleHeight = 26;
-        const sectionGap = 10;
-        const sectionTitleHeight = 18;
-        const rowHeight = 20;
+        let sectionGap = 10;
+        let sectionTitleHeight = 18;
+        let rowHeight = 20;
         const footerHeight = 22;
         const width = 420;
 
-        let height = paddingY * 2 + titleHeight + footerHeight;
-        sections.forEach(section => {
-            height += sectionTitleHeight + section.rows.length * rowHeight + sectionGap;
-        });
+        const measureHeight = () => {
+            let h = paddingY * 2 + titleHeight + footerHeight;
+            sections.forEach(section => {
+                h += sectionTitleHeight + section.rows.length * rowHeight + sectionGap;
+            });
+            return h;
+        };
+        let height = measureHeight();
+        // With many sections the list can outgrow the canvas: tighten up.
+        if (height > this.canvas.height - 20) {
+            sectionGap = 5; sectionTitleHeight = 16; rowHeight = 16;
+            height = measureHeight();
+        }
 
         const x = (this.canvas.width - width) / 2;
         const y = Math.max(10, (this.canvas.height - height) / 2);
@@ -1277,6 +1276,7 @@ class Game {
         const ALL_COMMANDS = [
             { name: 'color', level: 'any' },
             { name: 'color2', level: 'any' },
+            { name: 'exit', level: 'any' },
             { name: 'forcestage', level: 'privileged' },
             { name: 'kick', level: 'privileged' },
             { name: 'ban', level: 'privileged' },
@@ -1648,6 +1648,11 @@ class Game {
             return;
         }
 
+        if (cmd === '/exit') {
+            if (this.gameState === GameState.SPEEDRUN) this.exitSpeedrun();
+            else this.pushSystemMessage('/exit leaves a speedrun and returns you to the hub.');
+            return;
+        }
         if (cmd === '/forcestage') {
             if (!this.isHost && !this.isAdmin) {
                 this.pushSystemMessage('Only the host (or an admin) can force a stage.');
@@ -1674,22 +1679,9 @@ class Game {
             return;
         }
 
-        if (cmd === '/login') {
-            if (!arg) {
-                this.pushSystemMessage('Usage: /login <password>');
-                return;
-            }
-            if (this.network && this.network.isConnected) {
-                this.network.sendLoginRequest(arg);
-            } else {
-                this.pushSystemMessage('Not connected to a server.');
-            }
-            return;
-        }
-
         if (cmd === '/give') {
             if (!this.isAdmin) {
-                this.pushSystemMessage('Only an admin can use /give. Try /login <password> first.');
+                this.pushSystemMessage('Only an admin can use /give.');
                 return;
             }
             const parts = arg.split(/\s+/).filter(Boolean);
@@ -1711,7 +1703,7 @@ class Game {
 
         if (cmd === '/set') {
             if (!this.isAdmin) {
-                this.pushSystemMessage('Only an admin can use /set. Try /login <password> first.');
+                this.pushSystemMessage('Only an admin can use /set.');
                 return;
             }
             const parts = arg.split(/\s+/).filter(Boolean);
@@ -1733,7 +1725,7 @@ class Game {
 
         if (cmd === '/host') {
             if (!this.isAdmin) {
-                this.pushSystemMessage('Only an admin can use /host. Try /login <password> first.');
+                this.pushSystemMessage('Only an admin can use /host.');
                 return;
             }
             if (this.network && this.network.isConnected) {
@@ -1746,7 +1738,7 @@ class Game {
 
         if (cmd === '/kill') {
             if (!this.isAdmin) {
-                this.pushSystemMessage('Only an admin can use /kill. Try /login <password> first.');
+                this.pushSystemMessage('Only an admin can use /kill.');
                 return;
             }
             if (!arg) {
@@ -1862,17 +1854,32 @@ class Game {
         player.color = hueShiftToHex(player.hue2);
     }
 
-    handleLoginResult(payload) {
-        const success = !!(payload && payload.success);
-        this.isAdmin = success;
-        if (success) {
-            this.pushSystemMessage('Logged in as admin.');
-        } else if (payload && payload.reason === 'too_many_attempts') {
-            this.pushSystemMessage('Too many login attempts - try again later.');
-        } else {
-            this.pushSystemMessage('Incorrect password.');
+    handleSkinUpdated(payload) {
+        if (!payload) return;
+        const player = this.players[payload.seatIndex];
+        if (player && typeof payload.skin === 'string') player.skin = payload.skin;
+    }
+
+    // Skins this player may pick (sent by the server on join and when one unlocks).
+    handleSkinsState(payload) {
+        this.unlockedSkins = (payload && Array.isArray(payload.unlocked)) ? payload.unlocked.map(String) : ['1'];
+        if (typeof this.onSkinsState === 'function') this.onSkinsState(this.unlockedSkins);
+    }
+
+    requestSetSkin(skin) {
+        if (this.network && this.network.isConnected) this.network.sendSetSkinRequest(skin);
+        const player = this.players[this.localSeatIndex];
+        if (player) player.skin = skin;
+    }
+
+    // The server tells us when this seat has admin rights (the owner account).
+    handleAdminStatus(payload) {
+        const isAdmin = !!(payload && payload.isAdmin);
+        this.isAdmin = isAdmin;
+        if (isAdmin) {
+            this.pushSystemMessage('Admin access enabled. Type /help for commands.');
+            if (this.onAdminChanged) this.onAdminChanged(this.isAdmin);
         }
-        if (success && this.onAdminChanged) this.onAdminChanged(this.isAdmin);
     }
 
     handleScoreAdjusted(payload) {
@@ -1926,6 +1933,7 @@ class Game {
                 color: THEME.playerColors[seatIndex],
                 hue: THEME.playerHues[seatIndex],
                 hue2: THEME.playerHues[seatIndex],
+                skin: '1',
                 controls: seatIndex === localSeatIndex ? LOCAL_PLAYER_CONTROLS : null,
                 isBot: seatIndex !== localSeatIndex,
                 connected: true,
@@ -1987,6 +1995,7 @@ class Game {
         this.stageCountdownActive = false;
         this.stageCountdownStart = null;
         this.stageCountdownDuration = STAGE_VOTE_STAND_SECONDS * 1000;
+        if (this.refreshSpeedrunData) this.refreshSpeedrunData(true);
 
         const boxWidth = 240
         const thumbW = boxWidth - 24;
@@ -2175,6 +2184,7 @@ class Game {
 
             const keys = this.getStageSelectInputKeysFor(player);
             player.physicsState = this.physics.tick(player.physicsState, keys);
+            this.drainAchievementEvents(player);
 
             if (player.controls && this.network) {
                 this.network.sendPositionSnapshot(
@@ -2214,6 +2224,8 @@ class Game {
 
             const isMoving = Math.abs(player.physicsState.PLAYER_SX || 0) > STAGE_VOTE_MOVE_TOLERANCE;
             if (isMoving) zoneIndex = -1;
+            // Browsing the speedrun leaderboard doesn't count as voting.
+            if (this.speedrunBoardOpen) zoneIndex = -1;
 
             if (zoneIndex !== player.stageCursor) {
                 player.stageCursor = zoneIndex;
@@ -2758,7 +2770,10 @@ class Game {
         // accumulating elapsed time and running as many steps as needed
         // (usually one) each rAF callback, so behavior matches the old
         // interval-gated version.
-        const tick = (now) => {
+        // Runs as many fixed steps as the elapsed time calls for. `maxBacklog`
+        // is how many frames of lag we are willing to replay before giving up
+        // and resyncing the clock.
+        const pump = (now, maxBacklog) => {
             let delta = now - lastFrameTime;
 
             while (delta >= frameDuration - 1) {
@@ -2782,18 +2797,35 @@ class Game {
                 if (this.tabListOpen && this.gameState !== GameState.MENU) this.drawTabList();
 
                 delta = now - lastFrameTime;
-                // Don't try to "catch up" indefinitely after e.g. the tab
-                // was backgrounded for a while - resync instead of running
-                // a burst of stale steps.
-                if (delta > frameDuration * 5) {
+                // Don't try to "catch up" indefinitely - resync instead of
+                // running a burst of stale steps.
+                if (delta > frameDuration * maxBacklog) {
                     lastFrameTime = now;
                     break;
                 }
             }
+        };
 
+        const tick = (now) => {
+            // Normal foreground: tolerate a few frames of lag, then resync.
+            // After returning from a background stint the hidden-tab timer
+            // below has already kept the simulation current.
+            pump(now, 5);
             requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
+
+        // requestAnimationFrame is paused entirely while the tab is hidden or
+        // the window is occluded, which froze the simulation (and with it the
+        // lava timer and lava collision) for that player - so they could never
+        // die and the round could never end. Timers still fire in background
+        // tabs (throttled to ~1Hz), so use one to keep stepping the game in
+        // real time while hidden. Large backlog allowance because throttled
+        // timers fire infrequently and each call must cover the whole gap.
+        setInterval(() => {
+            if (!document.hidden) return;
+            pump(performance.now(), 30 * 60);
+        }, 250);
 
         if (this.network) {
             this.network.sendPing(this.ping);
@@ -3044,6 +3076,7 @@ class Game {
             } else {
                 const keys = this.getInputKeysFor(player);
                 player.physicsState = this.physics.tick(player.physicsState, keys);
+                this.drainAchievementEvents(player);
                 locallySimulatedStates.push(player.physicsState);
 
                 if (player.controls && this.network) {
@@ -3078,6 +3111,7 @@ class Game {
             if (localPlayer && localPlayer.physicsState) {
                 if (localPlayer.physicsState.PLAYER_DEATH && !localPlayer.hasFinished && !localPlayer.eliminated && !localPlayer.reportedElimination && !(localPlayer.respawnPendingFrames > 0)) {
                     const isLavaDeath = !!localPlayer.physicsState.PLAYER_DEATH_LAVA;
+                    this.reportVoidDeath(localPlayer.physicsState);
                     if (!isLavaDeath && (localPlayer.livesRemaining || 1) > 1) {
                         localPlayer.livesRemaining -= 1;
                         localPlayer.respawnPendingFrames = this.RESPAWN_DELAY_FRAMES;
@@ -3185,14 +3219,16 @@ class Game {
         // fit box. Otherwise a player mid-fall into the void - flying far
         // off in a direction nobody else is near - drags the whole camera
         // out with them for the second it takes to register the elimination.
-        let active = this.players.filter(p => p && p.connected !== false && !p.eliminated && !p.hasFinished && p.physicsState && !p.physicsState.PLAYER_DEATH);
+        // A speedrun is solo: never frame the other (hub-space) players.
+        const racePool = this.gameState === GameState.SPEEDRUN ? [this.players[this.localSeatIndex]].filter(Boolean) : this.players;
+        let active = racePool.filter(p => p && p.connected !== false && !p.eliminated && !p.hasFinished && p.physicsState && !p.physicsState.PLAYER_DEATH);
         if (active.length === 0) {
-            active = this.players.filter(p => p && p.connected !== false && !p.eliminated && !p.hasFinished && p.physicsState);
+            active = racePool.filter(p => p && p.connected !== false && !p.eliminated && !p.hasFinished && p.physicsState);
         }
         if (active.length === 0) {
-            active = this.players.filter(p => p && p.connected !== false && p.physicsState && (p.eliminated || p.hasFinished));
+            active = racePool.filter(p => p && p.connected !== false && p.physicsState && (p.eliminated || p.hasFinished));
             if (active.length === 0) {
-                active = this.players.filter(p => p && p.connected !== false && p.physicsState);
+                active = racePool.filter(p => p && p.connected !== false && p.physicsState);
             }
         }
         if (active.length === 0) return;
@@ -3456,7 +3492,7 @@ class Game {
                 }
             }
 
-            this.renderer.renderPlayer(playerPos, this.camera, player.hue, player.hue2, player.name, player.color, status, alpha);
+            this.renderer.renderPlayer(playerPos, this.camera, player.hue, player.hue2, player.name, player.color, status, alpha, player.skin);
         }
 
         this.renderer.renderDynamic(firstPlayer.physicsState.OBJ, this.camera);
@@ -3966,7 +4002,7 @@ class Game {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
             ctx.fillRect(iconX, iconY, iconSize, iconSize);
             const sprite = (this.renderer && this.renderer.playerNormal && this.renderer.getHuedPlayerSprite)
-                ? this.renderer.getHuedPlayerSprite(player.hue, player.hue2)
+                ? this.renderer.getHuedPlayerSprite(player.hue, player.hue2, player.skin)
                 : null;
             const icon = sprite && sprite.normal;
             if (icon) {
@@ -4173,7 +4209,10 @@ class Game {
 
 
     gameLoop() {
-        if (this.gameState !== GameState.STAGE_SELECT && (this.settingsMenuOpen || this.colorPickerOpen)) {
+        // The room moved on (e.g. a reconnect resync) while a speedrun was
+        // active: put the hub's real state back before anything else runs.
+        if (this.speedrun && this.gameState !== GameState.SPEEDRUN) this.exitSpeedrun();
+        if (this.gameState !== GameState.STAGE_SELECT && this.gameState !== GameState.SPEEDRUN && (this.settingsMenuOpen || this.colorPickerOpen)) {
             this.settingsMenuOpen = false;
             this.colorPickerOpen = false;
         }
@@ -4184,6 +4223,10 @@ class Game {
 
             case GameState.STAGE_SELECT:
                 this.stageSelectLoop();
+                break;
+
+            case GameState.SPEEDRUN:
+                this.speedrunLoop();
                 break;
 
             case GameState.PARTY_BOX:
@@ -4562,7 +4605,7 @@ class Game {
         const player = this.players.find(p => p && p.controls);
         if (!player || !this.renderer) return;
 
-        const sprite = this.renderer.getHuedPlayerSprite(player.hue, player.hue2);
+        const sprite = this.renderer.getHuedPlayerSprite(player.hue, player.hue2, player.skin);
         if (!sprite || !sprite.normal) return;
 
         const extraLives = Math.max(0, (player.livesRemaining || 0) - 1);
@@ -4849,7 +4892,6 @@ class Game {
             this.drawStageSelectHud();
             this.drawStageVoteTimer();
             this.drawHubMenuHints();
-            this.drawSettingsMenu();
             this.drawColorPicker();
             this.drawInputDisplay();
         });
@@ -4865,6 +4907,13 @@ class Game {
         this.ctx.strokeText('Stand on the stage you want!', this.canvas.width / 2, 44);
         this.ctx.fillStyle = THEME.text;
         this.ctx.fillText('Stand on the stage you want!', this.canvas.width / 2, 44);
+
+        this.ctx.font = "bold 17px " + THEME.font;
+        this.ctx.lineWidth = 3.5;
+        const tip = 'Press R on a stage to speedrun it   |   B: leaderboards';
+        this.ctx.strokeText(tip, this.canvas.width / 2, 70);
+        this.ctx.fillStyle = '#ffd24a';
+        this.ctx.fillText(tip, this.canvas.width / 2, 70);
     }
     drawStageVoteZones() {
         const zones = this.stageVoteZones || [];
@@ -4903,6 +4952,9 @@ class Game {
             const titleBaselineY = thumbY - 8 * this.camera.zoom;
             const titleW = titleCanvas.width * titleScale;
             const titleH = titleCanvas.height * titleScale;
+            if (code !== RANDOM_STAGE_CODE && this.drawSpeedrunRecordLabel) {
+                this.drawSpeedrunRecordLabel(ctx, levelTitle, screen.x, titleBaselineY - titleH - 2 * this.camera.zoom);
+            }
             ctx.drawImage(
                 titleCanvas,
                 screen.x - titleW / 2,
@@ -5228,7 +5280,9 @@ class Game {
         net.onSeatAssigned = (payload) => this.handleSeatAssigned(payload);
         net.onRoomState = (payload, type, phase) => this.handleRoomState(payload, phase);
         net.onColorUpdated = (payload) => this.handleColorUpdated(payload);
-        net.onLoginResult = (payload) => this.handleLoginResult(payload);
+        net.onSkinUpdated = (payload) => this.handleSkinUpdated(payload);
+        net.onSkinsState = (payload) => this.handleSkinsState(payload);
+        net.onAdminStatus = (payload) => this.handleAdminStatus(payload);
         net.onScoreAdjusted = (payload) => this.handleScoreAdjusted(payload);
         net.onLivesAdjusted = (payload) => this.handleLivesAdjusted(payload);
         net.onJoinRejected = (payload) => {
@@ -5237,6 +5291,7 @@ class Game {
         };
 
         net.onMatchStarting = (payload) => {
+            this.abortSpeedrunIfActive();
             this.gameState = GameState.LOADING;
             if (payload && payload.settings) {
                 this.settings = { ...this.settings, ...payload.settings };
@@ -5334,6 +5389,30 @@ class Game {
         };
     }
 
+    // Forwards movement events (jump, sidejump...) from the local player's
+    // physics to the server for achievements. Each kind is sent once per page
+    // load; the server ignores everything for guests.
+    drainAchievementEvents(player) {
+        const ps = player && player.physicsState;
+        if (!ps || !ps.pendingEvents || ps.pendingEvents.length === 0) return;
+        const events = ps.pendingEvents.splice(0);
+        if (!player.controls || !this.network || !this.network.authToken) return;
+        if (!this._sentAchievementKinds) this._sentAchievementKinds = new Set();
+        for (const kind of events) {
+            if (this._sentAchievementKinds.has(kind)) continue;
+            this._sentAchievementKinds.add(kind);
+            this.network.sendAchievementEvent(kind);
+        }
+    }
+
+    reportVoidDeath(ps) {
+        if (!ps || !ps.PLAYER_DEATH_VOID || !this.network || !this.network.authToken) return;
+        if (!this._sentAchievementKinds) this._sentAchievementKinds = new Set();
+        if (this._sentAchievementKinds.has('die_void')) return;
+        this._sentAchievementKinds.add('die_void');
+        this.network.sendAchievementEvent('die_void');
+    }
+
     requestSetColor(hue, hue2) {
         const resolvedHue2 = typeof hue2 === 'number' ? hue2 : hue;
         if (this.network && this.network.isConnected) {
@@ -5380,6 +5459,7 @@ class Game {
             player.isBot = !!seatInfo.isBot;
             player.connected = seatInfo.connected !== false;
             player.ping = typeof seatInfo.ping === 'number' ? seatInfo.ping : null;
+            if (typeof seatInfo.skin === 'string') player.skin = seatInfo.skin;
             if (typeof seatInfo.hue === 'number') {
                 player.hue = seatInfo.hue;
                 player.hue2 = typeof seatInfo.hue2 === 'number' ? seatInfo.hue2 : seatInfo.hue;
@@ -5482,6 +5562,7 @@ class Game {
     handleStageNetworkEvent(payload, type) {
         switch (type) {
             case 'STAGE_SELECT_START':
+                this.abortSpeedrunIfActive();
                 this._runWhenAssetsReady(() => {
                     this.stageCandidates = payload.candidates || [];
                     this.gameState = GameState.STAGE_SELECT;
@@ -5515,6 +5596,7 @@ class Game {
                 break;
             }
             case 'STAGE_LOCKED': {
+                this.abortSpeedrunIfActive();
                 this._runWhenAssetsReady(() => {
                     if (typeof playSfx === 'function') playSfx('select');
                     this.loadLevel(payload.levelCode);
@@ -5525,6 +5607,7 @@ class Game {
     }
 
     handlePartyNetworkEvent(payload, type) {
+        this.abortSpeedrunIfActive();
         switch (type) {
             case 'PARTY_BOX_START':
                 this._runWhenAssetsReady(() => {
@@ -5562,6 +5645,7 @@ class Game {
     }
 
     handleBuildNetworkEvent(payload, type) {
+        this.abortSpeedrunIfActive();
         switch (type) {
             case 'BUILD_START': {
                 this._runWhenAssetsReady(() => {
@@ -5655,6 +5739,7 @@ class Game {
     }
 
     handleRaceNetworkEvent(payload, type) {
+        this.abortSpeedrunIfActive();
         switch (type) {
             case 'RACE_START':
                 this._runWhenAssetsReady(() => {
@@ -5734,6 +5819,7 @@ class Game {
     }
 
     handleRoundResult(payload) {
+        this.abortSpeedrunIfActive();
         this._runWhenAssetsReady(() => {
             this.players.forEach(p => { p.scoreBeforeRound = p.score; p.breakdownBeforeRound = { ...p.scoreBreakdown }; p.historyBeforeRound = [...p.pointHistory]; p.lastRoundEntries = []; });
             for (const result of (payload.results || [])) {
@@ -5769,12 +5855,14 @@ class Game {
     }
 
     handleMatchEnd(payload) {
+        this.abortSpeedrunIfActive();
         for (const standing of (payload.finalStandings || [])) {
             const player = this.players[standing.seatIndex];
             if (player) player.score = standing.totalScore;
         }
     }
     resetForRematch() {
+        this.abortSpeedrunIfActive();
         this.players.forEach(p => {
             p.score = 0;
             p.scoreBeforeRound = 0;

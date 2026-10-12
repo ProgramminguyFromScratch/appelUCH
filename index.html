@@ -28,6 +28,12 @@
 
     <div id="nameScreen" class="overlay">
         <h1>APPEL UCH</h1>
+        <div id="accountBar">
+            <span id="accountStatus">Playing as guest</span>
+            <button id="btnAccountLogin" class="secondary">Log in / Sign up</button>
+            <button id="btnAccountProfile" class="secondary" style="display:none;">Profile</button>
+            <button id="btnAccountLogout" class="secondary" style="display:none;">Log out</button>
+        </div>
         <input id="displayNameInput" type="text" placeholder="Your name" maxlength="24" />
         <div class="rowGroup">
             <input id="roomCodeInput" type="text" placeholder="Room code (optional)" maxlength="5" style="text-transform:uppercase; width: 160px;" />
@@ -40,10 +46,108 @@
             <button id="btnCreateOrJoin">Create / Join Room</button>
         </div>
         <button id="btnBrowseLobbies" class="secondary">Browse Open Lobbies</button>
+        <button id="btnPlayers" class="secondary">Players</button>
         <div id="errorText"></div>
         <div id="wakingText"></div>
         <button id="btnShowCredits" class="secondary">Credits</button>
         <a id="discordLink" href="https://discord.gg/GcxRS9Qe45" target="_blank" rel="noopener noreferrer">Join our Discord</a>
+    </div>
+
+    <div id="authScreen" class="overlay" style="display:none;">
+        <h1 id="authTitle">Log in</h1>
+        <input id="authUsername" type="text" placeholder="Username" maxlength="16" autocomplete="username" />
+        <input id="authPassword" type="password" placeholder="Password" maxlength="128" autocomplete="current-password" />
+        <input id="authPassword2" type="password" placeholder="Confirm password" maxlength="128" autocomplete="new-password" style="display:none;" />
+        <div id="authHint">3-16 letters, numbers or underscores. Password 8+ characters.</div>
+        <div id="authError"></div>
+        <div class="rowGroup">
+            <button id="btnAuthSubmit">Log in</button>
+            <button id="btnAuthCancel" class="secondary">Cancel</button>
+        </div>
+        <button id="btnAuthSwitch" class="secondary">Need an account? Sign up</button>
+    </div>
+
+    <div id="profileScreen" class="overlay" style="display:none;">
+        <div id="profileCard">
+            <div id="profileTop">
+                <canvas id="profileAvatar" width="48" height="64" aria-hidden="true"></canvas>
+                <div id="profileHead">
+                    <h1 id="profileName">Profile</h1>
+                    <div id="profileMeta">
+                        <span id="profileLastOnline"></span>
+                        <span id="profileSince"></span>
+                    </div>
+                </div>
+            </div>
+            <div id="profileError" role="alert"></div>
+
+            <div id="profileHero"></div>
+            <dl id="profileStats"></dl>
+
+            <div id="profileAchTop">
+                <h2 id="profileAchHeader">Achievements</h2>
+                <div id="profileAchFilter" role="group" aria-label="Filter achievements">
+                    <button type="button" data-filter="all">All</button>
+                    <button type="button" data-filter="unlocked" class="on">Unlocked</button>
+                    <button type="button" data-filter="locked">Locked</button>
+                </div>
+            </div>
+            <div id="profileAchBar" role="progressbar" aria-label="Achievements unlocked"><i></i></div>
+            <ul id="profileAchievements"></ul>
+            <div id="profileAchEmpty" style="display:none;"></div>
+
+            <div id="profileFooter">
+                <div id="profileLookup">
+                    <input id="profileSearch" type="text" placeholder="Look up a player" maxlength="16" aria-label="Look up a player" />
+                    <button id="btnProfileSearch" class="secondary">Look up</button>
+                </div>
+                <button id="btnProfileClose" class="secondary">Back</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="playersScreen" class="overlay" style="display:none;">
+        <h1>Players</h1>
+        <div class="rowGroup">
+            <input id="playersSearch" type="text" placeholder="Search players" maxlength="16" />
+            <button id="btnPlayersSearch" class="secondary">Search</button>
+        </div>
+        <ul id="playersList"></ul>
+        <div id="playersEmpty" style="display:none;">No players found.</div>
+        <div id="playersError"></div>
+        <div class="rowGroup">
+            <button id="btnPlayersMore" class="secondary" style="display:none;">Load more</button>
+            <button id="btnPlayersRefresh" class="secondary">Refresh</button>
+            <button id="btnPlayersClose" class="secondary">Back</button>
+        </div>
+    </div>
+
+    <div id="toastHost"></div>
+
+    <div id="speedrunBoard" class="overlay" style="display:none;">
+        <h1>Speedrun Leaderboard</h1>
+        <div id="srNav">
+            <button id="srPrev" class="secondary" aria-label="Previous level">&#9664;</button>
+            <select id="srLevelSelect" aria-label="Level"></select>
+            <button id="srNext" class="secondary" aria-label="Next level">&#9654;</button>
+        </div>
+        <div id="srSub"></div>
+        <div id="srTools">
+            <button id="srWatchAll" class="secondary">Watch all PBs</button>
+            <button id="srRaceWR" class="secondary">Race WR</button>
+            <button id="srRacePB" class="secondary">Race my PB</button>
+            <button id="srGhostOff" class="secondary">Ghosts off</button>
+        </div>
+        <div id="srRaceStatus"></div>
+        <div id="srTableWrap">
+            <table id="srTable">
+                <thead><tr><th>#</th><th>Player</th><th>Time</th><th>Ticks</th><th>Date</th><th>Replay</th></tr></thead>
+                <tbody id="srBody"></tbody>
+            </table>
+        </div>
+        <div id="srNote"></div>
+        <div id="srFoot">Unedited levels only &middot; timed in ticks (30/s) from your first input &middot; &larr;/&rarr; switch level &middot; B or Enter closes</div>
+        <button id="srClose" class="secondary">Close</button>
     </div>
 
     <div id="lobbyBrowserScreen" class="overlay" style="display:none;">
@@ -177,6 +281,7 @@
                 </div>
             </div>
         </div>
+        <div id="skinPicker" aria-label="Skins"></div>
         <ul id="playerList"></ul>
 
         <div id="openLobbyRow" class="openLobbyRow">
@@ -198,7 +303,10 @@
     <script src="pieces.js"></script>
     <script src="levelCode.js"></script>
     <script src="network.js"></script>
+    <script src="skins.js"></script>
+    <script src="accounts.js"></script>
     <script src="game.js"></script>
+    <script src="speedrun.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

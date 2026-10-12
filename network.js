@@ -4,6 +4,7 @@ class NetworkClient {
         this.ws = null;
         this.seatIndex = null;
         this.playerId = null;
+        this.authToken = null; // set by accounts.js when logged in
         this.roomCode = null;
         this.onOpen = null;
         this.onClose = null;
@@ -37,8 +38,10 @@ class NetworkClient {
         this.onScoreAdjusted = null;     
         this.onChatMessage = null;       
         this.onSettingsUpdated = null;   
-        this.onColorUpdated = null;      
-        this.onLoginResult = null;       
+        this.onColorUpdated = null;
+        this.onSkinUpdated = null;
+        this.onSkinsState = null;      
+        this.onAdminStatus = null;       
         this.onLivesAdjusted = null;     
         this.onKickRejected = null;      
         this.onBanRejected = null;       
@@ -101,13 +104,16 @@ class NetworkClient {
         this._DIRECT_MAP.CHAT_BROADCAST = 'onChatMessage';
         this._DIRECT_MAP.SETTINGS_UPDATED = 'onSettingsUpdated';
         this._DIRECT_MAP.COLOR_UPDATED = 'onColorUpdated';
-        this._DIRECT_MAP.LOGIN_RESULT = 'onLoginResult';
+        this._DIRECT_MAP.SKIN_UPDATED = 'onSkinUpdated';
+        this._DIRECT_MAP.SKINS_STATE = 'onSkinsState';
+        this._DIRECT_MAP.ADMIN_STATUS = 'onAdminStatus';
         this._DIRECT_MAP.LIVES_ADJUSTED = 'onLivesAdjusted';
         this._DIRECT_MAP.KICK_REJECTED = 'onKickRejected';
         this._DIRECT_MAP.BAN_REJECTED = 'onBanRejected';
         this._DIRECT_MAP.HOST_UPDATED = 'onHostUpdated';
         this._DIRECT_MAP.LOBBY_LIST = 'onLobbyList';
         this._DIRECT_MAP.PLAYER_PING_UPDATE = 'onPlayerPingUpdate';
+        this._DIRECT_MAP.ACHIEVEMENT_UNLOCKED = 'onAchievementUnlocked';
     }
 
     connect() {
@@ -187,15 +193,27 @@ class NetworkClient {
     }
 
     joinRoom(roomCode, displayName, playerId = null, openLobby = true) {
-        this._send('JOIN_ROOM', { roomCode: roomCode || '', displayName, playerId, openLobby: !!openLobby });
+        this._send('JOIN_ROOM', { roomCode: roomCode || '', displayName, playerId, openLobby: !!openLobby, authToken: this.authToken || undefined });
     }
 
     requestLobbyList() {
         this._send('LIST_LOBBIES_REQUEST', {});
     }
 
+    sendRefreshSkins() {
+        this._send('REFRESH_SKINS', {});
+    }
+
+    sendAchievementEvent(kind) {
+        this._send('ACHIEVEMENT_EVENT', { kind });
+    }
+
     sendSetColorRequest(hue, hue2) {
         this._send('SET_COLOR_REQUEST', { hue, hue2: typeof hue2 === 'number' ? hue2 : hue });
+    }
+
+    sendSetSkinRequest(skin) {
+        this._send('SET_SKIN_REQUEST', { skin });
     }
 
     requestStartMatch() {
@@ -208,6 +226,12 @@ class NetworkClient {
 
     sendStageCursorMove(cursorIndex) {
         this._send('STAGE_CURSOR_MOVE', { cursorIndex });
+    }
+
+    // Tell the room this player is off doing a solo speedrun, so the stage
+    // vote doesn't wait for them.
+    sendSpeedrunState(active) {
+        this._send('SPEEDRUN_STATE', { active: !!active });
     }
 
     sendPartyCursorMove(cursorIndex) {
@@ -278,10 +302,6 @@ class NetworkClient {
 
     sendForceStageRequest(levelCode) {
         this._send('FORCE_STAGE_REQUEST', { levelCode });
-    }
-
-    sendLoginRequest(password) {
-        this._send('LOGIN_REQUEST', { password });
     }
 
     sendGiveRequest(kind, amount, targetName) {

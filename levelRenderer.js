@@ -229,6 +229,18 @@ class LevelRenderer {
         this.playerNormal = await loadImage('assets/player/stand.png');
         this.playerCrouch = await loadImage('assets/player/crouch.png');
 
+        // One pair of base sprites per skin (see skins.json); the default skin reuses the ones above.
+        this.skinImages = new Map();
+        if (typeof AppelSkins !== 'undefined') {
+            await AppelSkins.ready;
+            for (const sk of AppelSkins.list) {
+                if (sk.id === AppelSkins.DEFAULT_ID) { this.skinImages.set(sk.id, { normal: this.playerNormal, crouch: this.playerCrouch }); continue; }
+                const normal = await loadImage(AppelSkins.standPath(sk.id));
+                const crouch = await loadImage(AppelSkins.crouchPath(sk.id));
+                if (normal && crouch) this.skinImages.set(sk.id, { normal, crouch });
+            }
+        }
+
         await new Promise(resolve => {
             const img = new Image();
             img.onload = () => { 
@@ -253,18 +265,19 @@ class LevelRenderer {
         this.assetsLoaded = true;
     }
 
-    getHuedPlayerSprite(hue, hue2) {
+    getHuedPlayerSprite(hue, hue2, skin) {
         const topHue = hue || 0;
         const bottomHue = (typeof hue2 === 'number') ? hue2 : topHue;
-        if (!topHue && !bottomHue) return { normal: this.playerNormal, crouch: this.playerCrouch };
+        const base = (this.skinImages && this.skinImages.get(String(skin))) || { normal: this.playerNormal, crouch: this.playerCrouch };
+        if (!topHue && !bottomHue) return base;
 
-        const cacheKey = topHue + '_' + bottomHue;
+        const cacheKey = (skin || '1') + '_' + topHue + '_' + bottomHue;
         const cached = this._cacheGet(this.playerSpriteCache, cacheKey);
         if (cached) return cached;
 
         const sprite = {
-            normal: this.applyPlayerHueEffect(this.playerNormal, topHue, bottomHue),
-            crouch: this.applyPlayerHueEffect(this.playerCrouch, topHue, bottomHue)
+            normal: this.applyPlayerHueEffect(base.normal, topHue, bottomHue),
+            crouch: this.applyPlayerHueEffect(base.crouch, topHue, bottomHue)
         };
         this._cacheSet(this.playerSpriteCache, cacheKey, sprite, this._maxPlayerSpriteEntries,
             (evicted) => this._disposeSprite(evicted));
@@ -319,10 +332,10 @@ class LevelRenderer {
         return result;
     }
 
-    renderPlayer(playerPos, camera, hue = 0, hue2 = 0, name = "", color = "#ffffff", status = null, alpha = 1) {
+    renderPlayer(playerPos, camera, hue = 0, hue2 = 0, name = "", color = "#ffffff", status = null, alpha = 1, skin = '1') {
         if (!this.playerNormal || !this.playerCrouch) return;
 
-        const sprite = this.getHuedPlayerSprite(hue, hue2);
+        const sprite = this.getHuedPlayerSprite(hue, hue2, skin);
 
         this.ctx.save();
 

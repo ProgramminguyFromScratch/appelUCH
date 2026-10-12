@@ -1,4 +1,49 @@
 [
-    { "id": "1", "name": "Appel", "stand": "stand.png", "crouch": "crouch.png" },
-    { "id": "2", "name": "Goofy Appel", "stand": "stand2.png", "crouch": "crouch2.png" }
+    {
+        "id": "1",
+        "name": "Appel",
+        "stand": "stand.png",
+        "crouch": "crouch.png",
+        "unlock": null
+    },
+    {
+        "id": "2",
+        "name": "Goofy Appel",
+        "stand": "stand2.png",
+        "crouch": "crouch2.png",
+        "unlock": "tie_match",
+        "hint": "Earn the Stalemate achievement: tie a match."
+    },
+    {
+        "id": "3",
+        "name": "Sans Appel",
+        "stand": "stand3.png",
+        "crouch": "crouch3.png",
+        "unlock": "double_sidejump",
+        "hint": "Earn the DJDJDJDJDJDJ achievement: do a double sidejump."
+    },
+    {
+        "id": "4",
+        "name": "Noob Appel",
+        "stand": "stand4.png",
+        "crouch": "crouch4.png",
+        "unlock": "die",
+        "hint": "Earn the Oops achievement: die."
+    },
+    {
+        "id": "5",
+        "name": "Kool Appel",
+        "stand": "stand5.png",
+        "crouch": "crouch5.png",
+        "unlock": "speedy",
+        "hint": "Earn the Speeeedy! achievement: set a world record in a speedrun."
+    },
+    {
+        "id": "6",
+        "name": "Grassy Appel",
+        "stand": "stand6.png",
+        "crouch": "crouch6.png",
+        "unlock": "play_all_maps",
+        "hint": "Earn the Explorer achievement: play every map."
+    }
 ]
