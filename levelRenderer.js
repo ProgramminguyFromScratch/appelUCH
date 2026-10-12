@@ -24,9 +24,9 @@ class LevelRenderer {
         // (14 levels as of writing) so that baking every level's thumbnail
         // up front - e.g. for the stage-select "Random" flicker - doesn't
         // evict and force re-generation of hues still in use elsewhere.
-        this._maxTilesetCacheEntries = 20;
-        this._maxWallCacheEntries = 20;
-        this._maxBackgroundVariants = 6;
+        this._maxTilesetCacheEntries = 32;
+        this._maxWallCacheEntries = 32;
+        this._maxBackgroundVariants = 32;
         this._maxPlayerSpriteEntries = 24;
         
         this.tiles = [];
@@ -80,7 +80,15 @@ class LevelRenderer {
         if (map.has(key)) map.delete(key);
         map.set(key, value);
         while (map.size > maxEntries) {
-            const oldestKey = map.keys().next().value;
+            // Never evict hued sets that are still decoding (ready === false):
+            // the hub requests every level's thumbnail in the same frame, and
+            // dropping a pending entry means it is rebuilt (and dropped again)
+            // every frame, so that level's preview never finishes loading.
+            let oldestKey;
+            for (const [k, v] of map) {
+                if (!(v && v.ready === false)) { oldestKey = k; break; }
+            }
+            if (oldestKey === undefined) break;
             const oldestValue = map.get(oldestKey);
             map.delete(oldestKey);
             if (disposer) disposer(oldestValue);
