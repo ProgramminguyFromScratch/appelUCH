@@ -1863,7 +1863,8 @@ class Game {
     // Skins this player may pick (sent by the server on join and when one unlocks).
     handleSkinsState(payload) {
         this.unlockedSkins = (payload && Array.isArray(payload.unlocked)) ? payload.unlocked.map(String) : ['1'];
-        if (typeof this.onSkinsState === 'function') this.onSkinsState(this.unlockedSkins);
+        const newly = (payload && Array.isArray(payload.newlyUnlocked)) ? payload.newlyUnlocked.map(String) : [];
+        if (typeof this.onSkinsState === 'function') this.onSkinsState(this.unlockedSkins, newly);
     }
 
     requestSetSkin(skin) {
@@ -2220,6 +2221,16 @@ class Game {
 
             const px = player.physicsState.PLAYER_X;
             const py = player.physicsState.PLAYER_Y;
+
+            // Reaching Trench (even just walking onto its pad) unlocks the Mappel skin.
+            // The server decides whether it actually counts and remembers it.
+            if (this.network && !this._sentReachTrench && this.STAGE_VOTE_ZONES[12]) {
+                const trench = this.STAGE_VOTE_ZONES[12];
+                if (Math.abs(px - trench.x) <= STAGE_VOTE_ZONE_WIDTH / 2 && Math.abs(py - trench.y) <= STAGE_VOTE_ZONE_DEPTH / 2) {
+                    this._sentReachTrench = true;
+                    this.network.sendAchievementEvent('reach_trench');
+                }
+            }
             let zoneIndex = -1;
             for (let i = 0; i < zones.length; i++) {
                 const dx = Math.abs(px - zones[i].x);

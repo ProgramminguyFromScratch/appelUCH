@@ -45,5 +45,13 @@
         "crouch": "crouch6.png",
         "unlock": "play_all_maps",
         "hint": "Earn the Explorer achievement: play every map."
+    },
+    {
+        "id": "7",
+        "name": "Mappel",
+        "stand": "stand7.png",
+        "crouch": "crouch7.png",
+        "unlock": "skin_mappel",
+        "hint": "Make it to Trench in the hub."
     }
 ]

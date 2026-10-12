@@ -529,3 +529,30 @@ html:-webkit-full-screen body {
 #srRaceStatus { font-size: 13px; color: #9ad0ff; min-height: 16px; }
 #srNote { font-size: 13px; color: #ffb454; min-height: 16px; }
 #srFoot { font-size: 12px; color: #8891a3; }
+
+
+#safariWarning {
+    position: relative;
+    max-width: 440px;
+    padding: 12px 40px 12px 16px;
+    background: #3a2a00;
+    border: 1px solid #ffb400;
+    border-left: 4px solid #ffb400;
+    border-radius: 8px;
+    color: #ffe9b0;
+    font-size: 14px;
+    line-height: 1.4;
+    text-align: left;
+}
+#safariWarning strong { color: #ffb400; }
+.overlay #safariWarning button {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    font-size: 20px;
+    padding: 0 8px;
+    background: transparent;
+    color: #ffe9b0;
+    border: none;
+    cursor: pointer;
+}

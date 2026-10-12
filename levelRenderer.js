@@ -956,6 +956,9 @@ class LevelRenderer {
                     const tileIndex = rawTileVal - 1 + offset;
                     const tile = this._scaled(activeTileset[tileIndex], bucket);
                     if (!tile) continue;
+                    // Tile 1 (empty air) is a 0x0 SVG and makes up ~98% of every level.
+                    // Drawing it does nothing, so skip the hundreds of no-op draw calls per frame.
+                    if (!(tile._lw || tile.width) || !(tile._lh || tile.height)) continue;
 
                     const rotation = levelData.rotations[idx] % 4;
                     const tileX = col * 60 + 30;

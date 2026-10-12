@@ -28,6 +28,24 @@
 
     <div id="nameScreen" class="overlay">
         <h1>APPEL UCH</h1>
+        <div id="safariWarning" style="display:none;">
+            Sorry the game is very laggy on Safari and I have not been able to fix it despite trying many times. Try using Chrome or Firefox.
+            <button id="safariWarningClose" class="secondary" title="Dismiss">&times;</button>
+        </div>
+        <script>
+            (function () {
+                var ua = navigator.userAgent;
+                var isSafari = /Safari/.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|Edg\/|OPR\/|Android/.test(ua);
+                var isIOS = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+                // iOS browsers all use Safari's engine, so switching browsers wouldn't help there.
+                if (!isSafari || isIOS) return;
+                var box = document.getElementById('safariWarning');
+                box.style.display = 'block';
+                document.getElementById('safariWarningClose').addEventListener('click', function () {
+                    box.style.display = 'none';
+                });
+            })();
+        </script>
         <div id="accountBar">
             <span id="accountStatus">Playing as guest</span>
             <button id="btnAccountLogin" class="secondary">Log in / Sign up</button>

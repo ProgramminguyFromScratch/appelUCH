@@ -344,6 +344,7 @@ game.accounts = accounts;
             payload.reason === 'invalid_name' ? 'Enter a name using standard keyboard characters.' :
             payload.reason === 'banned_from_room' ? 'You have been banned from this room.' :
             payload.reason === 'name_reserved' ? 'That name belongs to a registered account. Pick another name or log in.' :
+            payload.reason === 'name_check_failed' ? 'Could not verify that name right now. Please try again in a moment.' :
             payload.reason === 'invalid_session' ? 'Your login expired. Please log in again.' :
             'Could not join that room.';
 
@@ -461,7 +462,7 @@ game.accounts = accounts;
             img.src = AppelSkins.standPath(sk.id);
             img.alt = '';
             const label = document.createElement('span');
-            label.textContent = open ? sk.name : sk.name + ' (locked)';
+            label.textContent = sk.name;
             btn.append(img, label);
             if (open) btn.addEventListener('click', () => {
                 if (sk.id === currentSkin) return;
@@ -475,7 +476,21 @@ game.accounts = accounts;
         skinPicker.style.display = AppelSkins.list.length > 1 ? 'flex' : 'none';
     }
     AppelSkins.ready.then(renderSkinPicker);
-    game.onSkinsState = (list) => { unlockedSkins = list; renderSkinPicker(); };
+    game.onSkinsState = (list, newly) => {
+        unlockedSkins = list;
+        renderSkinPicker();
+        for (const id of newly || []) {
+            const host = document.getElementById('toastHost');
+            if (!host) continue;
+            const el = document.createElement('div');
+            el.className = 'toast';
+            const b = document.createElement('b');
+            b.textContent = 'Skin unlocked';
+            el.append(b, document.createTextNode(AppelSkins.get(id).name));
+            host.append(el);
+            setTimeout(() => el.remove(), 6000);
+        }
+    };
 
     let draggingColorSlider = false;
     let lastSentHueTop = null;
