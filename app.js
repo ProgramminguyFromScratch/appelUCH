@@ -476,6 +476,7 @@ game.accounts = accounts;
         skinPicker.style.display = AppelSkins.list.length > 1 ? 'flex' : 'none';
     }
     AppelSkins.ready.then(renderSkinPicker);
+    AppelSkins.onChange(renderSkinPicker); // skins.json arrived late
     game.onSkinsState = (list, newly) => {
         unlockedSkins = list;
         renderSkinPicker();

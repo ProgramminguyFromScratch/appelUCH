@@ -188,6 +188,7 @@ Object.assign(Game.prototype, {
         if (!this._srHub) {
             this._srHub = {
                 physics: this.physics,
+                debris: this.debris,
                 levelData: this.levelData,
                 currentLevelCode: this.currentLevelCode,
                 mapSnapshot: this.mapSnapshot,
@@ -363,6 +364,11 @@ Object.assign(Game.prototype, {
         sr.world = w;
         this.physics = w.physics;
         this.levelData = w.levelData;
+        // Crumble chunks are visual only: the run's own physics feeds a fresh debris pool, which
+        // the renderer draws. (Ghost worlds keep onParticle = null, so they never spawn any.)
+        this.debris = new TileDebris(w.levelData);
+        w.physics.onParticle = (typ, x, y, src) => this.debris.spawn(typ, x, y, src);
+        if (this.renderer) this.renderer.debris = this.debris;
         this.currentLevelCode = sr.code;
         this.mapSnapshot = null;
         this.mapRotationSnapshot = null;
@@ -393,6 +399,8 @@ Object.assign(Game.prototype, {
         this._srHub = null;
 
         this.physics = hub.physics;
+        this.debris = hub.debris;
+        if (this.renderer) this.renderer.debris = hub.debris;
         this.levelData = hub.levelData;
         this.currentLevelCode = hub.currentLevelCode;
         this.mapSnapshot = hub.mapSnapshot;
@@ -459,6 +467,7 @@ Object.assign(Game.prototype, {
         me.physicsState = this.physics.tick(me.physicsState, keys);
         this.drainAchievementEvents(me);
         this.physics.tickWorldActive([me.physicsState], [me.physicsState]);
+        if (this.debris) this.debris.step(this.physics);
         this.physics.tileUpdates.length = 0;
         sr.ticks += 1;
         this._srStepGhosts(sr);
@@ -839,6 +848,17 @@ Object.assign(Game.prototype, {
             return;
         }
         const data = res.data;
+        // Equal times share a rank (1, 1, 3). Recomputed here from the ticks so
+        // it is right regardless of how the server numbered the rows.
+        let tieRank = 0, tieTicks = null;
+        data.entries.forEach((en, i) => {
+            if (en.ticks !== tieTicks) { tieRank = i + 1; tieTicks = en.ticks; }
+            en.rank = tieRank;
+        });
+        if (data.me) {
+            const first = data.entries.findIndex(en => en.ticks === data.me.ticks);
+            if (first !== -1) data.me.rank = data.entries[first].rank;
+        }
         sub.textContent = `${data.total} ${data.total === 1 ? 'runner' : 'runners'}` +
             (data.me ? `  ·  your best ${formatSpeedrunTicks(data.me.ticks)} (#${data.me.rank})` : '');
         body.innerHTML = '';
@@ -882,7 +902,7 @@ Object.assign(Game.prototype, {
             body.appendChild(tr);
         };
         data.entries.forEach(en => addRow(en.rank, en.username, en.ticks, en.achievedAt, en.hasReplay));
-        if (data.me && data.me.rank > data.entries.length && myName) {
+        if (data.me && myName && !data.entries.some(en => en.username === myName)) {
             const gap = document.createElement('tr');
             gap.innerHTML = '<td colspan="6" class="srMsg">...</td>';
             body.appendChild(gap);

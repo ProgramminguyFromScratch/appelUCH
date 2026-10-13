@@ -195,6 +195,9 @@ function initAccounts(serverUrl, network) {
         if (have) { cb(have); return; }
         const img = new Image();
         img.onload = () => { skinSprites.set(id, img); cb(img); };
+        // One retry on a failed load so a transient error doesn't leave the avatar blank.
+        let retried = false;
+        img.onerror = () => { if (!retried) { retried = true; setTimeout(() => { img.src = AppelSkins.standPath(id) + '?r=1'; }, 500); } };
         img.src = AppelSkins.standPath(id);
     }
 

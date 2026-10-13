@@ -67,6 +67,60 @@ class AppelPhysics {
         this.worldActiveFrame = [];
         this.worldActiveSpawn = [];
         this.tileUpdates = [];
+        // Visual-only hook: called as onParticle(typ, x, y, srcIdx) for every crumble chunk that
+        // breaks off (the Scratch game's `particle` block appending to its PARTICLE list; srcIdx is
+        // the tile it came from, which the debris ignores while it falls out of it). Left null
+        // for headless sims (speedrun.js) so nothing is spawned there.
+        this.onParticle = null;
+    }
+
+    // The Scratch game's `crumble` list: 3 items per animation frame -- (costume, x, y) of the
+    // 15px chunk that breaks off on that frame. costume 1 = crumble1 (dark), 2 = crumble2 (light).
+    // x / y are chunk-grid coordinates 0..3 inside the tile (y counts up); `tick crumble` turns
+    // them into pixel offsets with (v - 1.5) * 15. Read as item (frame*3 + offset - 2 .. - 0) of the
+    // 1-based Scratch list, so the big block (8 frames) uses offset 0 and the mini block (4 frames)
+    // offset 24. Derived from the chunk each tile costume (34-41 / 46-49) loses on that frame.
+    static CRUMBLE = [
+        2, 2, 2,  2, 0, 2,  1, 3, 2,  1, 1, 2,  2, 1, 3,  2, 3, 3,  1, 0, 3,  1, 2, 3,
+        2, 0, 2,  1, 1, 2,  1, 0, 3,  2, 1, 3
+    ];
+
+    // `particle typ x y dx dy dir`: queue a particle at (x, y) displaced by (dx, dy), where the
+    // displacement is rotated by the tile's rotation (dir: 1 = as drawn, 2 = right, 3 = down, 0 = left).
+    particle(typ, x, y, dx, dy, dir, src) {
+        if (!this.onParticle) return;
+        let px, py;
+        if (dir < 2) {
+            if (dir === 0) { px = x - dy; py = y + dx; }
+            else           { px = x + dx; py = y + dy; }
+        } else if (dir === 2) { px = x + dy; py = y - dx; }
+        else                  { px = x - dx; py = y - dy; }
+        this.onParticle(typ, px, py, src);
+    }
+
+    // The particle part of `tick crumble`, run on every frame where the tile costume advances.
+    crumbleParticle(idx, frame, offset) {
+        if (!this.onParticle) return;
+        const list = AppelPhysics.CRUMBLE;
+        const icrum = frame * 3 + offset;        // 1-based, like the Scratch list
+        const typ = list[icrum - 3];
+        const tx = (list[icrum - 2] - 1.5) * 15;
+        const ty = (list[icrum - 1] - 1.5) * 15;
+        const nx = ((idx % this.LSX + this.LSX) % this.LSX) * 60 + 30;
+        const ny = Math.floor(idx / this.LSX) * 60 + 30;
+        const rot = this.MAP_R[idx];
+        const td = Number.isInteger(rot) ? ((rot % 4) + 4) % 4 : 1;
+        this.particle(typ, nx, ny - 7.5, tx, ty, td, idx);
+    }
+
+    // Map-only version of isSolidAt: how far (px) the point (x, y) is inside solid tile
+    // geometry, measured for a push-out in direction `dir`; 0 if it isn't inside anything.
+    tileOverlapAt(x, y, dir) {
+        if (this.get_block_at(x, y) <= 4) return 0;
+        if (dir === 1) return ((x % 30) + 30) % 30;
+        if (dir > 0) return 30 - ((y % 30) + 30) % 30;
+        if (dir === -1) return 30 - ((x % 30) + 30) % 30;
+        return ((y % 30) + 30) % 30;
     }
     isPlaceableCell(idx) {
         if (idx < 0 || idx >= this.MAP.length) return false;
@@ -907,9 +961,9 @@ class AppelPhysics {
 
         for (let i = 0; i < this.worldActiveIdx.length; i++) {
             if (this.worldActiveTyp[i] === "crumble") {
-                this.tickCrumbleWorld(this.worldActiveIdx[i], i, 8, 34, 0.5, allPlayerStates);
+                this.tickCrumbleWorld(this.worldActiveIdx[i], i, 8, 34, 0, 0.5, allPlayerStates);
             } else {
-                this.tickCrumbleWorld(this.worldActiveIdx[i], i, 4, 46, 0.25, allPlayerStates);
+                this.tickCrumbleWorld(this.worldActiveIdx[i], i, 4, 46, 24, 0.25, allPlayerStates);
             }
         }
     }
@@ -956,7 +1010,7 @@ class AppelPhysics {
             }
         }
     }
-    tickCrumbleWorld(idx, a, max, costume, inc, playerStates) {
+    tickCrumbleWorld(idx, a, max, costume, offset, inc, playerStates) {
         if (this.worldActiveFrame[a] > max && this.worldActiveFrame[a] <= 80) {
             if (this.worldActiveFrame[a] + 0.5 > 80) {
                 const nx = ((idx % this.LSX + this.LSX) % this.LSX) * 60 + 30
@@ -978,6 +1032,7 @@ class AppelPhysics {
                     this.MAP[idx] = 1;
                     this.tileUpdates.push({ idx, tile: this.MAP[idx] });
                 }
+                this.crumbleParticle(idx, this.worldActiveFrame[a], offset);
             }
         } else {
             this.worldActiveFrame[a] += 0.5 - inc;

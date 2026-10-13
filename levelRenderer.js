@@ -28,6 +28,14 @@ class LevelRenderer {
         this._maxWallCacheEntries = 32;
         this._maxBackgroundVariants = 32;
         this._maxPlayerSpriteEntries = 24;
+        this._maxParticleHueEntries = 32;
+
+        // Tile particles (see particles.js): base sprites + their SVG text, hue variants,
+        // and the live particles for each level map.
+        this.particleImages = {};
+        this.particleSvgText = {};
+        this._particleHueSets = new Map();
+        this._particleLive = new WeakMap();
         
         this.tiles = [];
         this.wallTiles = [];
@@ -240,20 +248,22 @@ class LevelRenderer {
         this.dynamicImages = await Promise.all(dynamicPromises);
 
         await this._loadSvgSources();
+        await this._loadParticleAssets(loadImage);
 
         this.playerNormal = await loadImage('assets/player/stand.png');
         this.playerCrouch = await loadImage('assets/player/crouch.png');
 
         // One pair of base sprites per skin (see skins.json); the default skin reuses the ones above.
+        // Other skins are loaded here, and any that fail (or aren't in the list yet) are retried
+        // lazily by _ensureSkin() the first time they're needed.
         this.skinImages = new Map();
+        this._skinLoading = new Map();
         if (typeof AppelSkins !== 'undefined') {
             await AppelSkins.ready;
-            for (const sk of AppelSkins.list) {
-                if (sk.id === AppelSkins.DEFAULT_ID) { this.skinImages.set(sk.id, { normal: this.playerNormal, crouch: this.playerCrouch }); continue; }
-                const normal = await loadImage(AppelSkins.standPath(sk.id));
-                const crouch = await loadImage(AppelSkins.crouchPath(sk.id));
-                if (normal && crouch) this.skinImages.set(sk.id, { normal, crouch });
-            }
+            this.skinImages.set(AppelSkins.DEFAULT_ID, { normal: this.playerNormal, crouch: this.playerCrouch });
+            await Promise.all(AppelSkins.list.map(sk => this._ensureSkin(sk.id)));
+            // If skins.json only arrives later, pick the new skins up then.
+            AppelSkins.onChange(() => AppelSkins.list.forEach(sk => this._ensureSkin(sk.id)));
         }
 
         await new Promise(resolve => {
@@ -280,13 +290,143 @@ class LevelRenderer {
         this.assetsLoaded = true;
     }
 
+    async _loadParticleAssets(loadImage) {
+        // id -> file for the tile-triggered particles (particles.js PARTICLE_TYPES) and the
+        // crumble debris sprites (DEBRIS_TYPES, keyed there by the Scratch costume number).
+        const sprites = [];
+        if (typeof PARTICLE_TYPES !== 'undefined') {
+            for (const id of Object.keys(PARTICLE_TYPES)) sprites.push([id, PARTICLE_TYPES[id].file]);
+        }
+        if (typeof DEBRIS_TYPES !== 'undefined') {
+            for (const typ of Object.keys(DEBRIS_TYPES)) sprites.push([DEBRIS_TYPES[typ].id, DEBRIS_TYPES[typ].file]);
+        }
+        await Promise.all(sprites.map(async ([id, file]) => {
+            this.particleImages[id] = await loadImage(file);
+            try {
+                const res = await fetch(file);
+                if (res.ok) this.particleSvgText[id] = await res.text();
+            } catch (e) { /* hue variants fall back to the un-hued sprite */ }
+        }));
+    }
+
+    // Particle sprite recolored with the level's tile hue, like the tiles themselves.
+    getHuedParticle(id, hue) {
+        const base = this.particleImages[id];
+        hue = this._safeHue(hue);
+        const text = this.particleSvgText[id];
+        if (!base || hue === 0 || !text) return base;
+        const key = id + '|' + hue;
+        let entry = this._cacheGet(this._particleHueSets, key);
+        if (!entry) {
+            entry = this._buildHuedSet([base], [text], hue);
+            this._cacheSet(this._particleHueSets, key, entry, this._maxParticleHueEntries);
+        }
+        return entry.list[0];
+    }
+
+    // Starts a particle the first time a trigger tile is seen at a cell.
+    _trackParticle(live, typeId, idx, rotation, tick) {
+        if (live.has(idx)) return;
+        live.set(idx, { type: typeId, rot: rotation, start: tick });
+    }
+
+    // Drops particles whose cell no longer holds their trigger tile (or whose clock went backwards).
+    _pruneParticles(live, levelData, tick) {
+        for (const [idx, p] of live) {
+            if (levelData.map[idx] !== PARTICLE_TYPES[p.type].triggerTile || tick < p.start) live.delete(idx);
+        }
+    }
+
+    // Drawn in world space, after the background-layer tiles and before the foreground ones.
+    _drawParticles(ctx, levelData, live, tick, bucket, hue) {
+        for (const [idx, p] of live) {
+            const def = PARTICLE_TYPES[p.type];
+            const img = this._scaled(this.getHuedParticle(p.type, hue), bucket);
+            if (!img) continue;
+            const w = img._lw || img.naturalWidth || img.width;
+            const h = img._lh || img.naturalHeight || img.height;
+            if (!w || !h) continue;
+            const col = idx % levelData.size_x;
+            const row = Math.floor(idx / levelData.size_x);
+            ctx.save();
+            ctx.translate(col * 60 + 30, -row * 60 - 30);
+            if (p.rot !== 1) ctx.rotate((p.rot - 1) * Math.PI / 2);
+            ctx.translate(0, -def.offset(tick - p.start, p.rot));
+            ctx.drawImage(img, -def.originX, -def.originY, w, h);
+            ctx.restore();
+        }
+    }
+
+    // Crumble debris (see TileDebris in particles.js), drawn in world space between the background and foreground tile layers.
+    // Particle (x, y) is the sprite's bottom-centre in the physics' y-up world; the canvas is y-down.
+    _drawDebris(ctx, debris, bucket, hue) {
+        const list = debris.list;
+        if (!list.length) return;
+        const alphaBefore = ctx.globalAlpha;
+        // The chunks should look like the block they came from, so they follow the crumble tile's
+        // own hue setting (needsHue index 33 = tile 34; the block stays pink on recoloured levels).
+        if (!this.needsHue.has(33)) hue = 0;
+        for (let i = 0; i < list.length; i++) {
+            const p = list[i];
+            const img = this._scaled(this.getHuedParticle(DEBRIS_TYPES[p.typ].id, hue), bucket);
+            if (!img) continue;
+            const w = img._lw || img.naturalWidth || img.width;
+            const h = img._lh || img.naturalHeight || img.height;
+            if (!w || !h) continue;
+            ctx.globalAlpha = alphaBefore * Math.max(0, 1 - p.ghost / 100);
+            ctx.drawImage(img, p.x - DEBRIS.ORIGIN_X, -p.y - DEBRIS.ORIGIN_Y, w, h);
+        }
+        ctx.globalAlpha = alphaBefore;
+    }
+
+    // Loads (with retries) the stand/crouch pair for a skin. Safe to call repeatedly.
+    _ensureSkin(id) {
+        id = String(id);
+        if (this.skinImages.has(id)) return Promise.resolve(true);
+        if (typeof AppelSkins === 'undefined' || !AppelSkins.has(id)) return Promise.resolve(false);
+        if (this._skinLoading.has(id)) return this._skinLoading.get(id);
+        const tryLoad = (src) => new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
+            img.src = src;
+        });
+        const p = (async () => {
+            const delays = [0, 400, 1200, 3000];
+            for (const d of delays) {
+                if (d) await new Promise(r => setTimeout(r, d));
+                const [normal, crouch] = await Promise.all([
+                    tryLoad(AppelSkins.standPath(id)),
+                    tryLoad(AppelSkins.crouchPath(id))
+                ]);
+                if (normal && crouch) { this.skinImages.set(id, { normal, crouch }); return true; }
+            }
+            console.warn('[skins] could not load sprites for skin', id);
+            return false;
+        })().finally(() => {
+            // Allow another round of attempts later if this one failed.
+            setTimeout(() => this._skinLoading.delete(id), 15000);
+        });
+        this._skinLoading.set(id, p);
+        return p;
+    }
+
     getHuedPlayerSprite(hue, hue2, skin) {
         const topHue = hue || 0;
         const bottomHue = (typeof hue2 === 'number') ? hue2 : topHue;
-        const base = (this.skinImages && this.skinImages.get(String(skin))) || { normal: this.playerNormal, crouch: this.playerCrouch };
+        const skinId = String(skin || '1');
+        let base = this.skinImages && this.skinImages.get(skinId);
+        let usedFallback = false;
+        if (!base) {
+            // Skin sprites not loaded (yet): use the default for now, keep trying in the
+            // background, and don't cache the fallback under this skin's key.
+            usedFallback = true;
+            if (this.skinImages) this._ensureSkin(skinId);
+            base = { normal: this.playerNormal, crouch: this.playerCrouch };
+        }
         if (!topHue && !bottomHue) return base;
 
-        const cacheKey = (skin || '1') + '_' + topHue + '_' + bottomHue;
+        const cacheKey = (usedFallback ? '1' : skinId) + '_' + topHue + '_' + bottomHue;
         const cached = this._cacheGet(this.playerSpriteCache, cacheKey);
         if (cached) return cached;
 
@@ -294,8 +434,9 @@ class LevelRenderer {
             normal: this.applyPlayerHueEffect(base.normal, topHue, bottomHue),
             crouch: this.applyPlayerHueEffect(base.crouch, topHue, bottomHue)
         };
-        this._cacheSet(this.playerSpriteCache, cacheKey, sprite, this._maxPlayerSpriteEntries,
-            (evicted) => this._disposeSprite(evicted));
+        // No disposer: an evicted sprite may still be drawn this frame (zeroing its canvas
+        // would make it vanish); let the garbage collector reclaim it instead.
+        this._cacheSet(this.playerSpriteCache, cacheKey, sprite, this._maxPlayerSpriteEntries);
         return sprite;
     }
 
@@ -930,8 +1071,22 @@ class LevelRenderer {
         const startRow = Math.floor((camera.y - viewHalfH) / 60);
         const endRow = Math.ceil((camera.y + viewHalfH) / 60);
 
+        let live = null;
+        if (typeof PARTICLE_TYPES !== 'undefined') {
+            live = this._particleLive.get(levelData.map);
+            if (!live) { live = new Map(); this._particleLive.set(levelData.map, live); }
+        }
+
         for (let isForeground = 0; isForeground <= 1; isForeground++) {
             const offset = isForeground * 86;
+            // Particles (and crumble debris) sit between the two tile layers.
+            if (isForeground === 1) {
+                if (live && live.size) {
+                    this._pruneParticles(live, levelData, tick);
+                    this._drawParticles(ctx, levelData, live, tick, bucket, hue);
+                }
+                if (this.debris && this.debris.levelData === levelData) this._drawDebris(ctx, this.debris, bucket, hue);
+            }
             for (let row = startRow; row <= endRow; row++) {
                 const rowBase = row * levelData.size_x;
                 for (let col = startCol; col <= endCol; col++) {
@@ -940,6 +1095,9 @@ class LevelRenderer {
 
                     let rawTileVal = levelData.map[idx];
                     if (rawTileVal === 0) continue;
+                    if (live && isForeground === 0 && PARTICLE_TRIGGERS[rawTileVal]) {
+                        this._trackParticle(live, PARTICLE_TRIGGERS[rawTileVal], idx, levelData.rotations[idx] % 4, tick);
+                    }
                     if (rawTileVal === 50) {
                         rawTileVal = 52 + tick % 6;
                     } else if (rawTileVal === 51) {

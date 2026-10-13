@@ -2208,6 +2208,7 @@ class Game {
         });
 
         this.physics.tickWorldActive(this.players.map(p => p.physicsState), this.players.map(p => p.physicsState));
+        if (this.debris) this.debris.step(this.physics);
         this.physics.tileUpdates.length = 0; 
 
         this.updateStageVoteProgress();
@@ -2746,6 +2747,10 @@ class Game {
             this.levelData.size_x,
             this._sharedTouching
         );
+        // Crumble blocks shed little chunks; purely visual, so they live on the client only.
+        this.debris = new TileDebris(this.levelData);
+        this.physics.onParticle = (typ, x, y, src) => this.debris.spawn(typ, x, y, src);
+        if (this.renderer) this.renderer.debris = this.debris;
         this.mapSnapshot = null;
         this.mapRotationSnapshot = null;
         const sharedOBJ = this.physics.spawnOBJ(this.levelData);
@@ -2802,6 +2807,7 @@ class Game {
                 this.profiler.beginFrame(now);
 
                 if (this.gameState === GameState.LOADING) {
+                    this._indicatorWarmup = 45;
                     this.profiler.time('loading', () => {
                         this.checkLoadStatus();
                         this.drawLoadingScreen();
@@ -3114,6 +3120,7 @@ class Game {
             }
         });
         this.physics.tickWorldActive(this.players.map(p => p.physicsState), this.players.map(p => p.physicsState));
+        if (this.debris) this.debris.step(this.physics);
         if (this.physics.tileUpdates.length) {
             if (this.network) {
                 for (const upd of this.physics.tileUpdates) {
@@ -3520,6 +3527,13 @@ class Game {
     }
     drawOffscreenIndicators() {
         if (!this.camera || !this.camera.zoom) return;
+        // Right after joining, the camera is still easing from its default
+        // position toward the players, so everyone looks off-screen and a
+        // pile of name arrows flashes at the edges. Wait for it to settle.
+        if (this._indicatorWarmup > 0) {
+            this._indicatorWarmup--;
+            return;
+        }
         const ctx = this.ctx;
         const w = this.canvas.width;
         const h = this.canvas.height;
