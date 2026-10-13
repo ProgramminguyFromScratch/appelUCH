@@ -21,6 +21,114 @@ const LOCAL_PLAYER_CONTROLS = {
     rotateCW: ['KeyE'],
     confirm: ['ShiftLeft', 'ShiftRight', 'Enter', 'NumpadEnter']
 };
+
+// ---------------------------------------------------------------- keybinds --
+// Gameplay controls live in LOCAL_PLAYER_CONTROLS (each action = list of
+// KeyboardEvent.code values) and the menu / utility hotkeys live in HOTKEYS.
+// Both are edited in place so every reference keeps seeing the live bindings,
+// and are saved to a cookie so they survive page reloads.
+const DEFAULT_CONTROLS = JSON.parse(JSON.stringify(LOCAL_PLAYER_CONTROLS));
+const DEFAULT_HOTKEYS = {
+    settings: ['KeyP'],
+    match: ['KeyM'],
+    chat: ['KeyT'],
+    help: ['KeyH'],
+    fullscreen: ['KeyF'],
+    camera: ['Digit1'],
+    speedrun: ['KeyR'],
+    leaderboard: ['KeyB']
+};
+const HOTKEYS = JSON.parse(JSON.stringify(DEFAULT_HOTKEYS));
+const KEYBIND_COOKIE = 'appel_keybinds';
+const KEYBIND_MAX_KEYS = 6;
+// Rows shown on the Keybinds tab of the P menu (the last row resets everything).
+const KEYBIND_ROWS = [
+    { action: 'left', label: 'Move left' },
+    { action: 'right', label: 'Move right' },
+    { action: 'up', label: 'Jump' },
+    { action: 'down', label: 'Crouch' },
+    { action: 'rotateCCW', label: 'Rotate left' },
+    { action: 'rotateCW', label: 'Rotate right' },
+    { action: 'confirm', label: 'Confirm / place / give up' },
+    { action: 'settings', label: 'Open settings menu' },
+    { action: 'match', label: 'Match settings' },
+    { action: 'chat', label: 'Open chat' },
+    { action: 'help', label: 'Controls list' },
+    { action: 'fullscreen', label: 'Fullscreen' },
+    { action: 'camera', label: 'Cycle camera mode' },
+    { action: 'speedrun', label: 'Speedrun / reset run' },
+    { action: 'leaderboard', label: 'Speedrun leaderboards' },
+    { reset: true, label: 'Reset all to defaults' }
+];
+
+function getBindList(action) {
+    if (Object.prototype.hasOwnProperty.call(DEFAULT_CONTROLS, action)) return LOCAL_PLAYER_CONTROLS[action];
+    return HOTKEYS[action];
+}
+function setBindList(action, codes) {
+    const list = getBindList(action);
+    list.length = 0;
+    codes.forEach(c => list.push(c));
+}
+function isHotkey(action, code) {
+    return HOTKEYS[action].includes(code);
+}
+function keyLabel(code) {
+    const names = {
+        ArrowLeft: '\u2190', ArrowRight: '\u2192', ArrowUp: '\u2191', ArrowDown: '\u2193',
+        Space: 'Space', Enter: 'Enter', NumpadEnter: 'Num Enter', Tab: 'Tab', Backspace: 'Backspace',
+        ShiftLeft: 'L-Shift', ShiftRight: 'R-Shift', ControlLeft: 'L-Ctrl', ControlRight: 'R-Ctrl',
+        AltLeft: 'L-Alt', AltRight: 'R-Alt', CapsLock: 'Caps Lock',
+        Backquote: '`', Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']',
+        Backslash: '\\', Semicolon: ';', Quote: "'", Comma: ',', Period: '.', Slash: '/'
+    };
+    if (names[code]) return names[code];
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^Digit\d$/.test(code)) return code.slice(5);
+    if (/^Numpad/.test(code)) return 'Num ' + code.slice(6);
+    return code;
+}
+// "A / J / \u2190" - every key bound to an action.
+function bindText(action) {
+    const list = getBindList(action) || [];
+    return list.length ? list.map(keyLabel).join(' / ') : 'Unbound';
+}
+// Just the first key, for the short on-screen hints.
+function hintKey(action) {
+    const list = getBindList(action) || [];
+    return list.length ? keyLabel(list[0]) : '?';
+}
+
+function saveKeybinds() {
+    try {
+        const data = {};
+        KEYBIND_ROWS.forEach(r => { if (r.action) data[r.action] = getBindList(r.action).slice(); });
+        document.cookie = KEYBIND_COOKIE + '=' + encodeURIComponent(JSON.stringify(data)) +
+            '; max-age=' + (60 * 60 * 24 * 365 * 2) + '; path=/; SameSite=Lax';
+    } catch (e) {}
+}
+function loadKeybinds() {
+    try {
+        const match = document.cookie.split('; ').find(c => c.startsWith(KEYBIND_COOKIE + '='));
+        if (!match) return;
+        const data = JSON.parse(decodeURIComponent(match.slice(KEYBIND_COOKIE.length + 1)));
+        KEYBIND_ROWS.forEach(r => {
+            if (!r.action || !Array.isArray(data[r.action])) return;
+            const codes = data[r.action]
+                .filter(c => typeof c === 'string' && /^[A-Za-z0-9]{1,20}$/.test(c))
+                .slice(0, KEYBIND_MAX_KEYS);
+            // The settings key may never be empty, or the menu could not be reopened.
+            if (r.action === 'settings' && codes.length === 0) return;
+            setBindList(r.action, codes);
+        });
+    } catch (e) {}
+}
+function resetKeybinds() {
+    Object.keys(DEFAULT_CONTROLS).forEach(a => setBindList(a, DEFAULT_CONTROLS[a]));
+    Object.keys(DEFAULT_HOTKEYS).forEach(a => setBindList(a, DEFAULT_HOTKEYS[a]));
+    saveKeybinds();
+}
+loadKeybinds();
 const THEME = {
     bg: '#0b0d13',
     panel: 'rgba(255, 255, 255, 0.05)',
@@ -256,7 +364,9 @@ class Game {
         this.helpMenuOpen = false;
         this.userSettingsOpen = false;
         this.userSettingsMenuIndex = 0;
-        this.userMenuTab = 'player'; // 'player' | 'match' | 'pieces'
+        this.userMenuTab = 'player'; // 'player' | 'match' | 'pieces' | 'keybinds'
+        this.keybindCapture = null;  // { action, mode: 'replace' | 'add' } while waiting for a key
+        this.keybindNotice = null;   // { text, until } short message on the Keybinds tab
         this.unlockedSkins = ['1'];
         this.sfxVolume = 100;
         this.musicVolume = 50;
@@ -391,7 +501,7 @@ class Game {
                 this.tabListOpen = true;
             }
 
-            if (e.code === 'KeyP' && !e.repeat) {
+            if (isHotkey('settings', e.code) && !e.repeat) {
                 e.preventDefault();
                 this.userSettingsOpen = true;
                 this.userMenuTab = 'player';
@@ -400,20 +510,20 @@ class Game {
                 return;
             }
 
-            if (e.code === 'KeyT' && !e.repeat && this.gameState !== GameState.MENU && !this.chatDisabled) {
+            if (isHotkey('chat', e.code) && !e.repeat && this.gameState !== GameState.MENU && !this.chatDisabled) {
                 e.preventDefault();
                 this.openChat();
                 return;
             }
 
-            if (e.code === 'KeyH' && !e.repeat && this.gameState !== GameState.MENU) {
+            if (isHotkey('help', e.code) && !e.repeat && this.gameState !== GameState.MENU) {
                 e.preventDefault();
                 this.helpMenuOpen = true;
                 this.keys = {};
                 return;
             }
 
-            if (e.code === 'KeyM' && !e.repeat && this.gameState !== GameState.MENU) {
+            if (isHotkey('match', e.code) && !e.repeat && this.gameState !== GameState.MENU) {
                 e.preventDefault();
                 // Match settings now live in the P menu (Match tab).
                 this.userSettingsOpen = true;
@@ -423,7 +533,7 @@ class Game {
                 return;
             }
 
-            if (e.code === 'KeyF' && !e.repeat) {
+            if (isHotkey('fullscreen', e.code) && !e.repeat) {
                 e.preventDefault();
                 this.toggleFullscreen();
             }
@@ -439,7 +549,7 @@ class Game {
             } else if (this.gameState === GameState.BUILD) {
                 this.handleBuildInput(e.code);
             }
-            if (e.code === 'Digit1' && !e.repeat && (this.gameState === GameState.RACE || this.gameState === GameState.STAGE_SELECT || this.gameState === GameState.SPEEDRUN)) {
+            if (isHotkey('camera', e.code) && !e.repeat && (this.gameState === GameState.RACE || this.gameState === GameState.STAGE_SELECT || this.gameState === GameState.SPEEDRUN)) {
                 this.cameraMode = (this.cameraMode + 1) % 3;
             }
             if (e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
@@ -714,13 +824,15 @@ class Game {
         return [
             { id: 'player', label: 'Player' },
             { id: 'match', label: 'Match' },
-            { id: 'pieces', label: 'Piece Chances' }
+            { id: 'pieces', label: 'Piece Chances' },
+            { id: 'keybinds', label: 'Keybinds' }
         ];
     }
 
     getUserMenuMeta() {
         if (this.userMenuTab === 'match') return this.SETTINGS_META;
         if (this.userMenuTab === 'pieces') return this.PIECE_CHANCE_META;
+        if (this.userMenuTab === 'keybinds') return KEYBIND_ROWS;
         return this.USER_SETTINGS_META;
     }
 
@@ -744,7 +856,11 @@ class Game {
     }
 
     handleUserSettingsKeydown(e) {
-        const closeKeys = ['KeyP', 'KeyM', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
+        if (this.userMenuTab === 'keybinds') {
+            this.handleKeybindsKeydown(e);
+            return;
+        }
+        const closeKeys = [...HOTKEYS.settings, ...HOTKEYS.match, 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
         if (closeKeys.includes(e.code)) {
             if (!e.repeat) {
                 e.preventDefault();
@@ -819,6 +935,140 @@ class Game {
         this.setUserSettingValue(meta, next);
     }
 
+    notifyKeybind(text) {
+        this.keybindNotice = { text, until: performance.now() + 2500 };
+    }
+
+    // Binds `code` to `action`. mode 'replace' makes it the only key, 'add'
+    // appends it. A key can only belong to one action, so it is taken away
+    // from whatever else used it.
+    assignKeybind(action, code, mode) {
+        if (!code || code === 'Unidentified') return;
+        const target = getBindList(action);
+        const names = KEYBIND_ROWS.filter(r => r.action).map(r => r.action);
+        const victims = names.filter(a => a !== action && getBindList(a).includes(code));
+        for (const v of victims) {
+            if (v === 'settings' && getBindList(v).length === 1) {
+                this.notifyKeybind(keyLabel(code) + ' is the only key that opens this menu');
+                return;
+            }
+        }
+        if (mode === 'add') {
+            if (target.includes(code)) { this.notifyKeybind(keyLabel(code) + ' is already bound here'); return; }
+            if (target.length >= KEYBIND_MAX_KEYS) { this.notifyKeybind('Max ' + KEYBIND_MAX_KEYS + ' keys per action'); return; }
+        }
+        const stolenFrom = [];
+        for (const v of victims) {
+            const list = getBindList(v);
+            list.splice(list.indexOf(code), 1);
+            stolenFrom.push(KEYBIND_ROWS.find(r => r.action === v).label);
+        }
+        if (mode === 'add') target.push(code); else setBindList(action, [code]);
+        saveKeybinds();
+        if (typeof playSfx === 'function') playSfx('select');
+        if (stolenFrom.length) this.notifyKeybind(keyLabel(code) + ' removed from: ' + stolenFrom.join(', '));
+        this.keys = {};
+    }
+
+    handleKeybindsKeydown(e) {
+        // Waiting for the key to bind: swallow everything.
+        if (this.keybindCapture) {
+            e.preventDefault();
+            if (e.repeat) return;
+            const { action, mode } = this.keybindCapture;
+            this.keybindCapture = null;
+            if (e.code === 'Escape') return;
+            this.assignKeybind(action, e.code, mode);
+            return;
+        }
+
+        // Fixed fallbacks (arrows / Esc / Enter) so a bad binding can never lock the menu.
+        const isUp = e.code === 'ArrowUp' || LOCAL_PLAYER_CONTROLS.up.includes(e.code);
+        const isDown = e.code === 'ArrowDown' || LOCAL_PLAYER_CONTROLS.down.includes(e.code);
+        const isRight = e.code === 'ArrowRight' || LOCAL_PLAYER_CONTROLS.right.includes(e.code);
+        const isLeft = e.code === 'ArrowLeft' || LOCAL_PLAYER_CONTROLS.left.includes(e.code);
+        const tabDir = (e.code === 'PageDown' || LOCAL_PLAYER_CONTROLS.rotateCW.includes(e.code)) ? 1
+            : (e.code === 'PageUp' || LOCAL_PLAYER_CONTROLS.rotateCCW.includes(e.code)) ? -1 : 0;
+        const isConfirm = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'ShiftLeft' || e.code === 'ShiftRight';
+
+        if (e.code === 'Escape' || HOTKEYS.settings.includes(e.code) || HOTKEYS.match.includes(e.code)) {
+            if (!e.repeat) {
+                e.preventDefault();
+                this.userSettingsOpen = false;
+            }
+            return;
+        }
+        if (e.repeat) return;
+
+        if (tabDir) {
+            e.preventDefault();
+            const tabs = this.getUserMenuTabs();
+            const cur = tabs.findIndex(t => t.id === this.userMenuTab);
+            this.userMenuTab = tabs[(cur + tabDir + tabs.length) % tabs.length].id;
+            this.userSettingsMenuIndex = 0;
+            if (typeof playSfx === 'function') playSfx('select');
+            return;
+        }
+        const rows = KEYBIND_ROWS;
+        if (isUp || isDown) {
+            e.preventDefault();
+            this.userSettingsMenuIndex = (this.userSettingsMenuIndex + (isDown ? 1 : -1) + rows.length) % rows.length;
+            if (typeof playSfx === 'function') playSfx('select');
+            return;
+        }
+        const row = rows[this.userSettingsMenuIndex];
+        if (!row) return;
+
+        if (isConfirm) {
+            e.preventDefault();
+            if (row.reset) {
+                resetKeybinds();
+                this.keys = {};
+                this.notifyKeybind('All keybinds reset to defaults');
+                if (typeof playSfx === 'function') playSfx('select');
+            } else {
+                this.keybindCapture = { action: row.action, mode: 'replace' };
+            }
+            return;
+        }
+        if (row.reset) return;
+        if (isRight) {
+            e.preventDefault();
+            this.keybindCapture = { action: row.action, mode: 'add' };
+            return;
+        }
+        if (isLeft) {
+            e.preventDefault();
+            const list = getBindList(row.action);
+            if (row.action === 'settings' && list.length <= 1) {
+                this.notifyKeybind('The settings menu needs at least one key');
+                return;
+            }
+            if (list.length) {
+                list.pop();
+                saveKeybinds();
+                if (typeof playSfx === 'function') playSfx('select');
+            }
+            return;
+        }
+        if (e.code === 'Backspace' || e.code === 'Delete') {
+            e.preventDefault();
+            const def = Object.prototype.hasOwnProperty.call(DEFAULT_CONTROLS, row.action)
+                ? DEFAULT_CONTROLS[row.action] : DEFAULT_HOTKEYS[row.action];
+            // Put the defaults back, taking them from any other action that grabbed them.
+            const names = KEYBIND_ROWS.filter(r => r.action).map(r => r.action);
+            for (const a of names) {
+                if (a === row.action) continue;
+                const l = getBindList(a);
+                def.forEach(code => { const i = l.indexOf(code); if (i >= 0 && !(a === 'settings' && l.length === 1)) l.splice(i, 1); });
+            }
+            setBindList(row.action, def);
+            saveKeybinds();
+            this.keys = {};
+            if (typeof playSfx === 'function') playSfx('select');
+        }
+    }
+
     drawUserSettingsMenu() {
         if (!this.userSettingsOpen) return;
         const ctx = this.ctx;
@@ -827,8 +1077,9 @@ class Game {
         const paddingY = 16;
         const titleHeight = 26;
         const tabHeight = 24;
-        const footerHeight = 22;
-        const width = 340;
+        const isKeybinds = this.userMenuTab === 'keybinds';
+        const footerHeight = isKeybinds ? 36 : 22;
+        const width = 400;
         const tabs = this.getUserMenuTabs();
         const metaList = this.getUserMenuMeta();
         const maxVisibleRows = 15;
@@ -837,7 +1088,7 @@ class Game {
         const x = (this.canvas.width - width) / 2;
         const y = (this.canvas.height - height) / 2;
         const isPlayerTab = this.userMenuTab === 'player';
-        const canEdit = isPlayerTab || this.canEditMatchSettings();
+        const canEdit = isPlayerTab || isKeybinds || this.canEditMatchSettings();
 
         let scrollOffset = 0;
         if (metaList.length > maxVisibleRows) {
@@ -884,6 +1135,30 @@ class Game {
             ctx.fillStyle = selected ? THEME.accent : (canEdit ? THEME.text : THEME.textMuted);
             ctx.fillText(meta.label, x + paddingX, rowY + rowHeight / 2 - 3);
 
+            if (isKeybinds) {
+                if (meta.reset) return;
+                const capturing = this.keybindCapture && this.keybindCapture.action === meta.action;
+                let text;
+                let color = selected ? THEME.accent : THEME.textMuted;
+                if (capturing) {
+                    text = this.keybindCapture.mode === 'add' ? 'Press a key to add...' : 'Press a key...';
+                    color = THEME.warning;
+                } else {
+                    text = bindText(meta.action);
+                    if (getBindList(meta.action).length === 0) color = THEME.danger;
+                    const maxW = width - paddingX * 2 - 150;
+                    if (ctx.measureText(text).width > maxW) {
+                        const parts = text.split(' / ');
+                        while (parts.length > 1 && ctx.measureText(parts.join(' / ') + ' ...').width > maxW) parts.pop();
+                        text = parts.join(' / ') + ' ...';
+                    }
+                }
+                ctx.textAlign = 'right';
+                ctx.fillStyle = color;
+                ctx.fillText(text, x + width - paddingX, rowY + rowHeight / 2 - 3);
+                return;
+            }
+
             const value = isPlayerTab ? this.getUserSettingValue(meta) : this.getSettingsMenuValue(meta);
             if (isPlayerTab && (meta.key === 'hue' || meta.key === 'hue2')) {
                 ctx.fillStyle = hueShiftToHex(value);
@@ -909,7 +1184,22 @@ class Game {
         ctx.textAlign = 'center';
         ctx.font = '11px ' + THEME.font;
         ctx.fillStyle = THEME.textMuted;
-        let hint = 'W/S select   A/D change   Q/E switch tab   P/Enter/Shift close';
+        if (isKeybinds) {
+            const notice = this.keybindNotice && performance.now() < this.keybindNotice.until ? this.keybindNotice.text : null;
+            if (this.keybindCapture) {
+                ctx.fillStyle = THEME.warning;
+                ctx.fillText('Press the key you want to use   Esc: cancel', x + width / 2, y + height - 20);
+            } else if (notice) {
+                ctx.fillStyle = THEME.warning;
+                ctx.fillText(notice, x + width / 2, y + height - 20);
+            } else {
+                ctx.fillText('Enter: rebind (replaces)   Right: add a key   Left: remove a key', x + width / 2, y + height - 24);
+                ctx.fillText('Backspace: reset row   Q/E: switch tab   Esc: close', x + width / 2, y + height - 9);
+            }
+            ctx.restore();
+            return;
+        }
+        let hint = `${hintKey('up')}/${hintKey('down')} select   ${hintKey('left')}/${hintKey('right')} change   ${hintKey('rotateCCW')}/${hintKey('rotateCW')} switch tab   ${hintKey('settings')}/Enter/Shift close`;
         if (!isPlayerTab && !canEdit) {
             hint = (this.isHost || this.isAdmin)
                 ? 'Match settings can be changed at stage select   Q/E tab   P close'
@@ -1016,7 +1306,7 @@ class Game {
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         const speedrunHint = this.getSpeedrunHubHint ? this.getSpeedrunHubHint() + '   |   ' : '';
-        ctx.fillText(speedrunHint + 'H: Controls', this.canvas.width / 2, this.canvas.height - 10);
+        ctx.fillText(speedrunHint + hintKey('help') + ': Controls', this.canvas.width / 2, this.canvas.height - 10);
         ctx.restore();
     }
 
@@ -1030,57 +1320,61 @@ class Game {
         ctx.font = '11px ' + THEME.font;
         ctx.textAlign = 'center';
         ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillText('H: Controls', this.canvas.width / 2, this.canvas.height - 10);
+        ctx.fillText(hintKey('help') + ': Controls', this.canvas.width / 2, this.canvas.height - 10);
         ctx.restore();
     }
 
     get CONTROLS_HELP_SECTIONS() {
+        const rot = `${bindText('rotateCCW')} / ${bindText('rotateCW')}`;
+        const confirm = bindText('confirm');
         return [
             {
                 title: 'Movement (Race / Build)',
                 rows: [
-                    ['Move left / right', 'A/D, arrows, or J/L'],
-                    ['Jump', 'W, Up, Space, or Z'],
-                    ['Crouch', 'S, Down, or X']
+                    ['Move left', bindText('left')],
+                    ['Move right', bindText('right')],
+                    ['Jump', bindText('up')],
+                    ['Crouch', bindText('down')]
                 ]
             },
             {
                 title: 'Race',
                 rows: [
-                    ['Hold to give up', 'Shift or Enter (hold)'],
-                    ['Cycle camera mode', '1']
+                    ['Hold to give up', confirm + ' (hold)'],
+                    ['Cycle camera mode', bindText('camera')]
                 ]
             },
             {
                 title: 'Speedrun (stage select)',
                 rows: [
-                    ['Speedrun the stage you stand on / reset', 'R'],
-                    ['Leaderboards', 'B'],
+                    ['Speedrun the stage you stand on / reset', bindText('speedrun')],
+                    ['Leaderboards', bindText('leaderboard')],
                     ['Back to the hub', 'Esc']
                 ]
             },
             {
                 title: 'Build phase',
                 rows: [
-                    ['Rotate piece', 'Q / E'],
-                    ['Place piece', 'Shift or Enter']
+                    ['Rotate piece', rot],
+                    ['Place piece', confirm]
                 ]
             },
             {
                 title: 'Party box',
                 rows: [
-                    ['Move cursor', 'A/D, arrows, or J/L'],
-                    ['Grab piece', 'Shift or Enter']
+                    ['Move cursor', `${bindText('left')} / ${bindText('right')}`],
+                    ['Grab piece', confirm]
                 ]
             },
             {
                 title: 'Menus',
                 rows: [
-                    ['Match settings (stage select)', 'M'],
+                    ['Match settings (stage select)', bindText('match')],
                     ['Change color (stage select)', 'C'],
-                    ['Your settings (color/sfx/music)', 'P'],
-                    ['Open chat', 'T'],
-                    ['This controls list', 'H'],
+                    ['Settings & keybinds', bindText('settings')],
+                    ['Open chat', bindText('chat')],
+                    ['Fullscreen', bindText('fullscreen')],
+                    ['This controls list', bindText('help')],
                     ['Close a menu', 'Enter or Shift']
                 ]
             }
@@ -1088,7 +1382,7 @@ class Game {
     }
 
     handleHelpMenuKeydown(e) {
-        const closeKeys = ['KeyH', 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
+        const closeKeys = [...HOTKEYS.help, 'Escape', 'Enter', 'NumpadEnter', 'ShiftLeft', 'ShiftRight'];
         if (closeKeys.includes(e.code) && !e.repeat) {
             e.preventDefault();
             this.helpMenuOpen = false;
@@ -4943,7 +5237,7 @@ class Game {
 
         this.ctx.font = "bold 17px " + THEME.font;
         this.ctx.lineWidth = 3.5;
-        const tip = 'Press R on a stage to speedrun it   |   B: leaderboards';
+        const tip = `Press ${hintKey('speedrun')} on a stage to speedrun it   |   ${hintKey('leaderboard')}: leaderboards`;
         this.ctx.strokeText(tip, this.canvas.width / 2, 70);
         this.ctx.fillStyle = '#ffd24a';
         this.ctx.fillText(tip, this.canvas.width / 2, 70);

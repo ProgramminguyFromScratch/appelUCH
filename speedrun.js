@@ -152,9 +152,9 @@ Object.assign(Game.prototype, {
         const parts = [];
         if (name) {
             const mine = this.speedrunData && this.speedrunData.mine[name];
-            parts.push(`R: Speedrun ${name}${mine ? ` (your best ${formatSpeedrunTicks(mine)})` : ''}`);
+            parts.push(`${hintKey('speedrun')}: Speedrun ${name}${mine ? ` (your best ${formatSpeedrunTicks(mine)})` : ''}`);
         }
-        parts.push('B: Speedrun leaderboards');
+        parts.push(hintKey('leaderboard') + ': Speedrun leaderboards');
         return parts.join('   |   ');
     },
 
@@ -616,7 +616,7 @@ Object.assign(Game.prototype, {
                 ctx.font = `11px ${THEME.font}`;
                 ctx.textAlign = 'center';
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-                ctx.fillText('Tab: Next runner   |   Space: Pause   |   R: Restart   |   B: Leaderboard   |   Enter: Back to hub', cx, this.canvas.height - 10);
+                ctx.fillText(`Tab: Next runner   |   Space: Pause   |   ${hintKey('speedrun')}: Restart   |   ${hintKey('leaderboard')}: Leaderboard   |   Enter: Back to hub`, cx, this.canvas.height - 10);
             }
             ctx.restore();
             return;
@@ -675,7 +675,7 @@ Object.assign(Game.prototype, {
             ctx.font = `11px ${THEME.font}`;
             ctx.textAlign = 'center';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-            ctx.fillText((this.speedrun.finished ? 'Enter: Back to hub   |   ' : '') + 'R: Reset   |   B: Leaderboard   |   /exit: Back to hub   |   H: Controls', cx, this.canvas.height - 10);
+            ctx.fillText((this.speedrun.finished ? 'Enter: Back to hub   |   ' : '') + `${hintKey('speedrun')}: Reset   |   ${hintKey('leaderboard')}: Leaderboard   |   /exit: Back to hub   |   ${hintKey('help')}: Controls`, cx, this.canvas.height - 10);
         }
         ctx.restore();
     },
@@ -699,14 +699,14 @@ Object.assign(Game.prototype, {
             if (!e.repeat) this.speedrun.watch.paused = !this.speedrun.watch.paused;
             return true;
         }
-        if (e.code === 'KeyB' && !e.repeat &&
+        if (isHotkey('leaderboard', e.code) && !e.repeat &&
             (this.gameState === GameState.STAGE_SELECT || this.gameState === GameState.SPEEDRUN)) {
             e.preventDefault();
             const lvl = this.speedrun ? this.speedrun.levelName : this._levelNameUnderPlayer();
             this.openSpeedrunBoard(lvl);
             return true;
         }
-        if (e.code === 'KeyR' && !e.repeat) {
+        if (isHotkey('speedrun', e.code) && !e.repeat) {
             if (this.gameState === GameState.SPEEDRUN) {
                 e.preventDefault();
                 this.resetSpeedrun(false);
