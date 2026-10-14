@@ -107,6 +107,20 @@ const PIECE_POOL = [
         chance: 4
     },
     {
+        id: 'gravity_pad',
+        name: 'Gravity Pad',
+        tiles: [69],
+        footprint: { width: 1, height: 1 },
+        chance: 5
+    },
+    {
+        id: 'cannon',
+        name: 'Cannon',
+        tiles: [31],
+        footprint: { width: 1, height: 1 },
+        chance: 6
+    },
+    {
         id: 'bomb',
         name: 'Bomb',
         targetsSolid: true,

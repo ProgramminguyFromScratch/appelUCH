@@ -417,6 +417,8 @@ class Game {
         this.randomFlickerThumbs = null;
 
         this.stageTitleCache = new Map();
+        this._thumbBudget = 1;
+        this._thumbLevelData = new Map();
         this.stageVoteZones = []; 
         this.stageCountdownActive = false;
         this.stageCountdownStart = null;
@@ -438,6 +440,8 @@ class Game {
             {x: 4230, y: 377}, //Flora
             {x: 4245, y: 737} //Random
         ];
+        // The community level station. Not a vote zone: standing here votes for nothing.
+        this.COMMUNITY_PAD = { x: 3870, y: 677 };
         this.PARTY_BOX_SLOT_COUNT = Math.ceil(1.5 * this.playerCount);
         this.PARTY_TIME_LIMIT = 12; 
         this.partySlots = [];
@@ -655,7 +659,11 @@ class Game {
             this.canvas.style.height = Math.round(dispH) + 'px';
 
             const dpr = window.devicePixelRatio || 1;
-            this._renderScale = Math.min(4, Math.max(1, (dispW * dpr) / logicalW));
+            // Cap the backing store: at 4K a 4x scale is an 8.3M-pixel canvas that
+            // integrated GPUs cannot fill 30 times a second. ~2560x1440 is still crisp.
+            const MAX_BACKING_PIXELS = 2560 * 1440;
+            const pixelCap = Math.sqrt(MAX_BACKING_PIXELS / (logicalW * logicalH));
+            this._renderScale = Math.min(4, pixelCap, Math.max(1, (dispW * dpr) / logicalW));
             this._applyBackingSize();
         };
 
@@ -1571,6 +1579,8 @@ class Game {
             { name: 'color', level: 'any' },
             { name: 'color2', level: 'any' },
             { name: 'exit', level: 'any' },
+            { name: 'edit', level: 'any' },
+            { name: 'community', level: 'any' },
             { name: 'forcestage', level: 'privileged' },
             { name: 'kick', level: 'privileged' },
             { name: 'ban', level: 'privileged' },
@@ -1942,6 +1952,11 @@ class Game {
             return;
         }
 
+        if (cmd === '/edit' || cmd === '/community') {
+            if (this.startCommunity) this.startCommunity(cmd === '/community');
+            return;
+        }
+
         if (cmd === '/exit') {
             if (this.gameState === GameState.SPEEDRUN) this.exitSpeedrun();
             else this.pushSystemMessage('/exit leaves a speedrun and returns you to the hub.');
@@ -2085,6 +2100,9 @@ class Game {
         if (cmd === '/help') {
             const lines = ['Available commands:'];
             lines.push('/color <0-199> - change your color');
+            lines.push('/edit - (in the hub) place a piece on the community level, then beat it to publish (hourly cooldown). Or stand on the Community Level pad and press R');
+            lines.push('/community - (in the hub) play the community level (or press Enter / Shift on its pad)');
+            lines.push('/exit - leave a speedrun / community run');
 
             if (this.isHost || this.isAdmin) {
                 lines.push('/kick <username> - remove a player from the room');
@@ -2348,13 +2366,24 @@ class Game {
         if (this.stageThumbnails.has(levelCode)) return this.stageThumbnails.get(levelCode);
         if (!this.renderer.assetsLoaded) return null;
 
-        const levelData = LevelRenderer.getDataFromCode(levelCode);
-        if (!levelData) return null;
+        // Parsed once per code: callers retry every frame while a level's recolored
+        // SVGs are still loading, and re-expanding the map each time added up.
+        if (!this._thumbLevelData) this._thumbLevelData = new Map();
+        let levelData = this._thumbLevelData.get(levelCode);
+        if (!levelData) {
+            levelData = LevelRenderer.getDataFromCode(levelCode);
+            if (!levelData) return null;
+            this._thumbLevelData.set(levelCode, levelData);
+        }
         // Hue-shifted SVGs load asynchronously; callers retry next frame on null.
         if (!this.renderer.isLevelReady(levelData)) {
             this.renderer.prewarmLevel(levelData);
             return null;
         }
+        // The hub asks for every level's thumbnail at once; baking them all in one
+        // frame was a multi-hundred-ms hitch. One per frame, the rest retry next frame.
+        if (this._thumbBudget <= 0) return null;
+        this._thumbBudget--;
 
         const cols = levelData.size_x;
         const rows = Math.floor(levelData.map.length / cols);
@@ -2418,10 +2447,15 @@ class Game {
             y: centerRow * TILE_SIZE,
             zoom: 1
         };
-        this.renderer.render(levelData, camera, this.tick);
-
-        this.renderer.canvas = originalCanvas;
-        this.renderer.ctx = originalCtx;
+        // Thumbnails are cached for good, so rasterize them at full quality.
+        this.renderer._rasterUnlimited = true;
+        try {
+            this.renderer.render(levelData, camera, this.tick);
+        } finally {
+            this.renderer._rasterUnlimited = false;
+            this.renderer.canvas = originalCanvas;
+            this.renderer.ctx = originalCtx;
+        }
 
         const thumbCanvas = document.createElement('canvas');
         thumbCanvas.width = canvasWidth;
@@ -3023,7 +3057,7 @@ class Game {
     loadLevel(levelCode) {
         this.currentLevelCode = levelCode;
         this.levelData = LevelRenderer.getDataFromCode(levelCode);
-        if (this.renderer && this.renderer.assetsLoaded) this.renderer.prewarmLevel(this.levelData);
+        if (this.renderer && this.renderer.assetsLoaded) this.renderer.prewarmLevel(this.levelData, true);
 
         // Build the spike correlation table once per session and hand the
         // same instance to every AppelPhysics we create. Previously this
@@ -3070,7 +3104,7 @@ class Game {
         this.renderer.loadAssets(() => {
             this.assetsLoadedCount++;
         }).then(() => {
-            if (this.levelData) this.renderer.prewarmLevel(this.levelData);
+            if (this.levelData) this.renderer.prewarmLevel(this.levelData, true);
         });
         if (this._loopStarted) return;
         this._loopStarted = true;
@@ -3078,6 +3112,16 @@ class Game {
         const fps = 30;
         const frameDuration = 1000 / fps;
         let lastFrameTime = performance.now();
+        // A step is due once `delta` is within `tolerance` of a full frame. With a
+        // fixed 1ms tolerance, any rAF timestamp that arrives ~1ms early (normal
+        // jitter) misses the step and waits a whole extra refresh: a 33ms frame
+        // becomes ~50ms, then the next one runs early to catch up. The game still
+        // averages 30 steps/s but stutters, and 1%/10% lows read ~19 even when the
+        // JS cost is <2ms. Half a refresh interval of tolerance lets the step land
+        // on whichever vsync is nearest, so lateness never builds.
+        let tolerance = 1;
+        let vsync = 1000 / 60;
+        let lastRaf = 0;
 
         // Driven by requestAnimationFrame instead of a 1ms setInterval
         // busy-poll. rAF is paced to the display's actual vsync/compositor
@@ -3094,7 +3138,7 @@ class Game {
         const pump = (now, maxBacklog) => {
             let delta = now - lastFrameTime;
 
-            while (delta >= frameDuration - 1) {
+            while (delta >= frameDuration - tolerance) {
                 this.profiler.recordFrameTime(delta);
                 lastFrameTime += frameDuration;
                 this.recordFrame(now);
@@ -3126,6 +3170,20 @@ class Game {
         };
 
         const tick = (now) => {
+            if (lastRaf) {
+                const d = now - lastRaf;
+                if (d > 2 && d < 40) {
+                    vsync += (d - vsync) * 0.05;
+                    tolerance = Math.min(8, Math.max(1, vsync * 0.5));
+                }
+            }
+            if (lastRaf) {
+                const gaps = this._rafGaps || (this._rafGaps = []);
+                gaps.push(now - lastRaf);
+                if (gaps.length > 600) gaps.shift();
+            }
+            lastRaf = now;
+            this._thumbBudget = 1;
             // Normal foreground: tolerate a few frames of lag, then resync.
             // After returning from a background stint the hidden-tab timer
             // below has already kept the simulation current.
@@ -3133,6 +3191,18 @@ class Game {
             requestAnimationFrame(tick);
         };
         requestAnimationFrame(tick);
+
+        // Diagnostics for the debug menu: main-thread stalls the profiler cannot
+        // see (garbage collection, extensions, other work in the page).
+        try {
+            this._longTasks = [];
+            new PerformanceObserver(list => {
+                for (const e of list.getEntries()) {
+                    this._longTasks.push({ t: e.startTime, d: e.duration });
+                }
+                if (this._longTasks.length > 200) this._longTasks.splice(0, this._longTasks.length - 200);
+            }).observe({ entryTypes: ['longtask'] });
+        } catch (e) { /* not supported in this browser */ }
 
         // requestAnimationFrame is paused entirely while the tab is hidden or
         // the window is occluded, which froze the simulation (and with it the
@@ -3815,6 +3885,7 @@ class Game {
             this.renderer.renderPlayer(playerPos, this.camera, player.hue, player.hue2, player.name, player.color, status, alpha, player.skin);
         }
 
+        this.renderer.renderCannonFronts(this.levelData, this.camera);
         this.renderer.renderDynamic(firstPlayer.physicsState.OBJ, this.camera);
 
         this.drawOffscreenIndicators();
@@ -4394,6 +4465,8 @@ class Game {
 
         const lines = [
             `FPS: ${this._fps}  (1% low: ${low1 ? low1.toFixed(0) : '--'}  10% low: ${low10 ? low10.toFixed(0) : '--'})`,
+            this._rafDiagLine(),
+            this._longTaskDiagLine(),
             `Ping: ${this.ping !== null ? this.ping + ' ms' : 'n/a'}`,
             `Game state: ${this.gameState}`,
             `Tick: ${this.tick}`,
@@ -4434,6 +4507,30 @@ class Game {
         ctx.restore();
 
         this.drawDebugPieChart(boxX, boxY + statsBoxHeight + 8, boxWidth);
+    }
+
+    // Raw browser frame delivery (requestAnimationFrame gaps), independent of the
+    // game's own 30Hz stepping: median gap and the slowest 1% / 10% as FPS.
+    _rafDiagLine() {
+        const g = this._rafGaps;
+        if (!g || g.length < 30) return 'rAF: measuring...';
+        const recent = g.slice(-300).sort((a, b) => b - a);
+        const med = recent[recent.length >> 1];
+        const avgTop = f => {
+            const n = Math.max(1, Math.round(recent.length * f));
+            let sum = 0;
+            for (let i = 0; i < n; i++) sum += recent[i];
+            return 1000 / (sum / n);
+        };
+        return `rAF gap ${med.toFixed(1)}ms  low1% ${avgTop(0.01).toFixed(0)}  low10% ${avgTop(0.1).toFixed(0)}`;
+    }
+
+    _longTaskDiagLine() {
+        if (!this._longTasks) return 'Long tasks: n/a';
+        const cutoff = performance.now() - 10000;
+        const recent = this._longTasks.filter(t => t.t >= cutoff);
+        const max = recent.reduce((m, t) => Math.max(m, t.d), 0);
+        return `Long tasks (10s): ${recent.length}  max ${max.toFixed(0)}ms`;
     }
 
     static get DEBUG_PIE_STYLE() {
@@ -5213,7 +5310,7 @@ class Game {
                 this.profiler.add('tiles', t.tiles || 0);
             }
         }
-        this.profiler.time('stageVoteZones', () => this.drawStageVoteZones());
+        this.profiler.time('stageVoteZones', () => { this.drawStageVoteZones(); if (this.drawCommunityPad) this.drawCommunityPad(); });
         this.profiler.time('players', () => this.drawEntities());
         this.profiler.time('ui', () => {
             this.drawStageSelectHud();

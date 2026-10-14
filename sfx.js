@@ -4,6 +4,7 @@ const SFX_FILES = {
     sidejump: '/assets/sfx/sidejump.wav',
     land: '/assets/sfx/land.wav',
     boom: '/assets/sfx/boom.wav',
+    cannon: '/assets/sfx/cannon.wav',
     spring: '/assets/sfx/spring.wav',
     crumble: '/assets/sfx/crumble.wav',
     select: '/assets/sfx/select.wav',
@@ -83,6 +84,34 @@ function isMusicPlaying() {
     return (!!musicNode && !musicNode.paused) || (!!levelSelectMusicNode && !levelSelectMusicNode.paused);
 }
 
+
+// cloneNode() on every playback allocates a fresh media element (and, for a
+// burst of jumps/hovers, a fresh decoder) mid-frame. Reuse a few per sound.
+const SFX_POOL = {};
+const SFX_POOL_MAX = 6;
+
+function acquireSfxNode(name, base) {
+    const pool = SFX_POOL[name] || (SFX_POOL[name] = []);
+    for (const node of pool) {
+        if (node.ended || node.paused) {
+            node.currentTime = 0;
+            return node;
+        }
+    }
+    if (pool.length < SFX_POOL_MAX) {
+        const node = base.cloneNode();
+        node.addEventListener('ended', () => ACTIVE_CRUMBLE_NODES.delete(node));
+        pool.push(node);
+        return node;
+    }
+    // All busy: cut off the one that has been playing longest.
+    const node = pool.shift();
+    pool.push(node);
+    node.pause();
+    node.currentTime = 0;
+    return node;
+}
+
 let sfxVolume = 1;
 
 function setSfxVolume(volume) {
@@ -104,12 +133,9 @@ function playSfx(name, volume = 1) {
         ACTIVE_CRUMBLE_NODES.clear();
     }
 
-    const node = base.cloneNode();
+    const node = acquireSfxNode(name, base);
     node.volume = Math.max(0, Math.min(1, volume)) * sfxVolume;
 
-    if (name === 'crumble') {
-        ACTIVE_CRUMBLE_NODES.add(node);
-        node.addEventListener('ended', () => ACTIVE_CRUMBLE_NODES.delete(node));
-    }
+    if (name === 'crumble') ACTIVE_CRUMBLE_NODES.add(node);
     node.play().catch(() => {});
 }

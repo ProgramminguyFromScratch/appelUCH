@@ -30,6 +30,27 @@ class LevelRenderer {
         this._maxPlayerSpriteEntries = 24;
         this._maxParticleHueEntries = 32;
 
+        // Recoloring a tileset means rewriting ~100 SVGs and decoding each one.
+        // Done in one go (e.g. the hub asking for all 14 level thumbnails in the
+        // same frame) that is hundreds of ms on the main thread, i.e. a lag
+        // spike on anything slower than a dev machine. Instead, entries queue
+        // their slots here and a small pump works through them in time slices
+        // between frames, current-level work first.
+        this._hueEntries = [];
+        this._huePumpScheduled = false;
+        this._hueInFlight = 0;
+        this._hueChannel = null;
+
+        // Likewise cap how long a single frame may spend rasterizing SVGs into
+        // bitmaps (see _scaled). Anything over budget draws a bitmap from a
+        // neighbouring zoom bucket (or the raw SVG) for a frame or two.
+        this.RASTER_BUDGET_MS = 4;
+        this._rWinStart = 0;
+        this._rSpent = 0;
+        // Set while baking something that is cached for good (thumbnails), so
+        // it never settles for the stand-in bitmaps.
+        this._rasterUnlimited = false;
+
         // Tile particles (see particles.js): base sprites + their SVG text, hue variants,
         // and the live particles for each level map.
         this.particleImages = {};
@@ -250,6 +271,15 @@ class LevelRenderer {
         await this._loadSvgSources();
         await this._loadParticleAssets(loadImage);
 
+        // Full cannon art (tile 31) drawn over players. Loaded outside loadImage
+        // so it doesn't throw off the loading-progress count.
+        this.cannonFront = await new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
+            img.src = 'assets/cannon_front.svg';
+        });
+
         this.playerNormal = await loadImage('assets/player/stand.png');
         this.playerCrouch = await loadImage('assets/player/crouch.png');
 
@@ -461,16 +491,24 @@ class LevelRenderer {
         const imageData = ctx.getImageData(0, 0, w, h);
         const data = imageData.data;
 
+        // Sprites only contain a few dozen distinct colors, so convert each once
+        // instead of running (and allocating for) the HSV round trip per pixel.
+        const memo = new Map();
         for (let i = 0; i < data.length; i += 4) {
             if (data[i + 3] === 0) continue;
 
-            const [hue, s, v] = this.rgbToHsv(data[i], data[i + 1], data[i + 2]);
-            const shift = hue >= TOP_REGION_HUE_THRESHOLD ? hueTop : hueBottom;
-            const hNorm = (hue / 360 + (shift % 200) / 200) % 1.0;
-            const [r, g, b] = this.hsvToRgb(hNorm * 360, s, v);
-            data[i] = r;
-            data[i + 1] = g;
-            data[i + 2] = b;
+            const key = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
+            let rgb = memo.get(key);
+            if (!rgb) {
+                const [hue, s, v] = this.rgbToHsv(data[i], data[i + 1], data[i + 2]);
+                const shift = hue >= TOP_REGION_HUE_THRESHOLD ? hueTop : hueBottom;
+                const hNorm = (hue / 360 + (shift % 200) / 200) % 1.0;
+                rgb = this.hsvToRgb(hNorm * 360, s, v);
+                memo.set(key, rgb);
+            }
+            data[i] = rgb[0];
+            data[i + 1] = rgb[1];
+            data[i + 2] = rgb[2];
         }
 
         ctx.putImageData(imageData, 0, 0);
@@ -500,11 +538,24 @@ class LevelRenderer {
         this.ctx.translate(-camera.x, camera.y);
 
         this.ctx.translate(playerPos.x, -playerPos.y);
+        const angle = (playerPos.angle - 90) || 0;
         if (name) {
             this.ctx.save();
             this.ctx.scale(1 / camera.zoom, 1 / camera.zoom);
-            
-            const yOffset = playerPos.crouched && !playerPos.onWall ? 15 : 25;
+
+            let yOffset = playerPos.crouched && !playerPos.onWall ? 15 : 25;
+            // Upside down (flipped gravity / ceiling cling): the sprite's head end is the
+            // one that was the feet, so work out how far the rotated sprite actually reaches
+            // above the player and keep the name just over it instead of jumping around.
+            const rad = angle * Math.PI / 180;
+            if (Math.cos(rad) < -0.5) {
+                const top = playerPos.crouched ? (playerPos.onWall ? -16 : -6) : -16;
+                const bottom = playerPos.crouched ? top + 22 : 16;
+                const sinA = Math.sin(rad), cosA = Math.cos(rad);
+                const minY = Math.min(-12 * sinA + top * cosA, 12 * sinA + top * cosA,
+                                      -12 * sinA + bottom * cosA, 12 * sinA + bottom * cosA);
+                yOffset = -minY + 9;
+            }
             const scaledY = -yOffset * camera.zoom;
 
             this.ctx.font = "bold 12px Arial, sans-serif";
@@ -517,7 +568,6 @@ class LevelRenderer {
             this.ctx.restore();
         }
 
-        const angle = (playerPos.angle - 90) || 0; 
         this.ctx.rotate(angle * Math.PI / 180);
 
         if (playerPos.dir === -1) {
@@ -551,6 +601,38 @@ class LevelRenderer {
 
         this.ctx.globalAlpha = 1;
         this.ctx.restore();
+    }
+
+    // Draws every visible cannon (tile 31) on top of the players, so a player inside one sits
+    // fully behind the barrel. Call after the players are drawn.
+    renderCannonFronts(levelData, camera) {
+        if (!this.cannonFront || !levelData || !levelData.map) return;
+
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.translate(this.canvas.width / 2, this.canvas.height / 2);
+        ctx.scale(camera.zoom, camera.zoom);
+        ctx.translate(-camera.x, camera.y);
+        const bucket = this._scaleBucket(ctx.getTransform().a);
+        const img = this._scaled(this.cannonFront, bucket);
+
+        if (img) {
+            const viewHalfW = this.canvas.width / 2 / camera.zoom + 60;
+            const viewHalfH = this.canvas.height / 2 / camera.zoom + 60;
+            const startCol = Math.max(0, Math.floor((camera.x - viewHalfW) / 60));
+            const endCol = Math.min(levelData.size_x - 1, Math.ceil((camera.x + viewHalfW) / 60));
+            const startRow = Math.max(0, Math.floor((camera.y - viewHalfH) / 60));
+            const endRow = Math.ceil((camera.y + viewHalfH) / 60);
+            for (let row = startRow; row <= endRow; row++) {
+                for (let col = startCol; col <= endCol; col++) {
+                    const idx = row * levelData.size_x + col;
+                    if (idx < 0 || idx >= levelData.map.length || levelData.map[idx] !== 31) continue;
+                    const rotation = levelData.rotations[idx] % 4;
+                    this._drawTile(ctx, img, rotation, col * 60 + 30, -row * 60 - 30);
+                }
+            }
+        }
+        ctx.restore();
     }
 
     renderDynamic(OBJ, camera) {
@@ -607,6 +689,25 @@ class LevelRenderer {
         const w = img.naturalWidth || img.width;
         const h = img.naturalHeight || img.height;
         if (!w || !h || img.complete === false || typeof img.getContext === 'function') return img;
+
+        // Over this frame's rasterizing budget: stand in with whatever bitmap
+        // we already have (closest zoom bucket first) and finish next frame.
+        const t0 = performance.now();
+        if (!this._rasterUnlimited) {
+            if (t0 - this._rWinStart > 30) { this._rWinStart = t0; this._rSpent = 0; }
+            if (this._rSpent > this.RASTER_BUDGET_MS) {
+                if (cache) {
+                    let best = null, bestDist = Infinity;
+                    for (const k in cache) {
+                        const d = Math.abs(Math.log(k / bucket));
+                        if (d < bestDist) { bestDist = d; best = cache[k]; }
+                    }
+                    if (best) return best;
+                }
+                return img;
+            }
+        }
+
         // Cap per-bitmap pixel count (big wall SVGs) so memory stays bounded.
         const sc = Math.max(0.5, Math.min(bucket, Math.sqrt(LevelRenderer.MAX_RASTER_PIXELS / (w * h))));
         const c = document.createElement('canvas');
@@ -618,6 +719,7 @@ class LevelRenderer {
         c._lw = w;
         c._lh = h;
         (img._rc || (img._rc = {}))[bucket] = c;
+        this._rSpent += performance.now() - t0;
         return c;
     }
 
@@ -698,62 +800,124 @@ class LevelRenderer {
     }
 
     // Builds an Image from recolored SVG text. Calls onDone(img|null) when decoded.
+    // Uses a Blob URL rather than a data: URI: no encodeURIComponent pass over the
+    // whole SVG on the main thread, and nothing big to keep around as a string.
     _makeHuedSvgImage(text, hueShift, onDone) {
         const img = new Image();
-        img.onload = () => onDone(img);
-        img.onerror = () => onDone(null);
-        img.src = 'data:image/svg+xml;charset=utf-8,' +
-            encodeURIComponent(this._shiftSvgText(text, hueShift));
+        const url = URL.createObjectURL(new Blob([this._shiftSvgText(text, hueShift)], { type: 'image/svg+xml' }));
+        img.onload = () => { URL.revokeObjectURL(url); onDone(img); };
+        img.onerror = () => { URL.revokeObjectURL(url); onDone(null); };
+        img.src = url;
         return img;
     }
 
     // Builds a set of hued images. `list` starts as the un-hued originals and
     // each slot is swapped for its recolored SVG as soon as it has loaded, so
     // drawing never blocks and never draws a missing image. `ready` flips once
-    // every slot is done.
-    _buildHuedSet(baseList, texts, hueShift) {
-        const entry = { list: baseList.slice(), ready: false, promise: null };
-        let pending = 0;
-        entry.promise = new Promise(resolve => {
-            const finish = () => { entry.ready = true; resolve(entry); };
-            baseList.forEach((base, i) => {
-                const text = texts[i];
-                if (!base || !text) return;
-                pending++;
-                this._makeHuedSvgImage(text, hueShift, img => {
-                    if (img) entry.list[i] = img;
-                    if (--pending === 0) finish();
-                });
-            });
-            if (pending === 0) finish();
-        });
+    // every slot is done. The recoloring itself is queued and time-sliced (see
+    // _runHueSlice); `urgent` sets (the level being played) jump the queue.
+    _buildHuedSet(baseList, texts, hueShift, urgent = false) {
+        const entry = {
+            list: baseList.slice(), ready: false, promise: null,
+            urgent: !!urgent, hue: hueShift, texts,
+            queue: [], inFlight: 0, _resolve: null
+        };
+        entry.promise = new Promise(resolve => { entry._resolve = resolve; });
+        baseList.forEach((base, i) => { if (base && texts[i]) entry.queue.push(i); });
+        if (entry.queue.length === 0) {
+            entry.ready = true;
+            entry._resolve(entry);
+        } else {
+            this._hueEntries.push(entry);
+            this._scheduleHuePump();
+        }
         return entry;
     }
 
-    _tilesetEntry(hue) {
+    _bumpEntry(entry) {
+        if (entry && !entry.ready && !entry.urgent) entry.urgent = true;
+    }
+
+    _checkEntryDone(entry) {
+        if (!entry.ready && entry.queue.length === 0 && entry.inFlight === 0) {
+            entry.ready = true;
+            entry._resolve(entry);
+        }
+    }
+
+    _scheduleHuePump() {
+        if (this._huePumpScheduled) return;
+        this._huePumpScheduled = true;
+        const run = () => { this._huePumpScheduled = false; this._runHueSlice(); };
+        // MessageChannel yields to rendering without the 4ms+ clamp nested
+        // setTimeouts get; fall back to a timer where it is unavailable.
+        if (typeof MessageChannel !== 'undefined') {
+            if (!this._hueChannel) {
+                this._hueChannel = new MessageChannel();
+                this._hueChannel.port1.onmessage = () => this._hueRun && this._hueRun();
+            }
+            this._hueRun = run;
+            this._hueChannel.port2.postMessage(0);
+        } else {
+            setTimeout(run, 0);
+        }
+    }
+
+    _runHueSlice() {
+        const t0 = performance.now();
+        const entries = this._hueEntries;
+        while (entries.length) {
+            let entry = null;
+            for (const e of entries) { if (e.urgent) { entry = e; break; } }
+            if (!entry) entry = entries[0];
+            const budget = entry.urgent ? 6 : 3;
+            if (performance.now() - t0 >= budget) break;
+            // Browsers decode SVG images on the main thread; letting hundreds
+            // pile up at once just moves the hitch from our code into theirs.
+            if (this._hueInFlight >= (entry.urgent ? 24 : 6)) break;
+
+            const i = entry.queue.shift();
+            entry.inFlight++;
+            this._hueInFlight++;
+            this._makeHuedSvgImage(entry.texts[i], entry.hue, img => {
+                if (img) entry.list[i] = img;
+                entry.inFlight--;
+                this._hueInFlight--;
+                this._checkEntryDone(entry);
+                if (this._hueEntries.length) this._scheduleHuePump();
+            });
+            if (entry.queue.length === 0) {
+                entries.splice(entries.indexOf(entry), 1);
+                this._checkEntryDone(entry);
+            }
+        }
+        if (entries.length) this._scheduleHuePump();
+    }
+
+    _tilesetEntry(hue, urgent = false) {
         let entry = this._cacheGet(this.tilesetCache, hue);
         if (!entry) {
-            entry = this._buildHuedSet(this.tiles, this.tileSvgText, hue);
+            entry = this._buildHuedSet(this.tiles, this.tileSvgText, hue, urgent);
             this._cacheSet(this.tilesetCache, hue, entry, this._maxTilesetCacheEntries);
-        }
+        } else if (urgent) this._bumpEntry(entry);
         return entry;
     }
 
-    _wallsEntry(hue) {
+    _wallsEntry(hue, urgent = false) {
         let entry = this._cacheGet(this.wallCache, hue);
         if (!entry) {
-            entry = this._buildHuedSet(this.wallTiles, this.wallSvgText, hue);
+            entry = this._buildHuedSet(this.wallTiles, this.wallSvgText, hue, urgent);
             this._cacheSet(this.wallCache, hue, entry, this._maxWallCacheEntries);
-        }
+        } else if (urgent) this._bumpEntry(entry);
         return entry;
     }
 
-    _backgroundEntry(hue) {
+    _backgroundEntry(hue, urgent = false) {
         let entry = this._cacheGet(this.backgroundVariants, hue);
         if (!entry) {
-            entry = this._buildHuedSet([this.background], [this.backgroundSvgText], hue);
+            entry = this._buildHuedSet([this.background], [this.backgroundSvgText], hue, urgent);
             this._cacheSet(this.backgroundVariants, hue, entry, this._maxBackgroundVariants);
-        }
+        } else if (urgent) this._bumpEntry(entry);
         return entry;
     }
 
@@ -764,30 +928,32 @@ class LevelRenderer {
     getHuedTileset(hue) {
         hue = this._safeHue(hue);
         if (hue === 0) return this.tiles;
-        return this._tilesetEntry(hue).list;
+        return this._tilesetEntry(hue, true).list;
     }
 
     getHuedWalls(hue) {
         hue = this._safeHue(hue);
         if (hue === 0) return this.wallTiles;
-        return this._wallsEntry(hue).list;
+        return this._wallsEntry(hue, true).list;
     }
 
     getHuedBackground(hue) {
         hue = this._safeHue(hue);
         if (hue === 0) return this.background;
-        return this._backgroundEntry(hue).list[0];
+        return this._backgroundEntry(hue, true).list[0];
     }
 
     // Starts recoloring everything a level needs. Resolves when all of it is ready.
-    prewarmLevel(levelData) {
+    // `urgent` is for the level about to be played; thumbnails leave it false so
+    // they never delay it.
+    prewarmLevel(levelData, urgent = false) {
         if (!this.assetsLoaded || !levelData) return Promise.resolve();
         const hue = this._safeHue(this.fixHue(levelData.hue));
         const hue2 = this._safeHue(this.fixHue(levelData.hue2));
         const jobs = [];
-        if (hue !== 0) jobs.push(this._tilesetEntry(hue).promise);
-        if (hue2 + 15 !== 0) jobs.push(this._wallsEntry(hue2 + 15).promise);
-        if (hue2 !== 0) jobs.push(this._backgroundEntry(hue2).promise);
+        if (hue !== 0) jobs.push(this._tilesetEntry(hue, urgent).promise);
+        if (hue2 + 15 !== 0) jobs.push(this._wallsEntry(hue2 + 15, urgent).promise);
+        if (hue2 !== 0) jobs.push(this._backgroundEntry(hue2, urgent).promise);
         return Promise.all(jobs);
     }
 
@@ -1045,6 +1211,9 @@ class LevelRenderer {
 
         const viewHalfW = (width / 2) / camera.zoom;
         const viewHalfH = (height / 2) / camera.zoom;
+        // Visible range of world y (canvas y-down) under the camera transform above.
+        const visTop = -camera.y - viewHalfH;
+        const visBottom = -camera.y + viewHalfH;
 
         const wallStartX = Math.max(0, Math.floor((camera.x/2 - viewHalfW) / 60)) - 1;
         const wallEndX = Math.min(levelData.wall.length / 2, Math.ceil((camera.x + viewHalfW) / 60)) - 1;
@@ -1060,8 +1229,15 @@ class LevelRenderer {
             const tw = tile._lw || tile.width;
             const th = tile._lh || tile.height;
             const tileHeight = th/2;
+            if (!(tileHeight > 0)) continue;
 
-            for (let y = wallY; y < camera.y + this.canvas.height; y += tileHeight) {
+            // Only stack tiles over the part of the column that is on screen.
+            // This used to start at the column's (often far off-screen) top and
+            // draw every tile down to the bottom: hundreds of wasted drawImage
+            // calls per frame on tall levels. Same grid, so same pixels.
+            let y = wallY;
+            if (y + th < visTop) y += Math.ceil((visTop - th - y) / tileHeight) * tileHeight;
+            for (; y < visBottom; y += tileHeight) {
                 ctx.drawImage(tile, wallX, y, tw, th);
             }
         }

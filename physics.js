@@ -62,6 +62,8 @@ class AppelPhysics {
         this.RESOLVE = [0, 0, 1, 0, -1, -1, 0, 1, 0, -1, -1, 1, -1, -1, 1, 1, 1];
         this._temp_coords = [0, 0];
         this.key_index = this.MAP.indexOf(70);
+        // Height of the level in px; only non-null while a gravity-flipped player is mid-step.
+        this._mirrorH = null;
         this.worldActiveIdx = [];
         this.worldActiveTyp = [];
         this.worldActiveFrame = [];
@@ -136,6 +138,10 @@ class AppelPhysics {
     }
 
     get_block_at(x, y) {
+        // While a gravity-flipped player is being simulated, the whole step runs in a
+        // vertically mirrored copy of the world (see enterMirror). Sampling the mirrored
+        // point of the real map makes every collision rule work unchanged.
+        if (this._mirrorH !== null) y = this._mirrorH - y - 1e-7;
         if(y < 0) return 0;
         const sx = (x / 60) | 0;
         const sy = (y / 60) | 0;
@@ -849,6 +855,18 @@ class AppelPhysics {
             }
             return;
         }
+        // With gravity flipped there is no floor to fall off, so the void is above the level:
+        // dying once the player is 10 blocks higher than the highest solid tile.
+        if (playerState.gravityFlipped) {
+            const topSolid = this._getTopSolidY();
+            const limit = topSolid >= 0 ? topSolid + AppelPhysics.FLIPPED_VOID_BLOCKS * 60
+                                        : (this.MAP.length / this.LSX) * 60 + 120;
+            if (playerState.PLAYER_Y > limit) {
+                playerState.PLAYER_DEATH = true;
+                playerState.PLAYER_DEATH_VOID = true;
+                return;
+            }
+        }
         if (!this.touching){console.error("spikes not loaded")}
 
         const isInSpikeTile = 
@@ -866,6 +884,13 @@ class AppelPhysics {
     }
 
     activeBlock(dir, tileX, tileY, playerState) {
+        // In a gravity-flipped step the coordinates / directions we are handed are mirrored;
+        // translate them back so the tile lookup and conveyor rules see the real world.
+        const mirrored = this._mirrorH !== null;
+        if (mirrored) {
+            tileY = this._mirrorH - tileY - 1e-7;
+            if (dir === 0) dir = 2; else if (dir === 2) dir = 0;
+        }
         const tileIdx = Math.floor(tileX / 60) + Math.floor(tileY / 60) * this.LSX;
         if (this.mask_char === 6 && !playerState.activeIdxSpawn.includes(tileIdx)) {
             playerState.activeIdxSpawn.push(tileIdx);
@@ -883,7 +908,7 @@ class AppelPhysics {
                     return
                 }
                 if (dir === 1) {
-                    playerState.friction_dy = temp;
+                    playerState.friction_dy = mirrored ? -temp : temp;
                     playerState.friction = 1;
                     return
                 }
@@ -892,7 +917,7 @@ class AppelPhysics {
                     return
                 }  
                 if (dir === -1) {
-                    playerState.friction_dy = -temp;
+                    playerState.friction_dy = mirrored ? temp : -temp;
                     playerState.friction = 1;
                     return
                 }                
@@ -1105,7 +1130,8 @@ class AppelPhysics {
             }
             playerState.player_state = 4;
             if (uy === 0) {
-                playerState.PLAYER_DIR = ux / Math.abs(ux);
+                // PLAYER_DIR is the *render* facing, which is inverted while gravity is flipped.
+                playerState.PLAYER_DIR = (playerState.gravityFlipped ? -1 : 1) * (ux / Math.abs(ux));
             }
         }
         playerState.activeFrame[a] += 1;
@@ -1330,6 +1356,219 @@ class AppelPhysics {
         return this.MAP[idx] === 63;
     }
 
+    // ---- Gravity pads --------------------------------------------------------------
+    // Tile 69 is a non-solid pad. Touching it flips the player's gravity; it stays flipped
+    // until the next pad is touched. Gravity is per player (a flag on the player state).
+    //
+    // Flipped gravity is simulated by running the normal player step inside a vertically
+    // mirrored copy of the world (enterMirror/exitMirror). Every collision, crouch, wall-jump
+    // and conveyor rule then works unchanged, just upside down. All of the transforms below
+    // are their own inverse, so entering and exiting use the same code.
+    static GRAVITY_PAD_TILE = 69;
+    static GRAVITY_PAD_ZONE = 30;   // px of the cell (measured from the pad's base) that triggers it
+    static FLIPPED_VOID_BLOCKS = 10; // flipped players die this many blocks above the highest solid tile
+
+    // World-space top edge of the highest tile that has any collision (-1 if none). Cached
+    // briefly because pieces can be placed/removed mid-round.
+    _getTopSolidY() {
+        if (this._topSolidY !== undefined && this._topSolidCountdown > 0) {
+            this._topSolidCountdown--;
+            return this._topSolidY;
+        }
+        const rows = this.MAP.length / this.LSX;
+        let top = -1;
+        outer:
+        for (let r = rows - 1; r >= 0; r--) {
+            for (let c = 0; c < this.LSX; c++) {
+                const m = this.MASK[this.MAP[c + r * this.LSX]];
+                if (m && (m[0] > 0 || m[1] > 0 || m[2] > 0 || m[3] > 0)) { top = (r + 1) * 60; break outer; }
+            }
+        }
+        this._topSolidY = top;
+        this._topSolidCountdown = 30;
+        return top;
+    }
+
+    static mirrorAngle(a) {
+        let r = (((-a) % 360) + 360) % 360;
+        if (r > 180) r -= 360;
+        return r;
+    }
+
+    _mirrorTransform(ps, H) {
+        ps.PLAYER_Y = H - ps.PLAYER_Y;
+        ps.PLAYER_SY = -ps.PLAYER_SY;
+        ps.friction_dy = -ps.friction_dy;
+        ps.direction = AppelPhysics.mirrorAngle(ps.direction);
+        ps.PLAYER_DIR = -ps.PLAYER_DIR;
+        const t = ps.PSZ[1]; ps.PSZ[1] = ps.PSZ[3]; ps.PSZ[3] = t;
+        if (ps.OBJ) {
+            for (const o of ps.OBJ) {
+                o.y = H - o.y;
+                o.ny = H - o.ny;
+                o.frictiony = -o.frictiony;
+            }
+        }
+    }
+
+    enterMirror(ps) {
+        const H = (this.MAP.length / this.LSX) * 60;
+        this._mirrorTransform(ps, H);
+        this._mirrorH = H;
+    }
+
+    exitMirror(ps) {
+        const H = this._mirrorH;
+        this._mirrorH = null;
+        this._mirrorTransform(ps, H);
+    }
+
+    flipGravity(ps) {
+        ps.gravityFlipped = !ps.gravityFlipped;
+
+        // The render facing is inverted while flipped (see _mirrorTransform).
+        ps.PLAYER_DIR = -ps.PLAYER_DIR;
+
+        // Hitbox is stored in real-world form between ticks, so swap head/feet extents too.
+        const t = ps.PSZ[1]; ps.PSZ[1] = ps.PSZ[3]; ps.PSZ[3] = t;
+
+        // No bounce: velocity is left alone, so the player keeps their momentum and just
+        // starts accelerating the other way.
+
+        // is_falling / is_jumping are left alone. Let go of a floor/ceiling cling though
+        // (which would now be the wrong surface).
+        if (ps.player_wall === 0) {
+            ps.player_wall = null;
+            this.set_flipped(ps, ps.flipped);
+        }
+        // Spin the sprite around (player_state 1 = turning to its target orientation).
+        if (ps.player_state === 0) ps.player_state = 1;
+    }
+
+    // ---- Cannons --------------------------------------------------------------------
+    // Tile 31 is a non-solid barrel cannon. Touching its middle captures the player: they are
+    // held inside (invulnerable to everything except lava / the void) for a moment, then fired
+    // the way the barrel points, diagonally. Rotation: 1 = up-right as drawn, 2 = down-right,
+    // 3 = down-left, 0 = up-left. Cannons are simulated client-side like the rest of the player.
+    static CANNON_TILE = 31;
+    static CANNON_DELAY = 18;     // ticks spent inside before firing
+    static CANNON_SPEED = 34;     // launch speed in px/tick (total, split across both axes)
+    static CANNON_NO_SLOW = 20;   // ticks of horizontal momentum kept after a sideways shot
+    static CANNON_COOLDOWN = 30;  // ticks before the cannon you just left can catch you again
+    static CANNON_CAPTURE = 24;   // px from the cannon's centre that grabs the player
+
+    _cannonDirection(rot) {
+        return [45, 135, -135, -45][rot];   // sprite angle that lines up with the barrel
+    }
+
+    _cannonRot(idx) {
+        const r = this.MAP_R[idx];
+        return Number.isInteger(r) ? (((r % 4) + 4) % 4) : 1;
+    }
+
+    // Returns true while the player is held inside a cannon (the normal step is skipped).
+    tickCannon(ps) {
+        if (ps.cannonCooldown > 0) ps.cannonCooldown--;
+        if (ps.cannonIdx == null || ps.cannonIdx < 0) return false;
+
+        const idx = ps.cannonIdx;
+        if (this.MAP[idx] !== AppelPhysics.CANNON_TILE) { ps.cannonIdx = -1; return false; }
+
+        const cx = (((idx % this.LSX) + this.LSX) % this.LSX) * 60 + 30;
+        const cy = Math.floor(idx / this.LSX) * 60 + 30;
+        const rot = this._cannonRot(idx);
+
+        ps.PLAYER_X = cx;
+        ps.PLAYER_Y = cy;
+        ps.PLAYER_SX = 0;
+        ps.PLAYER_SY = 0;
+        ps.friction_dx = 0;
+        ps.friction_dy = 0;
+        ps.player_wall = null;
+        ps.direction = this._cannonDirection(rot);   // whatever state the player was in, line up with the barrel
+        ps.cannonTimer++;
+
+        if (ps.cannonTimer < AppelPhysics.CANNON_DELAY) {
+            this.check_dangers(ps);   // lava / void can still get you in there
+            if (ps.PLAYER_DEATH) ps.cannonIdx = -1;
+            return true;
+        }
+
+        // Fire.
+        const comp = AppelPhysics.CANNON_SPEED * Math.SQRT1_2;
+        const ux = [-comp, comp, comp, -comp][rot];   // real-world +Y is up
+        const uy = [comp, comp, -comp, -comp][rot];
+        ps.PLAYER_SX = ux;
+        ps.PLAYER_SY = uy;
+        ps.PLAYER_NO_SLOW = AppelPhysics.CANNON_NO_SLOW;
+        ps.PLAYER_DIR = (ps.gravityFlipped ? -1 : 1) * (ux / Math.abs(ux));
+        if (ps.player_state === 0) ps.player_state = 4;
+        ps.cannonIdx = -1;
+        ps.cannonLastIdx = idx;
+        ps.cannonCooldown = AppelPhysics.CANNON_COOLDOWN;
+        if (typeof playSfx === 'function') playSfx('cannon');
+        return false;
+    }
+
+    tickCannonEnter(ps) {
+        if (ps.PLAYER_DEATH || (ps.cannonIdx != null && ps.cannonIdx >= 0)) return;
+        const rows = this.MAP.length / this.LSX;
+        const col = Math.floor(ps.PLAYER_X / 60), row = Math.floor(ps.PLAYER_Y / 60);
+        if (col < 0 || col >= this.LSX || row < 0 || row >= rows) return;
+        const idx = col + row * this.LSX;
+        if (this.MAP[idx] !== AppelPhysics.CANNON_TILE) return;
+        if (idx === ps.cannonLastIdx && ps.cannonCooldown > 0) return;
+        const R = AppelPhysics.CANNON_CAPTURE;
+        if (Math.abs(ps.PLAYER_X - (col * 60 + 30)) > R || Math.abs(ps.PLAYER_Y - (row * 60 + 30)) > R) return;
+
+        ps.cannonIdx = idx;
+        ps.cannonTimer = 0;
+        ps.PLAYER_X = col * 60 + 30;
+        ps.PLAYER_Y = row * 60 + 30;
+        ps.PLAYER_SX = 0;
+        ps.PLAYER_SY = 0;
+        ps.direction = this._cannonDirection(this._cannonRot(idx));
+    }
+
+    tickGravityPads(ps) {
+        const left = ps.PLAYER_X - ps.PSZ[4];
+        const right = ps.PLAYER_X + ps.PSZ[2];
+        const bottom = ps.PLAYER_Y - ps.PSZ[3];
+        const top = ps.PLAYER_Y + ps.PSZ[1];
+        const rows = this.MAP.length / this.LSX;
+        const c0 = Math.max(0, Math.floor(left / 60)), c1 = Math.min(this.LSX - 1, Math.floor(right / 60));
+        const r0 = Math.max(0, Math.floor(bottom / 60)), r1 = Math.min(rows - 1, Math.floor(top / 60));
+        const Z = AppelPhysics.GRAVITY_PAD_ZONE;
+
+        let touching = false;
+        for (let r = r0; r <= r1 && !touching; r++) {
+            for (let c = c0; c <= c1; c++) {
+                const idx = c + r * this.LSX;
+                if (this.MAP[idx] !== AppelPhysics.GRAVITY_PAD_TILE) continue;
+
+                // The pad sits on the "bottom" of its cell as drawn; rotation moves it to
+                // another edge (1 = as drawn, 2 = left edge, 3 = top edge, 0 = right edge).
+                const rot = Number.isInteger(this.MAP_R[idx]) ? (((this.MAP_R[idx] % 4) + 4) % 4) : 1;
+                let x0 = c * 60, x1 = x0 + 60, y0 = r * 60, y1 = y0 + 60;
+                if (rot === 1) y1 = y0 + Z;
+                else if (rot === 3) y0 = y1 - Z;
+                else if (rot === 2) x1 = x0 + Z;
+                else x0 = x1 - Z;
+
+                if (right > x0 && left < x1 && top > y0 && bottom < y1) { touching = true; break; }
+            }
+        }
+
+        if (touching) {
+            if (!ps.gravPadLatch) {
+                ps.gravPadLatch = true;
+                this.flipGravity(ps);
+            }
+        } else {
+            ps.gravPadLatch = false;
+        }
+    }
+
     handleKey(playerState) {
         if (this.key_index > 0) {
             const y = Math.floor(this.key_index / this.LSX) * 60 + 30;
@@ -1372,13 +1611,23 @@ class AppelPhysics {
             playerState.KEY_RIGHT = 0;
         }
 
+        if (this.tickCannon(playerState)) return playerState;
+
         this.tickActive(playerState);
 
         this.applyObjPush(playerState);
 
+        // Gravity-flipped players are stepped inside the mirrored world (see enterMirror).
+        // Spike / lava / void checks and the key pickup stay in real-world space.
+        const mirror = !!playerState.gravityFlipped;
+
+        if (mirror) this.enterMirror(playerState);
         this.resolve_collisions(false, playerState);
+        if (mirror) this.exitMirror(playerState);
 
         this.check_dangers(playerState);
+
+        if (mirror) this.enterMirror(playerState);
 
         this.handle_player_up_down(playerState);
         this.handle_player_left_right(playerState);
@@ -1400,6 +1649,11 @@ class AppelPhysics {
         }
 
         this.positionNow(playerState);
+
+        if (mirror) this.exitMirror(playerState);
+
+        this.tickGravityPads(playerState);
+        this.tickCannonEnter(playerState);
 
         this.handleKey(playerState);
 
@@ -1452,6 +1706,12 @@ class AppelPhysics {
             activeTyp: [],
             activeFrame: [],
             has_key: false,
+            gravityFlipped: false,
+            gravPadLatch: false,
+            cannonIdx: -1,
+            cannonTimer: 0,
+            cannonCooldown: 0,
+            cannonLastIdx: -1,
             OBJ: obj
         }
 

@@ -150,6 +150,10 @@ Object.assign(Game.prototype, {
         const code = idx !== -1 ? this.stageCandidates[idx] : null;
         const name = code ? this._speedrunLevelNameForCode(code) : null;
         const parts = [];
+        if (this.isOnCommunityPad && this.isOnCommunityPad()) {
+            parts.push(`${hintKey('speedrun')}: Edit the community level`);
+            parts.push('Enter / Shift: Play it');
+        }
         if (name) {
             const mine = this.speedrunData && this.speedrunData.mine[name];
             parts.push(`${hintKey('speedrun')}: Speedrun ${name}${mine ? ` (your best ${formatSpeedrunTicks(mine)})` : ''}`);
@@ -211,12 +215,13 @@ Object.assign(Game.prototype, {
         }
         this.speedrun = {
             levelName: name, code, started: false, ticks: 0, finished: false, dead: false, deadFrames: 0,
-            result: null, submitting: false, world: null, inputs: [], ghosts: [], watch: (opts && opts.watch) || null
+            result: null, submitting: false, world: null, inputs: [], ghosts: [], watch: (opts && opts.watch) || null,
+            community: (opts && opts.community) || null, edit: null // see community.js
         };
 
         this.gameState = GameState.SPEEDRUN;
         this.resetSpeedrun(true);
-        if (!this.speedrun.watch) this._srEnsureRaceEntries(name);
+        if (!this.speedrun.watch && !this.speedrun.community) this._srEnsureRaceEntries(name);
         return true;
     },
 
@@ -445,6 +450,7 @@ Object.assign(Game.prototype, {
         const me = this.players[this.localSeatIndex];
         if (!sr || !sr.world || !me || !me.physicsState) return;
         if (sr.watch) { this.updateSpeedrunWatch(); return; }
+        if (sr.edit) { this.updateCommunityEdit(); return; } // cleared the community level: placing the edit
 
         if (sr.dead) {
             sr.deadFrames += 1;
@@ -482,7 +488,8 @@ Object.assign(Game.prototype, {
         if (this.physics.isFlagAt(me.physicsState.PLAYER_X, me.physicsState.PLAYER_Y)) {
             sr.finished = true;
             if (typeof playSfx === 'function') playSfx('finish');
-            this.submitSpeedrun(sr);
+            if (sr.community) this.submitCommunityClear(sr);
+            else this.submitSpeedrun(sr);
         }
     },
 
@@ -594,6 +601,7 @@ Object.assign(Game.prototype, {
     drawSpeedrunHud() {
         const sr = this.speedrun;
         if (!sr) return;
+        if (sr.community) { this.drawCommunityHud(); return; }
         const ctx = this.ctx;
         const cx = this.canvas.width / 2;
         const d = this.speedrunData;
@@ -684,6 +692,12 @@ Object.assign(Game.prototype, {
     // Returns true if the key was consumed.
     handleSpeedrunKey(e) {
         this.initSpeedrunData();
+        if (this.communityHandleKey && this.communityHandleKey(e)) return true;
+        // The community station in the hub: R = edit, Enter / Shift (confirm keys) = just play.
+        if (this.gameState === GameState.STAGE_SELECT && !e.repeat && this.isOnCommunityPad && this.isOnCommunityPad()) {
+            if (isHotkey('speedrun', e.code)) { e.preventDefault(); this.startCommunity(false); return true; }
+            if (LOCAL_PLAYER_CONTROLS.confirm.includes(e.code)) { e.preventDefault(); this.startCommunity(true); return true; }
+        }
         if (this.speedrunBoardOpen) {
             this.handleSpeedrunBoardKey(e);
             return true;
